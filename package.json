@@ -1,0 +1,40 @@
+{
+  "name": "mf-react-ts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "",
+  "main": "index.js",
+  "license": "ISC",
+  "packageManager": "pnpm@10.19.0",
+  "scripts": {
+    "dev:host": "cross-env NODE_ENV=development PORT=3000 webpack serve --config apps/app-shell/webpack.config.cjs",
+    "dev:a": "cross-env NODE_ENV=development PORT=3001 webpack serve --config apps/remote-a/webpack.config.js",
+    "dev:b": "cross-env NODE_ENV=development PORT=3002 webpack serve --config apps/remote-b/webpack.config.js",
+    "dev:c": "cross-env NODE_ENV=development PORT=3003 webpack serve --config apps/remote-c/webpack.config.js",
+    "build:host": "cross-env NODE_ENV=production webpack --config apps/app-shell/webpack.config.js",
+    "build:a": "cross-env NODE_ENV=production webpack --config apps/remote-a/webpack.config.js",
+    "build:b": "cross-env NODE_ENV=production webpack --config apps/remote-b/webpack.config.js",
+    "build:c": "cross-env NODE_ENV=production webpack --config apps/remote-c/webpack.config.js"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.27.1",
+    "@tailwindcss/postcss": "^4.1.15",
+    "@types/node": "^24.9.1",
+    "babel-loader": "^10.0.0",
+    "cross-env": "^7.0.3",
+    "css-loader": "^7.1.2",
+    "mini-css-extract-plugin": "^2.9.4",
+    "postcss-loader": "^8.2.0",
+    "rimraf": "^6.0.1",
+    "style-loader": "^4.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.11",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
+  }
+}
