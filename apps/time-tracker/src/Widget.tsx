@@ -3,8 +3,8 @@ import React from "react";
 export default function Widget() {
   return (
     <div className="p-6 bg-blue-50 rounded-2xl shadow-md border border-blue-200">
-      <h2 className="text-xl font-semibold text-blue-800">Remote B Widget</h2>
-      <p className="text-blue-500 mt-2">Hello from Remote Bss!</p>
+      <h2 className="text-xl font-semibold text-blue-800">Time Tracker</h2>
+      <p className="text-blue-500 mt-2">Hello from Time Tracker!</p>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-// apps/remote-a/webpack.config.cjs
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
@@ -9,13 +8,13 @@ const isProd = process.env.NODE_ENV === "production";
 
 /** @type {import('webpack').Configuration} */
 module.exports = {
-  entry: path.resolve(__dirname, "src/index.ts"), // ✅ absolute path
+  entry: path.resolve(__dirname, "src/index.ts"),
 
   mode: isProd ? "production" : "development",
   devtool: isProd ? "source-map" : "eval-cheap-module-source-map",
 
   output: {
-    path: path.resolve(__dirname, "dist"), // ✅ absolute path
+    path: path.resolve(__dirname, "dist"),
     filename: isProd ? "[name].[contenthash].js" : "[name].js",
     publicPath: "auto",
     clean: true,
@@ -54,7 +53,7 @@ module.exports = {
 
   plugins: [
     new HtmlWebpackPlugin({
-      template: path.resolve(__dirname, "public/index.html"), // ✅ absolute path
+      template: path.resolve(__dirname, "public/index.html"),
     }),
     new MiniCssExtractPlugin({
       filename: isProd ? "[name].[contenthash].css" : "[name].css",
@@ -63,7 +62,7 @@ module.exports = {
       name: "remote_a",
       filename: "remoteEntry.js",
       exposes: {
-        "./Widget": path.resolve(__dirname, "src/Widget"), // ✅ absolute path
+        "./Widget": path.resolve(__dirname, "src/Widget"),
       },
       shared: {
         react: {
