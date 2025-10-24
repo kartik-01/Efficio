@@ -7,14 +7,14 @@
   "license": "ISC",
   "packageManager": "pnpm@10.19.0",
   "scripts": {
-    "dev:app-shell": "cross-env NODE_ENV=development PORT=3000 webpack serve --config apps/dashboard-app-shell/webpack.config.cjs",
+    "dev:app-shell": "cross-env NODE_ENV=development PORT=3000 webpack serve --config apps/dashboard-app-shell/webpack.config.js",
     "dev:task-manager": "cross-env NODE_ENV=development PORT=3001 webpack serve --config apps/task-manager/webpack.config.js",
     "dev:time-tracker": "cross-env NODE_ENV=development PORT=3002 webpack serve --config apps/time-tracker/webpack.config.js",
     "dev:analytics": "cross-env NODE_ENV=development PORT=3003 webpack serve --config apps/analytics/webpack.config.js",
     "build:app-shell": "cross-env NODE_ENV=production webpack --config apps/dashboard-app-shell/webpack.config.js",
     "build:task-manager": "cross-env NODE_ENV=production webpack --config apps/task-manager/webpack.config.js",
     "build:time-tracker": "cross-env NODE_ENV=production webpack --config apps/time-tracker/webpack.config.js",
-    "build:analytics": "cross-env NODE_ENV=production webpack --config apps/analytics/webpack.config.js"
+  "build:analytics": "cross-env NODE_ENV=production webpack --config apps/analytics/webpack.config.js"
   },
   "devDependencies": {
     "@babel/core": "^7.28.4",
@@ -23,8 +23,8 @@
     "@babel/preset-typescript": "^7.27.1",
     "@tailwindcss/postcss": "^4.1.15",
     "@types/node": "^24.9.1",
-    "babel-loader": "^10.0.0",
-    "cross-env": "^7.0.3",
+  "babel-loader": "^10.0.0",
+  "cross-env": "^7.0.3",
     "css-loader": "^7.1.2",
     "mini-css-extract-plugin": "^2.9.4",
     "postcss-loader": "^8.2.0",
@@ -36,5 +36,8 @@
     "webpack": "^5.102.1",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.2"
+  },
+  "dependencies": {
+    "framer-motion": "^12.23.24"
   }
 }

@@ -1,8 +1,9 @@
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
-const { container } = require("webpack");
-const { ModuleFederationPlugin } = container;
+
+const { ModuleFederationPlugin, FederationRuntimePlugin } =
+  require("@module-federation/enhanced");
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -22,9 +23,6 @@ module.exports = {
 
   resolve: {
     extensions: [".tsx", ".ts", ".jsx", ".js"],
-    alias: {
-      // no MUI / emotion aliases
-    },
   },
 
   module: {
@@ -62,28 +60,55 @@ module.exports = {
       filename: isProd ? "[name].[contenthash].css" : "[name].css",
     }),
 
+    // 👇 Standard Module Federation setup
     new ModuleFederationPlugin({
       name: "app_shell",
       filename: "remoteEntry.js",
       remotes: {
-        // keep remotes if you will use them later; they can remain unreachable
-        remote_a: "remote_a@http://localhost:3001/remoteEntry.js",
-        remote_b: "remote_b@http://localhost:3002/remoteEntry.js",
-        remote_c: "remote_c@http://localhost:3003/remoteEntry.js",
+        task_manager: "task_manager@http://localhost:3001/remoteEntry.js",
+        time_tracker: "time_tracker@http://localhost:3002/remoteEntry.js",
+        analytics: "analytics@http://localhost:3003/remoteEntry.js",
       },
-      // remove MUI/emotion sharing entries
       shared: {
         react: { singleton: true, requiredVersion: "^19.2.0" },
         "react-dom": { singleton: true, requiredVersion: "^19.2.0" },
         "@auth0/auth0-react": { singleton: true },
       },
     }),
-  ],
 
-  devServer: {
-    port: Number(process.env.PORT) || 3000,
-    historyApiFallback: true,
-    hot: true,
-    headers: { "Access-Control-Allow-Origin": "*" },
+    // 👇 Enhanced Federation runtime plugin — dev only
+    !isProd &&
+      new FederationRuntimePlugin({
+        reloadOnRemoteChange: true, // auto reload host when any remote rebuilds
+      }),
+  ].filter(Boolean), // ✅ remove "false" entries (so plugin only loads in dev)
+
+devServer: {
+  port: 3000,
+  hot: true,
+  liveReload: true,
+  historyApiFallback: true,
+  headers: { "Access-Control-Allow-Origin": "*" },
+  client: { overlay: false },
+  setupMiddlewares: (middlewares, devServer) => {
+    devServer.app.get("/__trigger_reload__", (_req, res) => {
+      console.log("[MFE] Remote rebuild detected → reloading host");
+      res.sendStatus(200);
+      setTimeout(() => {
+        devServer.sendMessage(devServer.webSocketServer.clients, "static-changed");
+      }, 500);
+    });
+    return middlewares;
   },
+},
+
+
+  performance: {
+    hints: false,
+  },
+
+  ignoreWarnings: [
+    { message: /Script error/ },
+    { message: /ChunkLoadError/ },
+  ],
 };

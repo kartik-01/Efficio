@@ -52,7 +52,7 @@ module.exports = {
       filename: isProd ? "[name].[contenthash].css" : "[name].css",
     }),
     new ModuleFederationPlugin({
-      name: "remote_c",
+      name: "analytics",
       filename: "remoteEntry.js",
       exposes: {
         "./Widget": path.resolve(__dirname, "src/Widget"),
@@ -69,10 +69,21 @@ module.exports = {
       },
     }),
   ],
-  devServer: {
-    port: 3003,
-    historyApiFallback: true,
-    hot: true,
-    headers: { "Access-Control-Allow-Origin": "*" },
+devServer: {
+  port: 3003,
+  hot: true,
+  liveReload: true,
+  historyApiFallback: true,
+  headers: { "Access-Control-Allow-Origin": "*" },
+  client: { overlay: false },
+  setupMiddlewares: (middlewares, devServer) => {
+    if (!devServer) throw new Error("webpack-dev-server is not defined");
+    devServer.compiler.hooks.done.tap("NotifyHostReload", () => {
+      fetch("http://localhost:3000/__trigger_reload__").catch(() => {});
+    });
+    return middlewares;
   },
+},
+
+
 };
