@@ -3,16 +3,6 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { loadRemoteSafely } from "./utils/loadRemoteSafely";
 import { motion, AnimatePresence } from "framer-motion";
 
-if (module && (module as any).hot) {
-  (module as any).hot.addStatusHandler((status: string) => {
-    if (status === "abort" || status === "fail") {
-      console.log("[HMR] Detected remote rebuild → refreshing host...");
-      window.location.reload();
-    }
-  });
-}
-
-
 type RemoteModule = React.ComponentType | null;
 
 export default function App() {
@@ -25,7 +15,7 @@ export default function App() {
     getAccessTokenSilently,
   } = useAuth0();
 
-  // Helper: map hash → app
+  // Map hash → app
   const hashToApp = (hash: string): "task" | "time" | "analytics" => {
     if (hash.includes("time-tracker")) return "time";
     if (hash.includes("analytics")) return "analytics";
@@ -159,7 +149,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
-      {/* 🌐 Navbar */}
+      {/* Navbar */}
       <nav className="w-full bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           {/* Left: Logo + Tabs */}
@@ -203,22 +193,21 @@ export default function App() {
               Sign In / Sign Up
             </button>
           ) : (
-            <>
-              <div className="hidden sm:flex items-center space-x-4 text-sm">
-                <span className="text-gray-700">Hi, {user?.name?.split(" ")[0]}</span>
-                <button
-                  onClick={() => {
-                    setActiveApp("task");
-                    window.history.replaceState({}, "", window.location.origin);
-                    logout({ logoutParams: { returnTo: window.location.origin } });
-                  }}
-                  className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
-                >
-                  Log Out
-                </button>
-              </div>
-
-              {/* Mobile Hamburger */}
+            <div className="flex items-center space-x-4 text-sm">
+              <span className="hidden sm:inline text-gray-700">
+                Hi, {user?.name?.split(" ")[0]}
+              </span>
+              <button
+                onClick={() => {
+                  setActiveApp("task");
+                  window.history.replaceState({}, "", window.location.origin);
+                  logout({ logoutParams: { returnTo: window.location.origin } });
+                }}
+                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition hidden sm:inline"
+              >
+                Log Out
+              </button>
+              {/* Hamburger toggle for mobile */}
               <button
                 className="sm:hidden text-gray-700 p-2 rounded-md hover:bg-gray-100"
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -246,9 +235,59 @@ export default function App() {
                   )}
                 </svg>
               </button>
-            </>
+            </div>
           )}
         </div>
+
+        {/* Mobile dropdown */}
+        <AnimatePresence>
+          {menuOpen && isAuthenticated && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="sm:hidden border-t border-gray-100 bg-white"
+            >
+              <div className="flex flex-col px-4 py-3 space-y-3 text-sm text-gray-700">
+                {[
+                  { id: "task", label: "Task Manager" },
+                  { id: "time", label: "Time Tracker" },
+                  { id: "analytics", label: "Analytics" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveApp(tab.id as any);
+                      setMenuOpen(false);
+                    }}
+                    className={`text-left transition ${
+                      activeApp === tab.id
+                        ? "text-blue-600 font-semibold"
+                        : "hover:text-gray-900"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+                <hr className="border-gray-200" />
+                <div className="flex items-center justify-between">
+                  <span>Hi, {user?.name?.split(" ")[0]}</span>
+                  <button
+                    onClick={() => {
+                      setActiveApp("task");
+                      window.history.replaceState({}, "", window.location.origin);
+                      logout({ logoutParams: { returnTo: window.location.origin } });
+                    }}
+                    className="px-3 py-1.5 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Log Out
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Main content */}
