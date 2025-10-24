@@ -193,49 +193,52 @@ export default function App() {
               Sign In / Sign Up
             </button>
           ) : (
-            <div className="flex items-center space-x-4 text-sm">
-              <span className="hidden sm:inline text-gray-700">
-                Hi, {user?.name?.split(" ")[0]}
-              </span>
-              <button
-                onClick={() => {
-                  setActiveApp("task");
-                  window.history.replaceState({}, "", window.location.origin);
-                  logout({ logoutParams: { returnTo: window.location.origin } });
-                }}
-                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition hidden sm:inline"
-              >
-                Log Out
-              </button>
-              {/* Hamburger toggle for mobile */}
-              <button
-                className="sm:hidden text-gray-700 p-2 rounded-md hover:bg-gray-100"
-                onClick={() => setMenuOpen(!menuOpen)}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2"
-                  stroke="currentColor"
-                  className="w-6 h-6"
-                >
-                  {menuOpen ? (
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  ) : (
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  )}
-                </svg>
-              </button>
-            </div>
+<div className="flex items-center space-x-4 text-sm">
+  {user?.picture && (
+    <img
+      src={user.picture}
+      alt="User Profile"
+      className="w-8 h-8 rounded-full border border-gray-300"
+    />
+  )}
+
+  <span className="hidden sm:inline text-gray-700">
+    Hi, {user?.name?.split(" ")[0]}
+  </span>
+
+  <button
+    onClick={() => {
+      setActiveApp("task");
+      window.history.replaceState({}, "", window.location.origin);
+      logout({ logoutParams: { returnTo: window.location.origin } });
+    }}
+    className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition hidden sm:inline"
+  >
+    Log Out
+  </button>
+
+  {/* Hamburger toggle for mobile */}
+  <button
+    className="sm:hidden text-gray-700 p-2 rounded-md hover:bg-gray-100"
+    onClick={() => setMenuOpen(!menuOpen)}
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth="2"
+      stroke="currentColor"
+      className="w-6 h-6"
+    >
+      {menuOpen ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+      )}
+    </svg>
+  </button>
+</div>
+
           )}
         </div>
 
