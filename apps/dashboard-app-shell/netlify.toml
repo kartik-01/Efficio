@@ -2,9 +2,7 @@
   base = "apps/dashboard-app-shell"
   command = "pnpm build:app-shell"
   publish = "apps/dashboard-app-shell/dist"
-
-[build.ignore]
-  command = "git diff --quiet HEAD^ HEAD -- apps/dashboard-app-shell/"
+  ignore = "git diff --quiet HEAD^ HEAD -- apps/dashboard-app-shell/"
 
 [[redirects]]
   from = "/*"
