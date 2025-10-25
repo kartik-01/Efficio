@@ -1,6 +1,6 @@
 [build]
   base = "apps/dashboard-app-shell"
-  command = "pnpm build:app-shell"
+  command = "pnpm build"
   publish = "apps/dashboard-app-shell/dist"
   ignore = "git diff --quiet HEAD^ HEAD -- apps/dashboard-app-shell/"
 
