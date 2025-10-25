@@ -1,0 +1,12 @@
+[build]
+  base = "apps/task-manager"
+  command = "pnpm build"
+  publish = "apps/task-manager/dist"
+
+[build.ignore]
+  command = "git diff --quiet HEAD^ HEAD -- apps/task-manager/"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
