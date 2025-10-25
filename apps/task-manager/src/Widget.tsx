@@ -4,7 +4,7 @@ export default function Widget() {
   return (
     <div className="p-6 bg-white rounded-2xl shadow-md border border-gray-200">
       <h2 className="text-xl font-semibold text-gray-800">Task Manager</h2>
-      <p className="text-gray-500 mt-2">Hello from Task Manager!</p>
+      <p className="text-gray-500 mt-2">Hello from Task Manager test!</p>
     </div>
   );
 }
