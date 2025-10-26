@@ -16,7 +16,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: isProd ? "[name].[contenthash].js" : "[name].js",
-    publicPath: "auto",
+    publicPath: isProd ? "https://effici0-tasks.netlify.app/" : "auto",
     clean: true,
   },
 
@@ -56,7 +56,8 @@ module.exports = {
       template: path.resolve(__dirname, "public/index.html"),
     }),
     new MiniCssExtractPlugin({
-      filename: isProd ? "[name].[contenthash].css" : "[name].css",
+      filename: isProd ? "styles.[contenthash].css" : "[name].css",
+      chunkFilename: isProd ? "styles.[contenthash].css" : "[id].css",
     }),
     new ModuleFederationPlugin({
       name: "task_manager",
@@ -73,6 +74,10 @@ module.exports = {
           singleton: true,
           requiredVersion: require("react-dom/package.json").version,
         },
+        // Share CSS related modules to ensure consistent style loading
+        "style-loader": { singleton: true },
+        "css-loader": { singleton: true },
+        "mini-css-extract-plugin/dist/loader": { singleton: true },
       },
     }),
   ],
