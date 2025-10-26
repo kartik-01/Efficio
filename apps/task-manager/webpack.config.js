@@ -13,12 +13,13 @@ module.exports = {
   mode: isProd ? "production" : "development",
   devtool: isProd ? "source-map" : "eval-cheap-module-source-map",
 
-  output: {
-    path: path.resolve(__dirname, "dist"),
-    filename: isProd ? "[name].[contenthash].js" : "[name].js",
-    publicPath: isProd ? "https://effici0-tasks.netlify.app/" : "auto",
-    clean: true,
-  },
+    output: {
+      path: path.resolve(__dirname, "dist"),
+      filename: isProd ? "[name].[contenthash].js" : "[name].js",
+      publicPath: "auto", 
+      clean: true,
+    },
+
 
   resolve: {
     extensions: [".tsx", ".ts", ".jsx", ".js"],
