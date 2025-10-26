@@ -1,4 +1,6 @@
 import { useDrop } from 'react-dnd';
+import { forwardRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { TaskCard, Task } from './TaskCard';
 import { Badge } from '@efficio/ui/src/components/ui/badge';
 
@@ -8,6 +10,8 @@ interface TaskColumnProps {
   tasks: Task[];
   onTaskDrop: (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => void;
   onProgressChange?: (taskId: string, progress: number) => void;
+  newlyAddedTaskId?: string | null;
+  taskListRef?: React.RefObject<HTMLDivElement>;
 }
 
 const statusColors = {
@@ -16,7 +20,7 @@ const statusColors = {
   completed: 'bg-green-100 text-green-700',
 };
 
-export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange }: TaskColumnProps) {
+export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'TASK',
     drop: (item: { id: string; status: string }) => {
@@ -43,13 +47,46 @@ export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange 
 
         <div
           ref={drop as any}
-          className={`p-4 space-y-4 min-h-[500px] transition-colors ${
+          className={`p-4 min-h-[500px] transition-colors ${
             isOver ? 'bg-indigo-50' : 'bg-white'
           }`}
         >
-          {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onProgressChange={onProgressChange} />
-          ))}
+          <div ref={taskListRef} className="space-y-4">
+          <AnimatePresence mode="popLayout">
+            {tasks.map((task, index) => {
+              const isNewlyAdded = task.id === newlyAddedTaskId;
+              return (
+                <motion.div
+                  key={task.id}
+                  layout
+                  initial={isNewlyAdded ? { opacity: 0, y: 10, scale: 0.95 } : false}
+                  animate={{ 
+                    opacity: 1, 
+                    y: 0, 
+                    scale: 1,
+                    transition: {
+                      duration: isNewlyAdded ? 0.4 : 0.3,
+                      ease: [0.34, 1.56, 0.64, 1], // Spring-like easing for pop effect
+                    }
+                  }}
+                  exit={{ 
+                    opacity: 0, 
+                    scale: 0.9, 
+                    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } 
+                  }}
+                  transition={{
+                    layout: { 
+                      duration: 0.3,
+                      ease: [0.4, 0, 0.2, 1]
+                    }
+                  }}
+                >
+                  <TaskCard task={task} onProgressChange={onProgressChange} />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>
