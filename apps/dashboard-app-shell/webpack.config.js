@@ -56,7 +56,8 @@ module.exports = {
       template: path.resolve(__dirname, "public/index.html"),
     }),
     new MiniCssExtractPlugin({
-      filename: isProd ? "[name].[contenthash].css" : "[name].css",
+      filename: isProd ? "styles.[contenthash].css" : "[name].css",
+      chunkFilename: isProd ? "styles.[contenthash].css" : "[id].css",
     }),
 
     new ModuleFederationPlugin({
@@ -66,7 +67,7 @@ module.exports = {
       // Dynamic remotes for dev & prod
       remotes: {
         task_manager: isProd
-          ? "task_manager@https://effici0-tasks.netlify.app/remoteEntry.js"
+          ? "task_manager@https://dev-effici0-tasks.netlify.app/remoteEntry.js"
           : "task_manager@http://localhost:3001/remoteEntry.js",
         time_tracker: isProd
           ? "time_tracker@https://effici0-time.netlify.app/remoteEntry.js"
