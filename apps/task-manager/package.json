@@ -14,7 +14,8 @@
   "packageManager": "pnpm@10.19.0",
   "dependencies": {
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "@efficio/ui": "workspace:*"
   },
   "devDependencies": {
     "@babel/core": "^7.28.4",
