@@ -2,7 +2,6 @@
 import React from "react";
 import {TaskManager} from "./pages/task-manager";
 import "@efficio/ui";
-import "@shared-design-token/global.css";
 
 export default function Widget() {
   return <TaskManager />;
