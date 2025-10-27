@@ -44,7 +44,14 @@ module.exports = {
         use: [
           isProd ? MiniCssExtractPlugin.loader : "style-loader",
           "css-loader",
-          "postcss-loader",
+          {
+            loader: "postcss-loader",
+            options: {
+              postcssOptions: {
+                config: path.resolve(__dirname, "../.."),
+              },
+            },
+          },
         ],
       },
     ],
