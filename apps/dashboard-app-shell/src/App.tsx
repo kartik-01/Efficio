@@ -4,6 +4,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import HomePage from "./HomePage";
 import DashboardApp from "./DashboardApp";
 import "@efficio/ui";
+import "@shared-design-token/global.css";
 
 export default function App() {
   const { isAuthenticated } = useAuth0();

@@ -65,18 +65,10 @@ module.exports = {
       },
       {
         test: /\.css$/i,
-        use: [
-          isProd ? MiniCssExtractPlugin.loader : "style-loader",
-          "css-loader",
-          {
-            loader: "postcss-loader",
-            options: {
-              postcssOptions: {
-                config: path.resolve(__dirname, "../.."),
-              },
-            },
-          },
-        ],
+       use: ["style-loader", "css-loader", {
+         loader: "postcss-loader",
+         options: { postcssOptions: { config: path.resolve(__dirname, "../..") } }
+       }],
       },
     ],
   },
