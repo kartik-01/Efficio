@@ -16,7 +16,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: isProd ? "[name].[contenthash].js" : "[name].js",
-    publicPath: "auto",
+    publicPath: isProd ? "/" : "auto",
     clean: true,
   },
 
@@ -66,8 +66,8 @@ module.exports = {
       template: path.resolve(__dirname, "public/index.html"),
     }),
     new MiniCssExtractPlugin({
-      filename: isProd ? "styles.[contenthash].css" : "[name].css",
-      chunkFilename: isProd ? "styles.[contenthash].css" : "[id].css",
+      filename: isProd ? "css/[name].[contenthash].css" : "css/[name].css",
+      chunkFilename: isProd ? "css/[id].[contenthash].css" : "css/[id].css",
     }),
 
     new ModuleFederationPlugin({

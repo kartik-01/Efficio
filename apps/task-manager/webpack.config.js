@@ -6,6 +6,22 @@ const { ModuleFederationPlugin } = container;
 
 const isProd = process.env.NODE_ENV === "production";
 
+// Plugin to inject CSS links
+class CssInjectPlugin {
+  apply(compiler) {
+    compiler.hooks.compilation.tap('CssInjectPlugin', (compilation) => {
+      HtmlWebpackPlugin.getHooks(compilation).beforeEmit.tapAsync('CssInjectPlugin', (data, cb) => {
+        const cssFiles = Object.keys(compilation.assets).filter(file => file.endsWith('.css'));
+        if (cssFiles.length > 0) {
+          const cssLinks = cssFiles.map(file => `<link rel="stylesheet" href="/${file}">`).join('\n');
+          data.html = data.html.replace('</head>', `  ${cssLinks}\n</head>`);
+        }
+        cb(null, data);
+      });
+    });
+  }
+}
+
 /** @type {import('webpack').Configuration} */
 module.exports = {
   entry: path.resolve(__dirname, "src/index.ts"),
@@ -16,7 +32,7 @@ module.exports = {
     output: {
       path: path.resolve(__dirname, "dist"),
       filename: isProd ? "[name].[contenthash].js" : "[name].js",
-      publicPath: "auto", 
+      publicPath: isProd ? "/" : "auto", 
       clean: true,
     },
 
@@ -65,11 +81,26 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, "public/index.html"),
+      inject: true,
+      scriptLoading: 'defer',
+      minify: isProd ? {
+        removeComments: true,
+        collapseWhitespace: true,
+        removeRedundantAttributes: true,
+        useShortDoctype: true,
+        removeEmptyAttributes: true,
+        removeStyleLinkTypeAttributes: true,
+        keepClosingSlash: true,
+        minifyJS: true,
+        minifyCSS: true,
+        minifyURLs: true,
+      } : false,
     }),
     new MiniCssExtractPlugin({
-      filename: isProd ? "styles.[contenthash].css" : "[name].css",
-      chunkFilename: isProd ? "styles.[contenthash].css" : "[id].css",
+      filename: isProd ? "css/[name].[contenthash].css" : "css/[name].css",
+      chunkFilename: isProd ? "css/[id].[contenthash].css" : "css/[id].css",
     }),
+    new CssInjectPlugin(),
     new ModuleFederationPlugin({
       name: "task_manager",
       filename: "remoteEntry.js",
