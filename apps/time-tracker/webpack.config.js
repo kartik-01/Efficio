@@ -17,7 +17,12 @@ module.exports = {
     publicPath: "auto",
     clean: true,
   },
-  resolve: { extensions: [".tsx", ".ts", ".jsx", ".js"] },
+  resolve: {
+    extensions: [".tsx", ".ts", ".jsx", ".js", ".css"],
+    alias: {
+      "@shared-design-token": path.resolve(__dirname, "../../shared-design-token"),
+    },
+  },
   module: {
     rules: [
       {
@@ -39,7 +44,14 @@ module.exports = {
         use: [
           isProd ? MiniCssExtractPlugin.loader : "style-loader",
           "css-loader",
-          "postcss-loader",
+          {
+            loader: "postcss-loader",
+            options: {
+              postcssOptions: {
+                config: path.resolve(__dirname, "../.."),
+              },
+            },
+          },
         ],
       },
     ],

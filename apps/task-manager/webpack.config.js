@@ -21,7 +21,10 @@ module.exports = {
   },
 
   resolve: {
-    extensions: [".tsx", ".ts", ".jsx", ".js"],
+    extensions: [".tsx", ".ts", ".jsx", ".js", ".css"],
+    alias: {
+      "@shared-design-token": path.resolve(__dirname, "../../shared-design-token"),
+    },
   },
 
   module: {
@@ -45,7 +48,14 @@ module.exports = {
         use: [
           isProd ? MiniCssExtractPlugin.loader : "style-loader",
           "css-loader",
-          "postcss-loader",
+          {
+            loader: "postcss-loader",
+            options: {
+              postcssOptions: {
+                config: path.resolve(__dirname, "../.."),
+              },
+            },
+          },
         ],
       },
     ],
