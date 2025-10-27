@@ -21,7 +21,10 @@ module.exports = {
   },
 
   resolve: {
-    extensions: [".tsx", ".ts", ".jsx", ".js"],
+    extensions: [".tsx", ".ts", ".jsx", ".js", ".css"],
+    alias: {
+      "@shared-design-token": path.resolve(__dirname, "../../shared-design-token"),
+    },
   },
 
   module: {
