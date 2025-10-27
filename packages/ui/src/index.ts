@@ -1,2 +1,2 @@
-import "./global.css";
+import "@shared-design-token/global.css";
 export {};
