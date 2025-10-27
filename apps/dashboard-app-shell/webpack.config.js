@@ -6,6 +6,25 @@ const { ModuleFederationPlugin, FederationRuntimePlugin } =
 
 const isProd = process.env.NODE_ENV === "production";
 
+// Plugin to inject CSS links - uses relative paths that work with publicPath: "auto"
+class CssInjectPlugin {
+  apply(compiler) {
+    compiler.hooks.compilation.tap('CssInjectPlugin', (compilation) => {
+      HtmlWebpackPlugin.getHooks(compilation).beforeEmit.tapAsync('CssInjectPlugin', (data, cb) => {
+        const cssFiles = Object.keys(compilation.assets).filter(file => file.endsWith('.css'));
+        if (cssFiles.length > 0) {
+          // Use just the filename - webpack's publicPath: "auto" will handle the base URL
+          const cssLinks = cssFiles
+            .map(file => `<link rel="stylesheet" href="${file}">`)
+            .join('\n');
+          data.html = data.html.replace('</head>', `  ${cssLinks}\n</head>`);
+        }
+        cb(null, data);
+      });
+    });
+  }
+}
+
 /** @type {import('webpack').Configuration} */
 module.exports = {
   entry: path.resolve(__dirname, "src/index.ts"),
@@ -16,7 +35,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: isProd ? "[name].[contenthash].js" : "[name].js",
-    publicPath: isProd ? "/" : "auto",
+    publicPath: "auto",
     clean: true,
   },
 
@@ -69,6 +88,7 @@ module.exports = {
       filename: isProd ? "css/[name].[contenthash].css" : "css/[name].css",
       chunkFilename: isProd ? "css/[id].[contenthash].css" : "css/[id].css",
     }),
+    new CssInjectPlugin(),
 
     new ModuleFederationPlugin({
       name: "app_shell",
