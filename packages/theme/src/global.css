@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #1d4ed8;
+  --color-brand-secondary: #9333ea;
+  --color-brand-accent: #f59e0b;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+a {
+  @apply text-brand-primary hover:text-brand-secondary transition-colors;
+}
+
+.app-shell-grid {
+  @apply min-h-screen grid grid-rows-[auto_1fr_auto];
+}
+
+.app-shell-content {
+  @apply px-6 py-8 md:px-10 lg:px-16;
+  @apply mx-auto w-full max-w-6xl;
+}
+
+.app-shell-section {
+  @apply bg-white shadow-sm ring-1 ring-slate-200 rounded-xl p-6;
+}
+

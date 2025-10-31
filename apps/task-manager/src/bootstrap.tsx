@@ -1,7 +1,18 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import {TaskManager} from "./pages/task-manager";
-import "@shared-design-token/global.css";
+import "@efficio/theme";
 
-const root = ReactDOM.createRoot(document.getElementById("root")!);
-root.render(<TaskManager />);
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+
+import App from "./App";
+
+const container = document.getElementById("root");
+
+if (container) {
+  const root = createRoot(container);
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+}
+

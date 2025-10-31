@@ -1,10 +1,12 @@
-import React from "react";
+import { BrowserRouter } from "react-router-dom";
 
-export default function Widget() {
-  return (
-    <div className="p-6 bg-white rounded-2xl shadow-md border border-gray-200">
-      <h2 className="text-xl font-semibold text-gray-800">Remote A Widget test</h2>
-      <p className="text-gray-500 mt-2">Hello from Remote A!</p>
-    </div>
-  );
-}
+import { TaskManagerApp } from "./RemoteApp";
+
+const App = () => (
+  <BrowserRouter>
+    <TaskManagerApp />
+  </BrowserRouter>
+);
+
+export default App;
+

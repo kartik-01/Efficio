@@ -1,25 +1,48 @@
+import { lazy } from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
-import React, { useEffect } from "react";
-import { useAuth0 } from "@auth0/auth0-react";
-import HomePage from "./HomePage";
-import DashboardApp from "./DashboardApp";
-import "@efficio/ui";
-import "@shared-design-token/global.css";
+import { ShellLayout } from "./components/ShellLayout";
+import { RemoteBoundary } from "./components/RemoteBoundary";
+import { Home } from "./pages/Home";
+import { NotFound } from "./pages/NotFound";
 
-export default function App() {
-  const { isAuthenticated } = useAuth0();
+const TaskManagerModule = lazy(() => import("task_manager/Module"));
+const TimeTrackerModule = lazy(() => import("time_tracker/Module"));
+const AnalyticsModule = lazy(() => import("analytics/Module"));
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      // Ensure default hash route after login
-      if (!window.location.hash || window.location.hash === "#/" || window.location.hash === "#") {
-        window.location.hash = "#/task-manager";
-      }
-    }
-  }, [isAuthenticated]);
+const TaskManagerRoute = () => (
+  <RemoteBoundary title="Task Manager" moduleName="task-manager">
+    <TaskManagerModule />
+  </RemoteBoundary>
+);
 
-  if (!isAuthenticated) {
-    return <HomePage />;
-  }
-  return <DashboardApp />;
-}
+const TimeTrackerRoute = () => (
+  <RemoteBoundary title="Time Tracker" moduleName="time-tracker">
+    <TimeTrackerModule />
+  </RemoteBoundary>
+);
+
+const AnalyticsRoute = () => (
+  <RemoteBoundary title="Analytics" moduleName="analytics">
+    <AnalyticsModule />
+  </RemoteBoundary>
+);
+
+const App = () => {
+  return (
+    <BrowserRouter>
+      <ShellLayout>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/tasks/*" element={<TaskManagerRoute />} />
+          <Route path="/time-tracker/*" element={<TimeTrackerRoute />} />
+          <Route path="/analytics/*" element={<AnalyticsRoute />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </ShellLayout>
+    </BrowserRouter>
+  );
+};
+
+export default App;
+
