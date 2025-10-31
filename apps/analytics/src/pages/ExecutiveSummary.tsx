@@ -1,6 +1,6 @@
 import { ArrowUpRight, Layers, Timer } from "lucide-react";
 
-import { Card } from "@efficio/ui";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@efficio/ui";
 
 const kpis = [
   {
@@ -52,8 +52,13 @@ export const ExecutiveSummary = () => {
         ))}
       </div>
 
-      <Card title="Initiative health" description="Distribution across current portfolios">
-        <div className="flex flex-wrap gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Initiative health</CardTitle>
+          <CardDescription>Distribution across current portfolios</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-6">
           <div className="flex flex-1 items-center justify-center">
             <div className="relative h-44 w-44">
               <div className="absolute inset-0 rounded-full border-[18px] border-brand-primary/80" />
@@ -71,6 +76,7 @@ export const ExecutiveSummary = () => {
             ))}
           </div>
         </div>
+        </CardContent>
       </Card>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { toast } from 'sonner';
+import { toast, Toaster } from 'sonner';
 import { TaskColumn } from '../components/TaskColumn';
 import { Task } from '../components/TaskCard';
 import { Card } from '@efficio/ui';
@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@efficio/ui';
 import { Button } from '@efficio/ui';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@efficio/ui';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@efficio/ui';
 import { Label } from '@efficio/ui';
 import { Textarea } from '@efficio/ui';
 import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
-import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle } from 'lucide-react';
+import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
@@ -52,6 +53,8 @@ export function TaskManager() {
   const [previewTask, setPreviewTask] = useState<Partial<Task> | null>(null); // Task data for the collapsing preview
   const [targetCardWidth, setTargetCardWidth] = useState<number>(320); // Target width for the card
   const [flyingTask, setFlyingTask] = useState<{ task: Partial<Task>; fromRect: DOMRect; toRect: DOMRect } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const modalContentRef = useRef<HTMLDivElement>(null);
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
@@ -68,8 +71,9 @@ export function TaskManager() {
       // Ensure all tasks have id property (map _id to id if needed)
       setTasks(fetchedTasks.map(task => ({ ...task, id: task.id || (task as any)._id || '' })));
     } catch (error) {
-      toast.error('Failed to fetch tasks', {
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      toast.error('Failed to Fetch Tasks', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
+        duration: 2000,
       });
     } finally {
       setLoading(false);
@@ -87,15 +91,9 @@ export function TaskManager() {
       
       // Update via API
       await taskApi.updateTaskStatus(taskId, newStatus);
-      toast.success('Task moved successfully', {
-        description: `Task moved to ${newStatus.replace('-', ' ')}`,
-      });
     } catch (error) {
       // Revert on error
       fetchTasks();
-      toast.error('Failed to move task', {
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-      });
     }
   };
 
@@ -113,9 +111,6 @@ export function TaskManager() {
     } catch (error) {
       // Revert on error
       fetchTasks();
-      toast.error('Failed to update progress', {
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-      });
     }
   };
 
@@ -131,26 +126,62 @@ export function TaskManager() {
       progress: task.progress || 20,
     });
     setIncludeProgress(task.progress !== undefined);
+    setSkipModalAnimation(false); // Ensure animations are enabled for edit mode
     setShowModal(true);
   };
 
-  const handleDelete = async (taskId: string) => {
-    if (!window.confirm('Are you sure you want to delete this task permanently?')) {
+  const handleDeleteClick = (taskId: string) => {
+    console.log('🗑️ Delete clicked for task:', taskId);
+    setTaskToDelete(taskId);
+    setDeleteDialogOpen(true);
+    console.log('🗑️ Delete dialog state set to true');
+    // Force a re-render check
+    setTimeout(() => {
+      console.log('🗑️ State check after timeout - deleteDialogOpen should be true');
+    }, 100);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!taskToDelete) {
+      setDeleteDialogOpen(false);
+      setTaskToDelete(null);
       return;
     }
 
+    const taskIdToDelete = taskToDelete;
+    // Close dialog first
+    setDeleteDialogOpen(false);
+    
     try {
-      await taskApi.deleteTask(taskId);
-      setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
-      toast.success('Task deleted successfully', {
-        description: 'The task has been permanently removed',
+      await taskApi.deleteTask(taskIdToDelete);
+      setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskIdToDelete));
+      console.log('🍞 Toast: Task Deleted');
+      toast.success('Task Deleted', {
+        description: 'The task has been permanently removed from your list.',
+        duration: 2000,
       });
+      console.log('🍞 Toast called for Task Deleted');
     } catch (error) {
-      toast.error('Failed to delete task', {
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      toast.error('Failed to Delete Task', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred while deleting the task.',
+        duration: 2000,
       });
+    } finally {
+      setTaskToDelete(null);
     }
   };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setTaskToDelete(null);
+  };
+
+  // Clean up taskToDelete when dialog closes
+  useEffect(() => {
+    if (!deleteDialogOpen) {
+      setTaskToDelete(null);
+    }
+  }, [deleteDialogOpen]);
 
   const capitalizeWords = (str: string) => {
     return str
@@ -182,9 +213,12 @@ export function TaskManager() {
         setTasks((prevTasks) =>
           prevTasks.map((task) => (task.id === editingTask.id ? updatedTask : task))
         );
-        toast.success('Task updated successfully', {
-          description: 'Task has been updated',
+        console.log('🍞 Toast: Task Updated');
+        toast.success('Task Updated', {
+          description: 'Your task has been successfully updated.',
+          duration: 2000,
         });
+        console.log('🍞 Toast called for Task Updated');
       } else {
         // Create new task
         savedTask = await taskApi.createTask(taskData);
@@ -193,9 +227,12 @@ export function TaskManager() {
         if (!modalContentRef.current || !pendingColumnRef.current) {
           const newTask: Task = { ...savedTask, id: savedTask.id || savedTask._id || '' };
           setTasks((prevTasks) => [...prevTasks, newTask]);
-          toast.success('Task created successfully', {
-            description: 'New task has been added',
+          console.log('🍞 Toast: Task Added (fallback path)');
+          toast.success('Task Added', {
+            description: 'Your new task has been successfully added to the list.',
+            duration: 2000,
           });
+          console.log('🍞 Toast called for Task Added (fallback path)');
         } else {
           // Get positions BEFORE starting animation
           const fromRect = modalContentRef.current.getBoundingClientRect();
@@ -273,9 +310,12 @@ export function TaskManager() {
             }, 450); // Collapse duration - 0.45s for fairly quick (7/10)
           }, 10); // Small delay to render updated state first
 
-          toast.success('Task created successfully', {
-            description: 'New task has been added',
+          console.log('🍞 Toast: Task Added (with animation)');
+          toast.success('Task Added', {
+            description: 'Your new task has been successfully added to the list.',
+            duration: 2000,
           });
+          console.log('🍞 Toast called for Task Added (with animation)');
         }
       }
 
@@ -302,9 +342,12 @@ export function TaskManager() {
       });
       setIncludeProgress(false);
     } catch (error) {
-      toast.error(editingTask ? 'Failed to update task' : 'Failed to create task', {
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      console.log('🍞 Toast ERROR:', editingTask ? 'Failed to Update Task' : 'Failed to Add Task');
+      toast.error(editingTask ? 'Failed to Update Task' : 'Failed to Add Task', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred. Please try again.',
+        duration: 2000,
       });
+      console.log('🍞 Toast error called');
     }
   };
 
@@ -356,6 +399,38 @@ export function TaskManager() {
 
   return (
     <DndProvider backend={HTML5Backend}>
+      <style>{`
+        [data-sonner-toast][data-type="success"] {
+          border-left: 4px solid rgb(168, 85, 247) !important;
+        }
+        [data-sonner-toast][data-type="error"] {
+          border-left: 4px solid rgb(220, 38, 38) !important;
+        }
+        [data-sonner-toast] [data-icon] {
+          color: rgb(168, 85, 247) !important;
+        }
+        [data-sonner-toast][data-type="error"] [data-icon] {
+          color: rgb(220, 38, 38) !important;
+        }
+      `}</style>
+      <Toaster 
+        position="bottom-center" 
+        richColors
+        expand={true}
+        visibleToasts={5}
+        toastOptions={{
+          duration: 2000,
+          style: {
+            background: 'white',
+            color: '#000',
+            border: '1px solid #e5e7eb',
+            borderRadius: '0.5rem',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            zIndex: 99999,
+          },
+        }}
+        theme="light"
+      />
       <div className="py-6 min-h-[calc(100vh-4rem)]">
         {/* Page Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -379,6 +454,7 @@ export function TaskManager() {
                 progress: 20,
               });
               setIncludeProgress(false);
+              setSkipModalAnimation(false); // Ensure animations are enabled for new task
               setShowModal(true);
             }}
             className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-[8px] h-[40px] px-4"
@@ -509,7 +585,7 @@ export function TaskManager() {
                 onTaskDrop={handleTaskDrop}
                 onProgressChange={handleProgressChange}
                 onEdit={handleEdit}
-                onDelete={handleDelete}
+                onDelete={handleDeleteClick}
                 newlyAddedTaskId={newlyAddedTaskId}
                 taskListRef={pendingTaskListRef as React.RefObject<HTMLDivElement>}
             />
@@ -521,7 +597,7 @@ export function TaskManager() {
               onTaskDrop={handleTaskDrop}
               onProgressChange={handleProgressChange}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={handleDeleteClick}
               newlyAddedTaskId={newlyAddedTaskId}
             />
             <TaskColumn
@@ -531,7 +607,7 @@ export function TaskManager() {
               onTaskDrop={handleTaskDrop}
               onProgressChange={handleProgressChange}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={handleDeleteClick}
               newlyAddedTaskId={newlyAddedTaskId}
             />
           </div>
@@ -568,7 +644,7 @@ export function TaskManager() {
             className={`overflow-hidden bg-white sm:max-w-[500px] ${
               skipModalAnimation 
                 ? 'duration-0 data-[state=closed]:duration-0' 
-                : 'duration-200'
+                : ''
             }`}
           >
             <motion.div
@@ -688,7 +764,7 @@ export function TaskManager() {
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="progress">Initial Progress</Label>
-                    <span className="text-sm text-indigo-600">{newTask.progress || 0}%</span>
+                    <span className="text-sm text-purple-600">{newTask.progress || 0}%</span>
                   </div>
                   <Slider
                     id="progress"
@@ -697,7 +773,7 @@ export function TaskManager() {
                     step={5}
                     value={[newTask.progress || 0]}
                     onValueChange={(value) => setNewTask({ ...newTask, progress: value[0] })}
-                    className="[&_[data-radix-slider-range]]:bg-indigo-500 [&_[data-radix-slider-thumb]]:border-indigo-500"
+                    className="[&_[data-radix-slider-range]]:bg-purple-500 [&_[data-radix-slider-thumb]]:border-purple-500"
                   />
                 </div>
               )}
@@ -727,7 +803,7 @@ export function TaskManager() {
                 width: flyingTask.toRect.width,
                 opacity: 1,
                 scale: 1,
-                zIndex: 9999,
+                zIndex: 10000,
               }}
               animate={{
                 top: flyingTask.toRect.top,
@@ -795,7 +871,7 @@ export function TaskManager() {
                   width: previewWidth,
                   opacity: 1,
                   scale: 1,
-                  zIndex: 9999,
+                  zIndex: 10000,
                 }}
                 animate={{
                   scale: 1,
@@ -843,6 +919,44 @@ export function TaskManager() {
             );
           })()}
         </AnimatePresence>
+
+        {/* Delete Confirmation Dialog */}
+        {console.log('🔍 Render check - deleteDialogOpen:', deleteDialogOpen, 'taskToDelete:', taskToDelete)}
+        <AlertDialog 
+          open={deleteDialogOpen} 
+          onOpenChange={(open) => {
+            console.log('🔍 AlertDialog onOpenChange called with:', open);
+            setDeleteDialogOpen(open);
+            if (!open) {
+              setTaskToDelete(null);
+            }
+          }}
+        >
+            <AlertDialogContent className="bg-white sm:max-w-[425px] relative m-0" style={{ margin: 0 }}>
+            <button
+              onClick={handleDeleteCancel}
+              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </button>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Task</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this task permanently? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                className="bg-red-600 hover:bg-red-700 text-white focus:ring-red-600"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DndProvider>
   );

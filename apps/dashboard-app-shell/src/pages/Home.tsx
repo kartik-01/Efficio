@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { Button, Card } from "@efficio/ui";
+import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@efficio/ui";
 
 const modules = [
   {
@@ -25,15 +25,17 @@ export const Home = () => {
   return (
     <div className="flex flex-col gap-6">
       <Card className="bg-gradient-to-r from-brand-primary/10 via-brand-secondary/10 to-brand-secondary/5">
-        <div className="flex flex-col gap-4">
-          <h1 className="text-3xl font-bold text-slate-900">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold text-slate-900">
             Welcome to Efficio Workspace
-          </h1>
-          <p className="text-base text-slate-600">
+          </CardTitle>
+          <CardDescription className="text-base text-slate-600">
             Your unified shell aggregates specialised micro-frontends for task
             management, time tracking, and insight-rich analytics. Launch any
             workspace to get started.
-          </p>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild>
               <Link to="/tasks">
@@ -45,27 +47,29 @@ export const Home = () => {
               <Link to="/analytics">View Analytics</Link>
             </Button>
           </div>
-        </div>
+        </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         {modules.map((module) => (
-          <Card
-            key={module.name}
-            title={module.name}
-            description={module.description}
-            actions={
+          <Card key={module.name}>
+            <CardHeader>
+              <CardTitle>{module.name}</CardTitle>
+              <CardDescription>{module.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-slate-500">
+                Responsive, federated, and fully theme-aware.
+              </div>
+            </CardContent>
+            <CardFooter>
               <Button asChild variant="secondary" size="sm">
                 <Link to={module.href}>
                   Open module
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-            }
-          >
-            <div className="text-sm text-slate-500">
-              Responsive, federated, and fully theme-aware.
-            </div>
+            </CardFooter>
           </Card>
         ))}
       </div>

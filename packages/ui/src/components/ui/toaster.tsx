@@ -1,4 +1,3 @@
-import { useToast } from "@/hooks/use-toast";
 import {
   Toast,
   ToastClose,
@@ -6,27 +5,17 @@ import {
   ToastProvider,
   ToastTitle,
   ToastViewport,
-} from "@/components/ui/toast";
+} from "./toast";
+
+// Note: useToast hook not implemented - this component requires hook setup
+// For now, returning empty component. If you need toast functionality,
+// implement useToast hook or use sonner instead (which is already set up)
 
 export function Toaster() {
-  const { toasts } = useToast();
-
+  // Note: This component requires useToast hook which is not implemented
+  // Use sonner's Toaster component instead (imported from "sonner")
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
-        return (
-          <Toast key={id} {...props}>
-            <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
-            </div>
-            {action}
-            <ToastClose />
-          </Toast>
-        );
-      })}
       <ToastViewport />
     </ToastProvider>
   );

@@ -1,4 +1,4 @@
-import { Card } from "@efficio/ui";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@efficio/ui";
 
 const correlations = [
   {
@@ -28,11 +28,13 @@ const forecast = [
 export const DeepDiveView = () => {
   return (
     <div className="flex flex-col gap-5">
-      <Card
-        title="Cross-workflow insights"
-        description="Data blended across task, time, and delivery modules"
-      >
-        <div className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Cross-workflow insights</CardTitle>
+          <CardDescription>Data blended across task, time, and delivery modules</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
           {correlations.map((row) => (
             <div
               key={row.metric}
@@ -48,13 +50,16 @@ export const DeepDiveView = () => {
             </div>
           ))}
         </div>
+        </CardContent>
       </Card>
 
-      <Card
-        title="Completion forecast"
-        description="Projected weekly completion for active initiatives"
-      >
-        <div className="overflow-hidden rounded-lg border border-slate-200">
+      <Card>
+        <CardHeader>
+          <CardTitle>Completion forecast</CardTitle>
+          <CardDescription>Projected weekly completion for active initiatives</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-hidden rounded-lg border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
             <thead className="bg-slate-50 text-xs font-medium uppercase text-slate-500">
               <tr>
@@ -74,6 +79,7 @@ export const DeepDiveView = () => {
             </tbody>
           </table>
         </div>
+        </CardContent>
       </Card>
     </div>
   );

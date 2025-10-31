@@ -1,4 +1,4 @@
-import { Card } from "@efficio/ui";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@efficio/ui";
 
 const entries = [
   {
@@ -26,8 +26,13 @@ export const TimesheetView = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="Recent entries" description="This week at a glance">
-        <div className="overflow-hidden rounded-lg border border-slate-200">
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent entries</CardTitle>
+          <CardDescription>This week at a glance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-hidden rounded-lg border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
             <thead className="bg-slate-50 text-xs font-medium uppercase text-slate-500">
               <tr>
@@ -59,6 +64,7 @@ export const TimesheetView = () => {
             </tfoot>
           </table>
         </div>
+        </CardContent>
       </Card>
     </div>
   );

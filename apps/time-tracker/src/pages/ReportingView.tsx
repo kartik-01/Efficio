@@ -1,6 +1,6 @@
 import { BarChart3, TrendingUp, Watch } from "lucide-react";
 
-import { Card } from "@efficio/ui";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@efficio/ui";
 
 const highlights = [
   {
@@ -54,8 +54,13 @@ export const ReportingView = () => {
         ))}
       </div>
 
-      <Card title="Weekly velocity" description="Hours logged across the current week">
-        <div className="flex gap-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>Weekly velocity</CardTitle>
+          <CardDescription>Hours logged across the current week</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-3">
           {weekly.map((entry) => (
             <div key={entry.day} className="flex flex-1 flex-col items-center gap-2">
               <div className="flex h-40 w-full items-end rounded-lg bg-slate-100 p-2">
@@ -70,6 +75,7 @@ export const ReportingView = () => {
             </div>
           ))}
         </div>
+        </CardContent>
       </Card>
     </div>
   );
