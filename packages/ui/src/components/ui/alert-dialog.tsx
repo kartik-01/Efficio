@@ -30,13 +30,14 @@ function AlertDialogPortal({
 
 function AlertDialogOverlay({
   className,
+  onClick,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
   return (
     <AlertDialogPrimitive.Overlay
       data-slot="alert-dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[199] bg-black/50",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[199] bg-black/50 transition-opacity duration-200",
         className,
       )}
       style={{
@@ -46,6 +47,7 @@ function AlertDialogOverlay({
         right: 0,
         bottom: 0,
       }}
+      onClick={onClick}
       {...props}
     />
   );
@@ -53,11 +55,17 @@ function AlertDialogOverlay({
 
 function AlertDialogContent({
   className,
+  onOverlayClick,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
+  onOverlayClick?: () => void;
+}) {
   return (
     <AlertDialogPortal>
-      <AlertDialogOverlay />
+      <AlertDialogOverlay 
+        onClick={onOverlayClick}
+        style={{ cursor: onOverlayClick ? 'pointer' : 'default' }}
+      />
       <div
         style={{
           position: 'fixed',

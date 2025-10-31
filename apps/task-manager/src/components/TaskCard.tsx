@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { Calendar, Circle, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider } from '@efficio/ui';
 
@@ -101,38 +102,58 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
           </Badge>
           <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <PopoverTrigger asChild>
-              <button
+              <motion.button
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsMenuOpen(true);
                 }}
                 className="p-1 hover:bg-gray-100 rounded transition-colors"
                 aria-label="Task options"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.15 }}
               >
                 <MoreVertical className="h-4 w-4 text-gray-600" />
-              </button>
+              </motion.button>
             </PopoverTrigger>
             <PopoverContent 
               className="w-48 p-2 bg-white" 
               onClick={(e) => e.stopPropagation()}
               align="end"
+              asChild
             >
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={handleEdit}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                >
-                  <Edit className="h-4 w-4" />
-                  Edit Task
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Task
-                </button>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                transition={{
+                  duration: 0.15,
+                  ease: [0.16, 1, 0.3, 1]
+                }}
+              >
+                <div className="flex flex-col gap-1">
+                  <motion.button
+                    onClick={handleEdit}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ duration: 0.1 }}
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit Task
+                  </motion.button>
+                  <motion.button
+                    onClick={handleDelete}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ duration: 0.1 }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Task
+                  </motion.button>
+                </div>
+              </motion.div>
             </PopoverContent>
           </Popover>
         </div>

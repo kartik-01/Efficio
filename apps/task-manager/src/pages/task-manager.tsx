@@ -14,7 +14,7 @@ import { Label } from '@efficio/ui';
 import { Textarea } from '@efficio/ui';
 import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
-import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, X } from 'lucide-react';
+import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
@@ -921,7 +921,6 @@ export function TaskManager() {
         </AnimatePresence>
 
         {/* Delete Confirmation Dialog */}
-        {console.log('🔍 Render check - deleteDialogOpen:', deleteDialogOpen, 'taskToDelete:', taskToDelete)}
         <AlertDialog 
           open={deleteDialogOpen} 
           onOpenChange={(open) => {
@@ -932,29 +931,47 @@ export function TaskManager() {
             }
           }}
         >
-            <AlertDialogContent className="bg-white sm:max-w-[425px] relative m-0" style={{ margin: 0 }}>
-            <button
-              onClick={handleDeleteCancel}
-              className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </button>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Task</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete this task permanently? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteConfirm}
-                className="bg-red-600 hover:bg-red-700 text-white focus:ring-red-600"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
+          <AlertDialogContent 
+            className="bg-white sm:max-w-[425px] relative m-0" 
+            style={{ margin: 0 }}
+            onOverlayClick={() => {
+              setDeleteDialogOpen(false);
+              setTaskToDelete(null);
+            }}
+          >
+            <AnimatePresence>
+              {deleteDialogOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.88, y: 10 }}
+                  transition={{
+                    duration: 0.25,
+                    ease: [0.34, 1.56, 0.64, 1]
+                  }}
+                >
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Task</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this task permanently? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.1 }}>
+                      <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+                    </motion.div>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.1 }}>
+                      <AlertDialogAction
+                        onClick={handleDeleteConfirm}
+                        className="bg-red-600 hover:bg-red-700 text-white focus:ring-red-600"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </motion.div>
+                  </AlertDialogFooter>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </AlertDialogContent>
         </AlertDialog>
       </div>
