@@ -10,6 +10,8 @@ interface TaskColumnProps {
   tasks: Task[];
   onTaskDrop: (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => void;
   onProgressChange?: (taskId: string, progress: number) => void;
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => void;
   newlyAddedTaskId?: string | null;
   taskListRef?: React.RefObject<HTMLDivElement>;
 }
@@ -20,7 +22,7 @@ const statusColors = {
   completed: 'bg-green-100 text-green-700',
 };
 
-export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
+export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange, onEdit, onDelete, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'TASK',
     drop: (item: { id: string; status: string }, monitor) => {
@@ -82,7 +84,12 @@ export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange,
                   }}
                   style={{ willChange: "transform" }}
                 >
-                  <TaskCard task={task} onProgressChange={onProgressChange} />
+                  <TaskCard 
+                    task={task} 
+                    onProgressChange={onProgressChange}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
                 </motion.div>
               );
             })}

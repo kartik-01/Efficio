@@ -1,4 +1,5 @@
 const path = require("path");
+const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const { container } = require("webpack");
@@ -83,6 +84,9 @@ function createWebpackConfig(options) {
       }),
       new MiniCssExtractPlugin({
         filename: isProduction ? "[name].[contenthash:8].css" : "[name].css"
+      }),
+      new webpack.DefinePlugin({
+        "process.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL || "http://localhost:4000/api")
       })
     ]
   };

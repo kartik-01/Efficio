@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDrag } from 'react-dnd';
-import { Calendar, Circle } from 'lucide-react';
+import { Calendar, Circle, MoreVertical, Edit, Trash2 } from 'lucide-react';
 
 import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider } from '@efficio/ui';
 
@@ -19,6 +19,8 @@ export interface Task {
 interface TaskCardProps {
   task: Task;
   onProgressChange?: (taskId: string, progress: number) => void;
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 const getCategoryColor = (category: string) => {
@@ -36,9 +38,10 @@ const priorityColors = {
   Low: 'bg-green-100 text-green-800',
 };
 
-export function TaskCard({ task, onProgressChange }: TaskCardProps) {
+export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardProps) {
   const [localProgress, setLocalProgress] = useState(task.progress || 0);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'TASK',
@@ -67,6 +70,20 @@ export function TaskCard({ task, onProgressChange }: TaskCardProps) {
     ? 'bg-red-50 border-red-200' 
     : 'bg-white border-gray-200';
 
+  const handleEdit = () => {
+    setIsMenuOpen(false);
+    if (onEdit) {
+      onEdit(task);
+    }
+  };
+
+  const handleDelete = () => {
+    setIsMenuOpen(false);
+    if (onDelete) {
+      onDelete(task.id);
+    }
+  };
+
   return (
     <div
       ref={drag as any}
@@ -78,9 +95,47 @@ export function TaskCard({ task, onProgressChange }: TaskCardProps) {
         <h4 className={`flex-1 ${task.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
           {task.title}
         </h4>
-        <Badge variant="secondary" className={`${priorityColors[task.priority]} shrink-0`}>
-          {task.priority}
-        </Badge>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant="secondary" className={`${priorityColors[task.priority]}`}>
+            {task.priority}
+          </Badge>
+          <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+            <PopoverTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMenuOpen(true);
+                }}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                aria-label="Task options"
+              >
+                <MoreVertical className="h-4 w-4 text-gray-600" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent 
+              className="w-48 p-2 bg-white" 
+              onClick={(e) => e.stopPropagation()}
+              align="end"
+            >
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={handleEdit}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit Task
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Task
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       <p className={`text-sm text-gray-600 mb-4 ${task.status === 'completed' ? 'line-through' : ''}`}>

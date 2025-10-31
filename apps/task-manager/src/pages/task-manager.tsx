@@ -1,6 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { toast } from 'sonner';
 import { TaskColumn } from '../components/TaskColumn';
 import { Task } from '../components/TaskCard';
 import { Card } from '@efficio/ui';
@@ -15,87 +16,7 @@ import { Slider } from '@efficio/ui';
 import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@efficio/ui';
-
-
-
-const initialTasks: Task[] = [
-  {
-    id: '1',
-    title: 'Review quarterly reports',
-    description: 'Complete review of Q3 financial reports and prepare summary',
-    category: 'Work',
-    priority: 'High',
-    status: 'pending',
-    dueDate: 'Due Today',
-    isOverdue: true,
-  },
-  {
-    id: '2',
-    title: 'Buy groceries',
-    description: 'Weekly grocery shopping for household items',
-    category: 'Shopping',
-    priority: 'Medium',
-    status: 'pending',
-    dueDate: 'Tomorrow',
-  },
-  {
-    id: '3',
-    title: 'Client presentation',
-    description: 'Prepare slides for upcoming client meeting',
-    category: 'Work',
-    priority: 'High',
-    status: 'pending',
-    dueDate: 'Overdue',
-    isOverdue: true,
-  },
-  {
-    id: '4',
-    title: 'Website redesign',
-    description: 'Redesign company website with modern UI/UX',
-    category: 'Work',
-    priority: 'Medium',
-    status: 'in-progress',
-    dueDate: 'Dec 15',
-    progress: 65,
-  },
-  {
-    id: '5',
-    title: 'Exercise routine',
-    description: '30-minute workout session',
-    category: 'Personal',
-    priority: 'Low',
-    status: 'in-progress',
-    dueDate: 'Daily',
-    progress: 40,
-  },
-  {
-    id: '6',
-    title: 'Team meeting notes',
-    description: 'Document key points from weekly team meeting',
-    category: 'Work',
-    priority: 'Medium',
-    status: 'completed',
-    dueDate: 'Completed',
-  },
-  {
-    id: '7',
-    title: 'Book dentist appointment',
-    description: 'Schedule routine dental checkup',
-    category: 'Personal',
-    priority: 'Low',
-    status: 'completed',
-    dueDate: 'Completed',
-  },
-  {
-    id: '8',
-    title: 'Update portfolio',
-    description: 'Add recent projects to portfolio website',
-    category: 'Work',
-    priority: 'Medium',
-    status: 'completed',
-    dueDate: 'Completed',
-  },
-];
+import { taskApi } from '../services/taskApi';
 
 const getCategoryColor = (category: string) => {
   const colors: { [key: string]: string } = {
@@ -107,12 +28,14 @@ const getCategoryColor = (category: string) => {
 };
 
 export function TaskManager() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('dueDate');
   const [showModal, setShowModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState<Partial<Task>>({
     title: '',
     description: '',
@@ -132,20 +55,99 @@ export function TaskManager() {
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
 
-  const handleTaskDrop = (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      )
-    );
+  // Fetch tasks on component mount
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const fetchedTasks = await taskApi.getTasks();
+      setTasks(fetchedTasks);
+    } catch (error) {
+      toast.error('Failed to fetch tasks', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleProgressChange = (taskId: string, progress: number) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === taskId ? { ...task, progress } : task
-      )
-    );
+  const handleTaskDrop = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
+    try {
+      // Optimistically update UI
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId ? { ...task, status: newStatus } : task
+        )
+      );
+      
+      // Update via API
+      await taskApi.updateTaskStatus(taskId, newStatus);
+      toast.success('Task moved successfully', {
+        description: `Task moved to ${newStatus.replace('-', ' ')}`,
+      });
+    } catch (error) {
+      // Revert on error
+      fetchTasks();
+      toast.error('Failed to move task', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
+    }
+  };
+
+  const handleProgressChange = async (taskId: string, progress: number) => {
+    try {
+      // Optimistically update UI
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId ? { ...task, progress } : task
+        )
+      );
+      
+      // Update via API
+      await taskApi.updateTaskProgress(taskId, progress);
+    } catch (error) {
+      // Revert on error
+      fetchTasks();
+      toast.error('Failed to update progress', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
+    }
+  };
+
+  const handleEdit = (task: Task) => {
+    setEditingTask(task);
+    setNewTask({
+      title: task.title,
+      description: task.description,
+      category: task.category,
+      priority: task.priority,
+      status: task.status,
+      dueDate: task.dueDate || '',
+      progress: task.progress || 20,
+    });
+    setIncludeProgress(task.progress !== undefined);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (taskId: string) => {
+    if (!window.confirm('Are you sure you want to delete this task permanently?')) {
+      return;
+    }
+
+    try {
+      await taskApi.deleteTask(taskId);
+      setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
+      toast.success('Task deleted successfully', {
+        description: 'The task has been permanently removed',
+      });
+    } catch (error) {
+      toast.error('Failed to delete task', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
+    }
   };
 
   const capitalizeWords = (str: string) => {
@@ -155,133 +157,137 @@ export function TaskManager() {
       .join(' ');
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (!newTask.title?.trim()) return;
-    
-    // Fallback: if refs aren't available, add task without animation
-    if (!modalContentRef.current || !pendingColumnRef.current) {
-      const taskId = Date.now().toString();
-      const taskToAdd: Task = {
-        id: taskId,
-        title: newTask.title,
-        description: newTask.description || '',
-        category: newTask.category?.trim() ? capitalizeWords(newTask.category) : '',
-        priority: (newTask.priority || 'Medium') as 'High' | 'Medium' | 'Low',
-        status: 'pending',
-        dueDate: newTask.dueDate || '',
-        progress: includeProgress ? (newTask.progress || 0) : undefined,
-      };
+
+    const taskData = {
+      title: newTask.title,
+      description: newTask.description || '',
+      category: newTask.category?.trim() ? capitalizeWords(newTask.category) : '',
+      priority: (newTask.priority || 'Medium') as 'High' | 'Medium' | 'Low',
+      status: editingTask ? (newTask.status || 'pending') : 'pending',
+      dueDate: newTask.dueDate || '',
+      progress: includeProgress ? (newTask.progress || 0) : undefined,
+    };
+
+    try {
+      let savedTask: Task;
       
-      setTasks((prevTasks) => [...prevTasks, taskToAdd]);
+      if (editingTask) {
+        // Update existing task
+        savedTask = await taskApi.updateTask(editingTask.id, taskData);
+        setTasks((prevTasks) =>
+          prevTasks.map((task) => (task.id === editingTask.id ? savedTask : task))
+        );
+        toast.success('Task updated successfully', {
+          description: 'Task has been updated',
+        });
+      } else {
+        // Create new task
+        savedTask = await taskApi.createTask(taskData);
+        
+        // Fallback: if refs aren't available, add task without animation
+        if (!modalContentRef.current || !pendingColumnRef.current) {
+          setTasks((prevTasks) => [...prevTasks, savedTask]);
+          toast.success('Task created successfully', {
+            description: 'New task has been added',
+          });
+        } else {
+          // Get positions BEFORE starting animation
+          const fromRect = modalContentRef.current.getBoundingClientRect();
+          const columnRect = pendingColumnRef.current.getBoundingClientRect();
+          
+          // Calculate target card width (column width minus padding)
+          const cardWidth = columnRect.width - 32;
+          setTargetCardWidth(cardWidth);
+          
+          // Set the preview task data directly (not using state which is async)
+          setPreviewTask(savedTask);
+          
+          // Calculate the position at the end of the task list
+          let toRect: DOMRect;
+          if (pendingTaskListRef.current) {
+            const taskListRect = pendingTaskListRef.current.getBoundingClientRect();
+            const lastChild = pendingTaskListRef.current.lastElementChild;
+            
+            if (lastChild) {
+              // Position after the last task (with 16px gap for space-y-4)
+              const lastChildRect = lastChild.getBoundingClientRect();
+              toRect = new DOMRect(
+                columnRect.left + 16,
+                lastChildRect.bottom + 16,
+                columnRect.width - 32,
+                180 // Approximate card height
+              );
+            } else {
+              // No tasks yet, position at the top of the list
+              toRect = new DOMRect(
+                columnRect.left + 16,
+                taskListRect.top,
+                columnRect.width - 32,
+                180
+              );
+            }
+          } else {
+            // Fallback to column position
+            toRect = new DOMRect(
+              columnRect.left + 16,
+              columnRect.top + 80,
+              columnRect.width - 32,
+              180
+            );
+          }
+
+          // Close the modal immediately and start animation
+          setIsCollapsing(true);
+          
+          // Small delay to allow Dialog to start closing, then start collapse animation
+          setTimeout(() => {
+            // After collapse animation, start flying
+            setTimeout(() => {
+              // Clear the preview and start flying animation
+              setPreviewTask(null);
+              setFlyingTask({ task: savedTask, fromRect, toRect });
+              
+              // Add task to list after flying animation completes
+              setTimeout(() => {
+                setFlyingTask(null);
+                setTasks((prevTasks) => [...prevTasks, savedTask]);
+                setNewlyAddedTaskId(savedTask.id);
+                setIsCollapsing(false); // Reset collapsing state
+                
+                // Reset the newly added flag after animation completes
+                setTimeout(() => {
+                  setNewlyAddedTaskId(null);
+                }, 600);
+              }, 1300); // Total flight duration - 1.3s for smoother, slower travel
+            }, 450); // Collapse duration - 0.45s for fairly quick (7/10)
+          }, 10); // Small delay to render updated state first
+
+          toast.success('Task created successfully', {
+            description: 'New task has been added',
+          });
+        }
+      }
+
+      // Reset form
       setShowModal(false);
+      setEditingTask(null);
       setNewTask({
         title: '',
         description: '',
         category: '',
         priority: 'Medium',
+        status: 'pending',
         dueDate: '',
         progress: 20,
       });
       setIncludeProgress(false);
-      return;
+    } catch (error) {
+      toast.error(editingTask ? 'Failed to update task' : 'Failed to create task', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
     }
-    
-    const taskId = Date.now().toString();
-    const taskToAdd: Task = {
-      id: taskId,
-      title: newTask.title,
-      description: newTask.description || '',
-      category: newTask.category?.trim() ? capitalizeWords(newTask.category) : '',
-      priority: (newTask.priority || 'Medium') as 'High' | 'Medium' | 'Low',
-      status: 'pending',
-      dueDate: newTask.dueDate || '',
-      progress: includeProgress ? (newTask.progress || 0) : undefined,
-    };
-
-    // Get positions BEFORE starting animation
-    const fromRect = modalContentRef.current.getBoundingClientRect();
-    const columnRect = pendingColumnRef.current.getBoundingClientRect();
-    
-    // Calculate target card width (column width minus padding)
-    const cardWidth = columnRect.width - 32;
-    console.log('🎯 Card width calculated in handleAddTask:', cardWidth);
-    console.log('🎯 Column rect width:', columnRect.width);
-    setTargetCardWidth(cardWidth);
-    
-    // Set the preview task data directly (not using state which is async)
-    setPreviewTask(taskToAdd);
-    
-    // Calculate the position at the end of the task list
-    let toRect: DOMRect;
-    if (pendingTaskListRef.current) {
-      const taskListRect = pendingTaskListRef.current.getBoundingClientRect();
-      const lastChild = pendingTaskListRef.current.lastElementChild;
-      
-      if (lastChild) {
-        // Position after the last task (with 16px gap for space-y-4)
-        const lastChildRect = lastChild.getBoundingClientRect();
-        toRect = new DOMRect(
-          columnRect.left + 16,
-          lastChildRect.bottom + 16,
-          columnRect.width - 32,
-          180 // Approximate card height
-        );
-      } else {
-        // No tasks yet, position at the top of the list
-        toRect = new DOMRect(
-          columnRect.left + 16,
-          taskListRect.top,
-          columnRect.width - 32,
-          180
-        );
-      }
-    } else {
-      // Fallback to column position
-      toRect = new DOMRect(
-        columnRect.left + 16,
-        columnRect.top + 80,
-        columnRect.width - 32,
-        180
-      );
-    }
-
-    // Close the modal immediately and start animation
-    setShowModal(false);
-    setIsCollapsing(true);
-    
-    // Small delay to allow Dialog to start closing, then start collapse animation
-    setTimeout(() => {
-      // After collapse animation, start flying
-      setTimeout(() => {
-        // Clear the preview and start flying animation
-        setPreviewTask(null);
-        setFlyingTask({ task: taskToAdd, fromRect, toRect });
-        
-        // Add task to list after flying animation completes
-        setTimeout(() => {
-          setFlyingTask(null);
-          setTasks((prevTasks) => [...prevTasks, taskToAdd]);
-          setNewlyAddedTaskId(taskId);
-          setIsCollapsing(false); // Reset collapsing state
-          
-          // Reset the newly added flag after animation completes
-          setTimeout(() => {
-            setNewlyAddedTaskId(null);
-          }, 600);
-        }, 1300); // Total flight duration - 1.3s for smoother, slower travel
-      }, 450); // Collapse duration - 0.45s for fairly quick (7/10)
-    }, 10); // Small delay to render updated state first
-
-    setNewTask({
-      title: '',
-      description: '',
-      category: '',
-      priority: 'Medium',
-      status: 'pending',
-      dueDate: '',
-      progress: 20,
-    });
-    setIncludeProgress(false);
   };
 
   // Filter and sort tasks
@@ -344,6 +350,17 @@ export function TaskManager() {
           <Button
             onClick={() => {
               setIsCollapsing(false); // Reset collapsing state when opening modal
+              setEditingTask(null);
+              setNewTask({
+                title: '',
+                description: '',
+                category: '',
+                priority: 'Medium',
+                status: 'pending',
+                dueDate: '',
+                progress: 20,
+              });
+              setIncludeProgress(false);
               setShowModal(true);
             }}
             className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-[8px] h-[40px] px-4"
@@ -460,47 +477,78 @@ export function TaskManager() {
         </Card>
 
         {/* Kanban Board */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div ref={pendingColumnRef}>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <p className="text-gray-600">Loading tasks...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div ref={pendingColumnRef}>
+              <TaskColumn
+                title="Pending"
+                status="pending"
+                tasks={pendingTasks}
+                onTaskDrop={handleTaskDrop}
+                onProgressChange={handleProgressChange}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                newlyAddedTaskId={newlyAddedTaskId}
+                taskListRef={pendingTaskListRef}
+              />
+            </div>
             <TaskColumn
-              title="Pending"
-              status="pending"
-              tasks={pendingTasks}
+              title="In Progress"
+              status="in-progress"
+              tasks={inProgressTasks}
               onTaskDrop={handleTaskDrop}
               onProgressChange={handleProgressChange}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
               newlyAddedTaskId={newlyAddedTaskId}
-              taskListRef={pendingTaskListRef}
+            />
+            <TaskColumn
+              title="Completed"
+              status="completed"
+              tasks={completedTasks}
+              onTaskDrop={handleTaskDrop}
+              onProgressChange={handleProgressChange}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              newlyAddedTaskId={newlyAddedTaskId}
             />
           </div>
-          <TaskColumn
-            title="In Progress"
-            status="in-progress"
-            tasks={inProgressTasks}
-            onTaskDrop={handleTaskDrop}
-            onProgressChange={handleProgressChange}
-            newlyAddedTaskId={newlyAddedTaskId}
-          />
-          <TaskColumn
-            title="Completed"
-            status="completed"
-            tasks={completedTasks}
-            onTaskDrop={handleTaskDrop}
-            onProgressChange={handleProgressChange}
-            newlyAddedTaskId={newlyAddedTaskId}
-          />
-        </div>
+        )}
 
         {/* Add Task Modal */}
-        <Dialog open={showModal} onOpenChange={setShowModal}>
+        <Dialog 
+          open={showModal} 
+          onOpenChange={(open) => {
+            setShowModal(open);
+            if (!open) {
+              // Reset form when modal closes
+              setEditingTask(null);
+              setNewTask({
+                title: '',
+                description: '',
+                category: '',
+                priority: 'Medium',
+                status: 'pending',
+                dueDate: '',
+                progress: 20,
+              });
+              setIncludeProgress(false);
+            }
+          }}
+        >
           <DialogContent 
             ref={modalContentRef}
             className="overflow-hidden bg-white sm:max-w-[500px]"
           >
             <>
                 <DialogHeader>
-                  <DialogTitle>Add New Task</DialogTitle>
+                  <DialogTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DialogTitle>
                   <DialogDescription>
-                    Create a new task by filling out the form below.
+                    {editingTask ? 'Update task details below.' : 'Create a new task by filling out the form below.'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -563,6 +611,26 @@ export function TaskManager() {
                   className="bg-white"
                 />
               </div>
+
+              {/* Status field for editing */}
+              {editingTask && (
+                <div className="grid gap-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={newTask.status || 'pending'}
+                    onValueChange={(value) => setNewTask({ ...newTask, status: value as Task['status'] })}
+                  >
+                    <SelectTrigger id="status" className="bg-white">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               
               {/* Optional Progress */}
               <div className="flex items-center space-x-2 pt-2">
@@ -604,7 +672,7 @@ export function TaskManager() {
                 disabled={!newTask.title?.trim()}
                 className="w-full bg-indigo-500 hover:bg-indigo-600 text-white mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add Task
+                {editingTask ? 'Update Task' : 'Add Task'}
               </Button>
                 </div>
               </>
