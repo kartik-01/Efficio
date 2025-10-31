@@ -23,7 +23,7 @@ module.exports = createWebpackConfig({
     name: "app_shell",
     remotes: isProduction
       ? {
-          task_manager: "task_manager@https://test-effici0-tasks.netlify.app/remoteEntry.js",
+          task_manager: "task_manager@https://test-effici0-task.netlify.app/remoteEntry.js",
           time_tracker: "time_tracker@https://test-effici0-time.netlify.app/remoteEntry.js",
           analytics: "analytics@https://test-effici0-analytics.netlify.app/remoteEntry.js"
         }

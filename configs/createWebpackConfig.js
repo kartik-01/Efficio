@@ -28,7 +28,7 @@ function createWebpackConfig(options) {
       filename: isProduction ? "[name].[contenthash:8].js" : "[name].js",
       chunkFilename: isProduction ? "[name].[contenthash:8].js" : "[name].js",
       path: path.resolve(__dirname, `../apps/${appName}/dist`),
-      publicPath: "auto",
+      publicPath: isProduction ? "/" : "auto",
       clean: true
     },
     resolve: {
