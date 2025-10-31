@@ -48,6 +48,7 @@ export function TaskManager() {
   const [includeProgress, setIncludeProgress] = useState(false);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [isCollapsing, setIsCollapsing] = useState(false);
+  const [skipModalAnimation, setSkipModalAnimation] = useState(false); // Flag to skip animation during task creation
   const [previewTask, setPreviewTask] = useState<Partial<Task> | null>(null); // Task data for the collapsing preview
   const [targetCardWidth, setTargetCardWidth] = useState<number>(320); // Target width for the card
   const [flyingTask, setFlyingTask] = useState<{ task: Partial<Task>; fromRect: DOMRect; toRect: DOMRect } | null>(null);
@@ -64,7 +65,8 @@ export function TaskManager() {
     try {
       setLoading(true);
       const fetchedTasks = await taskApi.getTasks();
-      setTasks(fetchedTasks);
+      // Ensure all tasks have id property (map _id to id if needed)
+      setTasks(fetchedTasks.map(task => ({ ...task, id: task.id || (task as any)._id || '' })));
     } catch (error) {
       toast.error('Failed to fetch tasks', {
         description: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -171,13 +173,14 @@ export function TaskManager() {
     };
 
     try {
-      let savedTask: Task;
+      let savedTask: any;
       
       if (editingTask) {
         // Update existing task
         savedTask = await taskApi.updateTask(editingTask.id, taskData);
+        const updatedTask: Task = { ...savedTask, id: savedTask.id || savedTask._id || '' };
         setTasks((prevTasks) =>
-          prevTasks.map((task) => (task.id === editingTask.id ? savedTask : task))
+          prevTasks.map((task) => (task.id === editingTask.id ? updatedTask : task))
         );
         toast.success('Task updated successfully', {
           description: 'Task has been updated',
@@ -188,7 +191,8 @@ export function TaskManager() {
         
         // Fallback: if refs aren't available, add task without animation
         if (!modalContentRef.current || !pendingColumnRef.current) {
-          setTasks((prevTasks) => [...prevTasks, savedTask]);
+          const newTask: Task = { ...savedTask, id: savedTask.id || savedTask._id || '' };
+          setTasks((prevTasks) => [...prevTasks, newTask]);
           toast.success('Task created successfully', {
             description: 'New task has been added',
           });
@@ -238,7 +242,11 @@ export function TaskManager() {
             );
           }
 
-          // Close the modal immediately and start animation
+          // Skip modal animation during task creation to avoid conflict with fly animation
+          setSkipModalAnimation(true);
+          
+          // Close the modal immediately (without animation) and start animation
+          setShowModal(false);
           setIsCollapsing(true);
           
           // Small delay to allow Dialog to start closing, then start collapse animation
@@ -249,10 +257,11 @@ export function TaskManager() {
               setPreviewTask(null);
               setFlyingTask({ task: savedTask, fromRect, toRect });
               
-              // Add task to list after flying animation completes
+                // Add task to list after flying animation completes
               setTimeout(() => {
                 setFlyingTask(null);
-                setTasks((prevTasks) => [...prevTasks, savedTask]);
+                const newTask: Task = { ...savedTask, id: savedTask.id || savedTask._id || '' };
+                setTasks((prevTasks) => [...prevTasks, newTask]);
                 setNewlyAddedTaskId(savedTask.id);
                 setIsCollapsing(false); // Reset collapsing state
                 
@@ -271,7 +280,16 @@ export function TaskManager() {
       }
 
       // Reset form
-      setShowModal(false);
+      // For editing, close modal normally (will have animation)
+      // For creating, modal is already closed via setSkipModalAnimation (no animation to avoid conflict)
+      if (editingTask) {
+        setShowModal(false);
+      }
+      // Reset skip animation flag after fly animation completes
+      setTimeout(() => {
+        setSkipModalAnimation(false);
+      }, 2000); // Wait for fly animation to complete
+      
       setEditingTask(null);
       setNewTask({
         title: '',
@@ -493,8 +511,8 @@ export function TaskManager() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 newlyAddedTaskId={newlyAddedTaskId}
-                taskListRef={pendingTaskListRef}
-              />
+                taskListRef={pendingTaskListRef as React.RefObject<HTMLDivElement>}
+            />
             </div>
             <TaskColumn
               title="In Progress"
@@ -523,6 +541,10 @@ export function TaskManager() {
         <Dialog 
           open={showModal} 
           onOpenChange={(open) => {
+            // Don't allow closing via backdrop/ESC if we're in skip animation mode
+            if (!open && skipModalAnimation) {
+              return; // Prevent closing during task creation animation
+            }
             setShowModal(open);
             if (!open) {
               // Reset form when modal closes
@@ -537,14 +559,27 @@ export function TaskManager() {
                 progress: 20,
               });
               setIncludeProgress(false);
+              setSkipModalAnimation(false);
             }
           }}
         >
           <DialogContent 
             ref={modalContentRef}
-            className="overflow-hidden bg-white sm:max-w-[500px]"
+            className={`overflow-hidden bg-white sm:max-w-[500px] ${
+              skipModalAnimation 
+                ? 'duration-0 data-[state=closed]:duration-0' 
+                : 'duration-200'
+            }`}
           >
-            <>
+            <motion.div
+              initial={skipModalAnimation ? undefined : { opacity: 0, scale: 0.96 }}
+              animate={skipModalAnimation ? undefined : { opacity: 1, scale: 1 }}
+              exit={skipModalAnimation ? undefined : { opacity: 0, scale: 0.96 }}
+              transition={skipModalAnimation ? undefined : {
+                duration: 0.2,
+                ease: [0.16, 1, 0.3, 1]
+              }}
+            >
                 <DialogHeader>
                   <DialogTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DialogTitle>
                   <DialogDescription>
@@ -675,7 +710,7 @@ export function TaskManager() {
                 {editingTask ? 'Update Task' : 'Add Task'}
               </Button>
                 </div>
-              </>
+            </motion.div>
           </DialogContent>
         </Dialog>
 
