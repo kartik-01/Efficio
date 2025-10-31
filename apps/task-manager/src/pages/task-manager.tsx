@@ -131,14 +131,8 @@ export function TaskManager() {
   };
 
   const handleDeleteClick = (taskId: string) => {
-    console.log('🗑️ Delete clicked for task:', taskId);
     setTaskToDelete(taskId);
     setDeleteDialogOpen(true);
-    console.log('🗑️ Delete dialog state set to true');
-    // Force a re-render check
-    setTimeout(() => {
-      console.log('🗑️ State check after timeout - deleteDialogOpen should be true');
-    }, 100);
   };
 
   const handleDeleteConfirm = async () => {
@@ -793,7 +787,6 @@ export function TaskManager() {
         {/* Flying Task Animation */}
         <AnimatePresence>
           {flyingTask && (() => {
-            console.log('✈️ Flying card width (toRect.width):', flyingTask.toRect.width);
             return (
             <motion.div
               initial={{

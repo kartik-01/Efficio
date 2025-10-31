@@ -86,7 +86,11 @@ function createWebpackConfig(options) {
         filename: isProduction ? "[name].[contenthash:8].css" : "[name].css"
       }),
       new webpack.DefinePlugin({
-        "process.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL || "http://localhost:4000/api")
+        "process.env": JSON.stringify({
+          API_BASE_URL: process.env.API_BASE_URL || "http://localhost:4000/api",
+          REACT_APP_AUTH0_AUDIENCE: process.env.REACT_APP_AUTH0_AUDIENCE || "https://efficio-api",
+          NODE_ENV: process.env.NODE_ENV || "development"
+        })
       })
     ]
   };

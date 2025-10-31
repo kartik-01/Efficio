@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense, useCallback } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,7 +11,7 @@ const TaskManagerModule = React.lazy(() => import("task_manager/Module"));
 const TimeTrackerModule = React.lazy(() => import("time_tracker/Module"));
 const AnalyticsModule = React.lazy(() => import("analytics/Module"));
 
-type RemoteModule = React.ComponentType | null;
+type RemoteModule = React.ComponentType<{ getAccessToken?: () => Promise<string | undefined> }> | null;
 
 // Map pathname → app
 const pathnameToApp = (pathname: string): "task" | "time" | "analytics" => {
@@ -21,7 +21,7 @@ const pathnameToApp = (pathname: string): "task" | "time" | "analytics" => {
 };
 
 export default function DashboardApp() {
-  const { isAuthenticated, isLoading } = useAuth0();
+  const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
   const location = useLocation();
 
   const [activeApp, setActiveApp] = useState<"task" | "time" | "analytics">(
@@ -37,6 +37,25 @@ export default function DashboardApp() {
     const pathname = location.pathname || "/task-manager";
     setActiveApp(pathnameToApp(pathname));
   }, [location.pathname]);
+
+  // Create stable token getter function to pass to remote modules
+  const getAccessToken = useCallback(async () => {
+    try {
+      // Get token - only include audience if configured
+      // @ts-ignore - process.env is injected by webpack DefinePlugin at build time
+      const audience: string | undefined = process.env.REACT_APP_AUTH0_AUDIENCE;
+      
+      const options: { authorizationParams?: { audience: string } } = {};
+      if (audience) {
+        options.authorizationParams = { audience };
+      }
+      
+      return await getAccessTokenSilently(options);
+    } catch (error) {
+      console.error("Failed to get access token:", error);
+      return undefined;
+    }
+  }, [getAccessTokenSilently]);
 
   // Load correct MFE
   useEffect(() => {
@@ -82,7 +101,7 @@ export default function DashboardApp() {
             </div>
           }
         >
-          <Component />
+          <Component getAccessToken={getAccessToken} />
         </Suspense>
       );
 

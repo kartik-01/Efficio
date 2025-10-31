@@ -6,6 +6,7 @@ const defaultSingletons = [
   "react",
   "react-dom",
   "react-router-dom",
+  "@auth0/auth0-react",
   "@efficio/ui",
   "@efficio/theme",
   "clsx",
