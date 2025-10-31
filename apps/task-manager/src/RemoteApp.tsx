@@ -1,5 +1,5 @@
 import { NavLink, Route, Routes } from "react-router-dom";
-import { CheckCircle2, LayoutKanban } from "lucide-react";
+import { CheckCircle2, Kanban } from "lucide-react";
 
 import { Card } from "@efficio/ui";
 
@@ -9,7 +9,7 @@ import { Overview } from "./pages/Overview";
 const SubNav = () => {
   const links = [
     { to: ".", label: "Overview", end: true, icon: CheckCircle2 },
-    { to: "board", label: "Board", icon: LayoutKanban }
+    { to: "board", label: "Board", icon: Kanban }
   ];
 
   return (
