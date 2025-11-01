@@ -4,6 +4,13 @@ import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { LogOut, Settings, User } from "lucide-react";
 
+// API base URL - injected by webpack DefinePlugin at build time
+declare const process: {
+  env: {
+    API_BASE_URL?: string;
+  };
+};
+
 type NavbarProps = {
   activeTab?: "task" | "time" | "analytics";
   onTabChange?: (tab: "task" | "time" | "analytics") => void;
@@ -13,7 +20,7 @@ export const Navbar = ({
   activeTab = "task",
   onTabChange,
 }: NavbarProps) => {
-  const { isAuthenticated, user, loginWithRedirect, logout } = useAuth0();
+  const { isAuthenticated, user, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -35,6 +42,41 @@ export const Navbar = ({
   const currentPath = location.pathname || "/task-manager";
   const activeTabFromPath =
     tabs.find((t) => currentPath.includes(t.path.replace("/", "")))?.id || activeTab || "task";
+
+  // Handle logout: call backend logout endpoint, then Auth0 logout
+  const handleLogout = async () => {
+    try {
+      // Get API base URL (defaults to localhost:4000/api)
+      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
+      
+      // Get access token for backend API call
+      const token = await getAccessTokenSilently();
+      
+      // Call backend logout endpoint to set isActive to false
+      if (token) {
+        try {
+          await fetch(`${API_BASE_URL}/users/logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+        } catch (error) {
+          // Log error but don't block logout - Auth0 logout should still happen
+          console.error('Failed to call backend logout endpoint:', error);
+        }
+      }
+    } catch (error) {
+      // Log error but don't block logout - Auth0 logout should still happen
+      console.error('Failed to get access token for logout:', error);
+    }
+
+    // Always call Auth0 logout regardless of backend call success
+    logout({
+      logoutParams: { returnTo: window.location.origin },
+    });
+  };
 
   return (
     <nav className="w-full h-16 border-b border-gray-200 bg-white shadow-sm sticky top-0 z-50">
@@ -128,11 +170,7 @@ export const Navbar = ({
               <DropdownMenu.Separator className="my-1 h-px bg-gray-200" />
 
               <DropdownMenu.Item
-                onClick={() =>
-                  logout({
-                    logoutParams: { returnTo: window.location.origin },
-                  })
-                }
+                onClick={handleLogout}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer rounded-md transition-all"
               >
                 <LogOut size={16} /> Log Out
