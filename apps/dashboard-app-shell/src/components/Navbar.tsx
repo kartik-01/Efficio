@@ -1,8 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { LogOut, Settings, User } from "lucide-react";
+import { ProfileModal } from "./ProfileModal";
+import { SettingsModal } from "./SettingsModal";
+import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
 
 // API base URL - injected by webpack DefinePlugin at build time
 declare const process: {
@@ -20,9 +23,58 @@ export const Navbar = ({
   activeTab = "task",
   onTabChange,
 }: NavbarProps) => {
-  const { isAuthenticated, user, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
+  const { isAuthenticated, user: auth0User, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
   const navigate = useNavigate();
   const location = useLocation();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // Initialize userApi with token getter (only once)
+  useEffect(() => {
+    if (isAuthenticated) {
+      initializeUserApi(async () => {
+        try {
+          return await getAccessTokenSilently();
+        } catch (error) {
+          console.error("Failed to get access token:", error);
+          return undefined;
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  // Load user profile when authenticated and API is ready
+  // Use a ref to track if we've already loaded to prevent multiple calls
+  const profileLoadedRef = React.useRef(false);
+  
+  useEffect(() => {
+    if (isAuthenticated && isUserApiReady() && !profileLoadedRef.current) {
+      profileLoadedRef.current = true;
+      loadUserProfile();
+    }
+    // Reset when user logs out
+    if (!isAuthenticated) {
+      profileLoadedRef.current = false;
+      setUserProfile(null);
+    }
+  }, [isAuthenticated]);
+
+  const loadUserProfile = async () => {
+    try {
+      const profile = await userApi.getUserProfile();
+      setUserProfile(profile);
+    } catch (error) {
+      console.error("Failed to load user profile:", error);
+    }
+  };
+
+  const handleProfileUpdate = () => {
+    // Reset the flag so we can reload
+    profileLoadedRef.current = false;
+    loadUserProfile();
+  };
 
   const tabs = [
     { id: "task", label: "Task Manager", path: "/task-manager" },
@@ -137,15 +189,15 @@ export const Navbar = ({
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button className="flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-indigo-50 transition-all duration-150 focus:outline-none">
-                {user?.picture && (
+                {(userProfile?.customPicture || auth0User?.picture) && (
                   <img
-                    src={user.picture}
+                    src={userProfile?.customPicture || auth0User?.picture}
                     alt="User Profile"
                     className="w-8 h-8 rounded-full border border-transparent"
                   />
                 )}
                 <span className="text-gray-700 font-medium hover:text-indigo-600 transition-colors">
-                  {user?.name?.split(" ")[0]}
+                  {(userProfile?.name || auth0User?.name)?.split(" ")[0]}
                 </span>
               </button>
             </DropdownMenu.Trigger>
@@ -155,17 +207,19 @@ export const Navbar = ({
               sideOffset={8}
               className="z-[60] min-w-[160px] bg-white border border-gray-200 rounded-lg shadow-lg p-1"
             >
-              {[
-                { label: "Profile", icon: <User size={16} /> },
-                { label: "Settings", icon: <Settings size={16} /> },
-              ].map((item) => (
-                <DropdownMenu.Item
-                  key={item.label}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-all"
-                >
-                  {item.icon} {item.label}
-                </DropdownMenu.Item>
-              ))}
+              <DropdownMenu.Item
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-all"
+              >
+                <User size={16} /> Profile
+              </DropdownMenu.Item>
+              
+              <DropdownMenu.Item
+                onClick={() => setShowSettingsModal(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-all"
+              >
+                <Settings size={16} /> Settings
+              </DropdownMenu.Item>
 
               <DropdownMenu.Separator className="my-1 h-px bg-gray-200" />
 
@@ -179,6 +233,21 @@ export const Navbar = ({
           </DropdownMenu.Root>
         )}
       </div>
+
+      {/* Modals */}
+      <ProfileModal
+        open={showProfileModal}
+        onOpenChange={setShowProfileModal}
+        initialUser={userProfile || undefined}
+        onUpdate={handleProfileUpdate}
+      />
+      <SettingsModal
+        open={showSettingsModal}
+        onOpenChange={setShowSettingsModal}
+        initialUser={userProfile || undefined}
+        onUpdate={handleProfileUpdate}
+        onLogout={handleLogout}
+      />
     </nav>
   );
 };

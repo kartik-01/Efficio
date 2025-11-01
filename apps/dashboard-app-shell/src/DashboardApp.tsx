@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 import { RemoteBoundary } from "./components/RemoteBoundary";
+import { useTheme } from "./hooks/useTheme";
+import { initializeUserApi, isUserApiReady } from "./services/userApi";
 
 const TaskManagerModule = React.lazy(() => import("task_manager/Module"));
 const TimeTrackerModule = React.lazy(() => import("time_tracker/Module"));
@@ -23,6 +25,7 @@ const pathnameToApp = (pathname: string): "task" | "time" | "analytics" => {
 export default function DashboardApp() {
   const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
   const location = useLocation();
+  const { loadTheme } = useTheme();
 
   const [activeApp, setActiveApp] = useState<"task" | "time" | "analytics">(
     () => pathnameToApp(location.pathname || "/task-manager")
@@ -37,6 +40,40 @@ export default function DashboardApp() {
     const pathname = location.pathname || "/task-manager";
     setActiveApp(pathnameToApp(pathname));
   }, [location.pathname]);
+
+  // Initialize userApi and load theme when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      initializeUserApi(async () => {
+        try {
+          // Get token - only include audience if configured
+          // @ts-ignore - process.env is injected by webpack DefinePlugin at build time
+          const audience: string | undefined = process.env.REACT_APP_AUTH0_AUDIENCE;
+          
+          const options: { authorizationParams?: { audience: string } } = {};
+          if (audience) {
+            options.authorizationParams = { audience };
+          }
+          
+          return await getAccessTokenSilently(options);
+        } catch (error) {
+          console.error("Failed to get access token:", error);
+          return undefined;
+        }
+      });
+      
+      // Load theme after a short delay to ensure userApi is ready
+      // Only load once when authenticated, not on every render
+      const timer = setTimeout(() => {
+        if (isUserApiReady()) {
+          loadTheme();
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, getAccessTokenSilently]);
 
   // Create stable token getter function to pass to remote modules
   const getAccessToken = useCallback(async () => {
