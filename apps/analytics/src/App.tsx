@@ -1,10 +1,12 @@
-import React from "react";
+import { BrowserRouter } from "react-router-dom";
 
-export default function Widget() {
-  return (
-    <div className="p-6 bg-green-50 rounded-2xl shadow-md border border-green-200">
-      <h2 className="text-xl font-semibold text-green-800">Analytics</h2>
-      <p className="text-green-500 mt-2">Hello from Analytics!</p>
-    </div>
-  );
-}
+import { AnalyticsApp } from "./RemoteApp";
+
+const App = () => (
+  <BrowserRouter>
+    <AnalyticsApp />
+  </BrowserRouter>
+);
+
+export default App;
+

@@ -1,10 +1,12 @@
-import React from "react";
+import { BrowserRouter } from "react-router-dom";
 
-export default function Widget() {
-  return (
-    <div className="p-6 bg-blue-50 rounded-2xl shadow-md border border-blue-200">
-      <h2 className="text-xl font-semibold text-blue-800">Remote B Widget</h2>
-      <p className="text-blue-500 mt-2">Hello from Remote BAA!</p>
-    </div>
-  );
-}
+import { TimeTrackerApp } from "./RemoteApp";
+
+const App = () => (
+  <BrowserRouter>
+    <TimeTrackerApp />
+  </BrowserRouter>
+);
+
+export default App;
+
