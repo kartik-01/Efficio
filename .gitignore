@@ -7,3 +7,8 @@ pnpm-lock.yaml
 coverage/
 *.local
 
+# SonarCloud
+.scannerwork/
+.sonar/
+.sonar_lock
+
