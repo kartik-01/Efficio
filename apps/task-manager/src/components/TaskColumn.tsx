@@ -65,7 +65,7 @@ export function TaskColumn({ title, status, tasks, group, onTaskDrop, onProgress
 
         <div
           ref={drop as any}
-          className={`flex-1 transition-colors rounded-b-xl flex flex-col min-h-0 ${
+          className={`flex-1 transition-colors rounded-b-xl flex flex-col min-h-[calc(100vh-420px)] ${
             isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-white dark:bg-card'
           }`}
         >
