@@ -63,6 +63,26 @@ const getHeaders = async (): Promise<HeadersInit> => {
 };
 
 export const userApi = {
+  // Get or create user (used on login, returns reactivated flag)
+  async getOrCreateUser(): Promise<{ user: UserProfile; reactivated: boolean }> {
+    const headers = await getHeaders();
+    
+    const response = await fetch(`${API_BASE_URL}/users/me`, {
+      headers,
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.message || result.error || `Failed to get or create user: ${response.status}`);
+    }
+    
+    return {
+      user: result.data,
+      reactivated: result.reactivated || false,
+    };
+  },
+
   // Get user profile
   async getUserProfile(): Promise<UserProfile> {
     const headers = await getHeaders();

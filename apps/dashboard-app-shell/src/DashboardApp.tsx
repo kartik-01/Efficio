@@ -1,13 +1,14 @@
-import React, { useEffect, useState, Suspense, useCallback } from "react";
+import React, { useEffect, useState, Suspense, useCallback, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast, Toaster } from "sonner";
 
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 import { RemoteBoundary } from "./components/RemoteBoundary";
 import { useTheme } from "./hooks/useTheme";
-import { initializeUserApi, isUserApiReady } from "./services/userApi";
+import { initializeUserApi, isUserApiReady, userApi } from "./services/userApi";
 
 const TaskManagerModule = React.lazy(() => import("task_manager/Module"));
 const TimeTrackerModule = React.lazy(() => import("time_tracker/Module"));
@@ -41,6 +42,9 @@ export default function DashboardApp() {
     setActiveApp(pathnameToApp(pathname));
   }, [location.pathname]);
 
+  // Track if we've checked for reactivation to prevent duplicate checks
+  const reactivationCheckedRef = useRef(false);
+
   // Initialize userApi and load theme when authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -62,15 +66,35 @@ export default function DashboardApp() {
         }
       });
       
-      // Load theme after a short delay to ensure userApi is ready
-      // Only load once when authenticated, not on every render
-      const timer = setTimeout(() => {
-        if (isUserApiReady()) {
+      // Check for account reactivation and load theme after a short delay
+      const timer = setTimeout(async () => {
+        if (isUserApiReady() && !reactivationCheckedRef.current) {
+          reactivationCheckedRef.current = true;
+          
+          try {
+            // Check if account was reactivated
+            const result = await userApi.getOrCreateUser();
+            if (result.reactivated) {
+              toast.success("Welcome back", {
+                description: "Your account has been reactivated and all your data has been preserved.",
+                duration: 5000,
+              });
+            }
+          } catch (error) {
+            console.error("Failed to check for account reactivation:", error);
+          }
+          
+          // Load theme
           loadTheme();
         }
       }, 100);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        if (!isAuthenticated) {
+          reactivationCheckedRef.current = false;
+        }
+      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, getAccessTokenSilently]);
@@ -166,6 +190,15 @@ export default function DashboardApp() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      <Toaster 
+        position="bottom-center" 
+        richColors
+        expand={true}
+        visibleToasts={5}
+        toastOptions={{
+          duration: 4000,
+        }}
+      />
       <Navbar activeTab={activeApp} />
       <main className="flex-1">
         <AnimatePresence mode="wait">

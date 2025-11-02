@@ -104,7 +104,7 @@ export const Navbar = ({
       // Get access token for backend API call
       const token = await getAccessTokenSilently();
       
-      // Call backend logout endpoint to set isActive to false
+      // Call backend logout endpoint to set isOnline to false
       if (token) {
         try {
           await fetch(`${API_BASE_URL}/users/logout`, {
