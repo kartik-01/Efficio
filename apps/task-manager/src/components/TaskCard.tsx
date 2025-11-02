@@ -69,7 +69,7 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
     ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-transparent opacity-75' 
     : task.isOverdue 
     ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-transparent' 
-    : 'bg-card';
+    : 'bg-background';
 
   const handleEdit = () => {
     setIsMenuOpen(false);
