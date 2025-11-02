@@ -14,9 +14,9 @@ import { Label } from '@efficio/ui';
 import { Textarea } from '@efficio/ui';
 import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
-import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight } from 'lucide-react';
+import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight, Menu, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Badge, ScrollArea, Separator, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
+import { Badge, ScrollArea, Separator, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
 
 // Types for Collaboration
@@ -109,6 +109,26 @@ export function TaskManager() {
   const [editingCollaborators, setEditingCollaborators] = useState<GroupCollaborator[]>([]);
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [newGroup, setNewGroup] = useState({ name: '', tag: '' });
+  
+  // Sidebar collapse states (persisted in localStorage)
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leftSidebarCollapsed');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('rightSidebarCollapsed');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showMobileActivity, setShowMobileActivity] = useState(false);
 
   // Mock users for collaborator search
   const mockUsers = [
@@ -184,6 +204,32 @@ export function TaskManager() {
   // Fetch tasks on component mount
   useEffect(() => {
     fetchTasks();
+  }, []);
+  
+  // Persist sidebar states
+  useEffect(() => {
+    localStorage.setItem('leftSidebarCollapsed', JSON.stringify(leftSidebarCollapsed));
+  }, [leftSidebarCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('rightSidebarCollapsed', JSON.stringify(rightSidebarCollapsed));
+  }, [rightSidebarCollapsed]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        setLeftSidebarCollapsed((prev: boolean) => !prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+        e.preventDefault();
+        setRightSidebarCollapsed((prev: boolean) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const fetchTasks = async () => {
@@ -757,166 +803,35 @@ export function TaskManager() {
         }}
         theme="light"
       />
-      <div className="w-full flex min-h-[calc(100vh-4rem)] gap-6 py-6">
-        {/* Left Sidebar - Extreme Left */}
-        <div className="w-[280px] bg-card dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] h-[calc(50vh)] p-4 space-y-6 flex-shrink-0 ml-6">
-          <div>
-            <h2 className="text-[#101828] dark:text-foreground text-[16px] font-semibold mb-4">Task Manager</h2>
-            <Button
-              onClick={() => setShowCreateGroupModal(true)}
-              variant="outline"
-              className="w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent"
-            >
-              <Plus className="h-4 w-4" />
-              New Group
-            </Button>
-          </div>
-
-          {/* Pending Invitations */}
-          {pendingInvitations.length > 0 && (
-            <>
-              <Separator className="bg-gray-200 dark:bg-muted" />
-              <div className="space-y-2">
-                <button
-                  onClick={() => setShowPendingInvitations(true)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                    <span className="text-[14px] text-yellow-800 dark:text-yellow-200 font-medium">Pending Invites</span>
-                  </div>
-                  <Badge className="bg-yellow-500 dark:bg-yellow-600 text-white text-[11px]">
-                    {pendingInvitations.length}
-                  </Badge>
-                </button>
-              </div>
-            </>
-          )}
-
-          <Separator className="bg-gray-200 dark:bg-muted" />
-
-          <div className="space-y-2">
-            <h3 className="text-[#4a5565] dark:text-muted-foreground text-[12px] uppercase tracking-wider font-semibold mb-3">
-              Workspaces
-            </h3>
-            
-            <button
-              onClick={() => setSelectedGroup(null)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
-                selectedGroup === null
-                  ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
-                  : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Circle className="h-4 w-4 fill-gray-400 dark:fill-muted-foreground text-gray-400 dark:text-muted-foreground" />
-                <span className="text-[14px]">All Tasks</span>
-              </div>
-              <Badge variant="secondary" className="text-[11px]">
-                {filteredAndSortedTasks.length}
-              </Badge>
-            </button>
-
-            <ScrollArea className="h-[calc(50vh-250px)]">
-              {accessibleGroups.map((group) => {
-                const isPersonal = group.tag === '@personal';
-                const taskCount = tasks.filter(t => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
-                const acceptedCount = group.collaborators.filter(c => c.status === 'accepted').length;
-                const pendingCount = group.collaborators.filter(c => c.status === 'pending').length;
-
-                return (
-                  <div key={group.id} className="mb-1">
-                    <button
-                      onClick={() => setSelectedGroup(group.tag)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
-                        selectedGroup === group.tag
-                          ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
-                          : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div
-                          className="w-3 h-3 rounded-full shrink-0"
-                          style={{ backgroundColor: group.color }}
-                        />
-                        <span className="text-[14px] truncate capitalize">{group.name}</span>
-                        {!isPersonal && acceptedCount > 0 && (
-                          <Users className="h-3 w-3 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant="secondary" className="text-[11px]">
-                          {taskCount}
-                        </Badge>
-                        {!isPersonal && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenManageGroup(group as Group);
-                            }}
-                            className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
-                          >
-                            <Settings className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </button>
-                    {!isPersonal && (acceptedCount > 0 || pendingCount > 0) && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="ml-8 mt-1 text-[11px] text-[#4a5565] dark:text-muted-foreground cursor-help">
-                              {acceptedCount} member{acceptedCount !== 1 ? 's' : ''}
-                              {pendingCount > 0 && ` • ${pendingCount} pending`}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-[250px]">
-                            <div className="space-y-2">
-                              {acceptedCount > 0 && (
-                                <div>
-                                  <p className="font-semibold text-[11px] mb-1">Members:</p>
-                                  {group.collaborators
-                                    .filter(c => c.status === 'accepted')
-                                    .map(c => (
-                                      <p key={c.userId} className="text-[11px]">
-                                        • {c.name} ({c.role})
-                                      </p>
-                                    ))}
-                                </div>
-                              )}
-                              {pendingCount > 0 && (
-                                <div>
-                                  <p className="font-semibold text-[11px] mb-1">Pending:</p>
-                                  {group.collaborators
-                                    .filter(c => c.status === 'pending')
-                                    .map(c => (
-                                      <p key={c.userId} className="text-[11px]">
-                                        • {c.name} ({c.role})
-                                      </p>
-                                    ))}
-                                </div>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
-                );
-              })}
-            </ScrollArea>
-            
-            <div className="pt-4 border-t border-gray-200 dark:border-muted space-y-2 mt-4">
-              <p className="text-[#4a5565] dark:text-muted-foreground text-[11px]">
-                💡 <strong>Tip:</strong> Drag & drop cards between columns
-              </p>
+      <TooltipProvider>
+        <div className="flex">
+          {/* Left Sidebar - Desktop Only */}
+          <div 
+            className={`hidden md:block bg-white dark:bg-card border-r border-gray-200 dark:border-transparent sticky top-[64px] h-[calc(100vh-64px)] transition-all duration-300 ${
+              leftSidebarCollapsed ? 'w-[60px]' : 'w-[280px]'
+            }`}
+          >
+            <div className={leftSidebarCollapsed ? 'p-2' : 'p-4'}>
+              <LeftSidebarContent
+                selectedGroup={selectedGroup}
+                setSelectedGroup={setSelectedGroup}
+                accessibleGroups={accessibleGroups}
+                groups={groups}
+                tasks={tasks}
+                filteredTasks={filteredAndSortedTasks}
+                pendingInvitations={pendingInvitations}
+                setShowCreateGroupModal={setShowCreateGroupModal}
+                setShowPendingInvitations={setShowPendingInvitations}
+                handleOpenManageGroup={handleOpenManageGroup}
+                collapsed={leftSidebarCollapsed}
+                onToggleCollapse={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
+              />
             </div>
           </div>
-        </div>
 
-        {/* Main Content - Centered and aligned with navbar */}
-        <div className="flex-1">
-          <div className="max-w-[1280px] mx-auto px-8 w-full">
+          {/* Center Content */}
+          <div className="flex-1 p-3 md:p-6 overflow-x-hidden">
+            <div className="max-w-[1280px] mx-auto px-8 w-full">
         {/* Page Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -1143,111 +1058,44 @@ export function TaskManager() {
             </div>
           </div>
         )}
-          </div>
-        </div>
-
-        {/* Right Activity Sidebar - Extreme Right */}
-        <div className="w-[340px] bg-card dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] h-[calc(50vh)] p-4 space-y-6 flex-shrink-0 mr-6">
-          <div>
-            <h2 className="text-[#101828] dark:text-foreground text-[16px] font-semibold mb-4 flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Recent Activity
-            </h2>
-          </div>
-
-          <Separator className="bg-gray-200 dark:bg-muted" />
-
-          <ScrollArea className="h-[calc(50vh-150px)]">
-            <div className="space-y-4">
-              <AnimatePresence>
-                {activities.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-[#4a5565] dark:text-muted-foreground text-[13px]">No activity yet</p>
-                  </div>
-                ) : (
-                  activities.map((activity, index) => {
-                    const isCurrentUser = activity.userId === CURRENT_USER_ID;
-                    const userAvatarColor = isCurrentUser 
-                      ? 'bg-indigo-500' 
-                      : ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][index % 5];
-                    
-                    return (
-                      <motion.div
-                        key={activity.id}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex gap-3"
-                      >
-                        <div className="flex flex-col items-center">
-                          <Avatar className="h-7 w-7 border-2 border-white dark:border-card">
-                            <AvatarFallback className={`${userAvatarColor} text-white text-[10px]`}>
-                              {isCurrentUser ? 'You' : activity.userName.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          {index < activities.length - 1 && (
-                            <div className="w-0.5 h-full min-h-[40px] bg-gray-200 dark:bg-muted mt-2" />
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0 pb-4">
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium break-words flex-1 min-w-0">
-                              {activity.taskTitle}
-                            </p>
-                            <span className="text-[#4a5565] dark:text-muted-foreground text-[11px] whitespace-nowrap shrink-0 ml-2">
-                              {formatTimestamp(activity.timestamp)}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-start gap-2 flex-wrap">
-                            {activity.type === 'task_created' && (
-                              <>
-                                <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0 mt-1.5" />
-                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
-                                  <span className="font-medium">{activity.userName}</span> created this task
-                                </p>
-                              </>
-                            )}
-                            {activity.type === 'task_moved' && (
-                              <>
-                                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0 mt-1.5" />
-                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
-                                  <span className="font-medium">{activity.userName}</span> moved from{' '}
-                                  <span className="capitalize">{activity.fromStatus?.replace('-', ' ')}</span>
-                                  {' '}<ArrowRight className="h-3 w-3 inline align-middle" />{' '}
-                                  <span className="capitalize">{activity.toStatus?.replace('-', ' ')}</span>
-                                </p>
-                              </>
-                            )}
-                            {activity.type === 'task_deleted' && (
-                              <>
-                                <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
-                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
-                                  <span className="font-medium">{activity.userName}</span> deleted this task
-                                </p>
-                              </>
-                            )}
-                          </div>
-                          
-                          {activity.groupTag && activity.groupTag !== '@personal' && (
-                            <div className="mt-1.5">
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                {groups.find(g => g.tag === activity.groupTag)?.name || activity.groupTag}
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })
-                )}
-              </AnimatePresence>
             </div>
-          </ScrollArea>
+          </div>
+
+          {/* Right Sidebar - Desktop Only */}
+          {!rightSidebarCollapsed && (
+            <div className="hidden lg:block w-[300px] bg-white dark:bg-card border-l border-gray-200 dark:border-transparent sticky top-[64px] h-[calc(100vh-64px)] transition-all duration-300">
+              <div className="p-4">
+                <RightSidebarContent 
+                  activities={activities}
+                  onToggleCollapse={() => setRightSidebarCollapsed(!rightSidebarCollapsed)}
+                  formatTimestamp={formatTimestamp}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Right Sidebar Collapsed - Show Expand Button */}
+          {rightSidebarCollapsed && (
+            <div className="hidden lg:flex w-[48px] bg-white dark:bg-card border-l border-gray-200 dark:border-transparent sticky top-[64px] h-[calc(100vh-64px)] items-start justify-center pt-4">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => setRightSidebarCollapsed(false)}
+                    variant="outline"
+                    size="sm"
+                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                  >
+                    <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>Show Activity (Ctrl+I)</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
         </div>
-      </div>
+      </TooltipProvider>
 
         {/* Add Task Modal */}
         <Dialog 
@@ -1819,6 +1667,382 @@ export function TaskManager() {
           </DialogContent>
         </Dialog>
     </DndProvider>
+  );
+}
+
+// Left Sidebar Content Component
+function LeftSidebarContent({
+  selectedGroup,
+  setSelectedGroup,
+  accessibleGroups,
+  groups,
+  tasks,
+  filteredTasks,
+  pendingInvitations,
+  setShowCreateGroupModal,
+  setShowPendingInvitations,
+  handleOpenManageGroup,
+  collapsed = false,
+  onToggleCollapse,
+}: any) {
+  if (collapsed) {
+    // Collapsed view - Icon only
+    return (
+      <div className="space-y-3 flex flex-col items-center h-full">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={onToggleCollapse}
+              variant="outline"
+              size="sm"
+              className="w-[44px] h-[36px] p-0 rounded-[8px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+            >
+              <ChevronRight className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Expand Sidebar (Ctrl+B)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Separator className="bg-gray-200 dark:bg-muted w-full" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={() => setShowCreateGroupModal(true)}
+              variant="outline"
+              size="sm"
+              className="w-[44px] h-[44px] p-0 rounded-[10px] border-gray-200 dark:border-transparent"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>New Group</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Separator className="bg-gray-200 dark:bg-muted w-full" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setSelectedGroup(null)}
+              className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors ${
+                selectedGroup === null
+                  ? 'bg-gray-100 dark:bg-accent'
+                  : 'hover:bg-gray-50 dark:hover:bg-accent/50'
+              }`}
+            >
+              <div className="w-3 h-3 rounded-full bg-gray-400 dark:bg-muted-foreground" />
+              <Badge 
+                variant="secondary" 
+                className="absolute -top-1 -right-1 text-[9px] bg-blue-500 dark:bg-blue-600 text-white px-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full"
+              >
+                {tasks.length}
+              </Badge>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>All Tasks ({tasks.length})</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <ScrollArea className="h-[calc(100vh-250px)] w-full">
+          <div className="space-y-2 flex flex-col items-center">
+            {accessibleGroups.map((group: Group) => {
+              const taskCount = tasks.filter((t: Task) => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
+              const acceptedCount = group.collaborators.filter((c: GroupCollaborator) => c.status === 'accepted').length;
+
+              return (
+                <Tooltip key={group.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedGroup(group.tag)}
+                      className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors ${
+                        selectedGroup === group.tag
+                          ? 'bg-gray-100 dark:bg-accent'
+                          : 'hover:bg-gray-50 dark:hover:bg-accent/50'
+                      }`}
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: group.color }}
+                      />
+                      {taskCount > 0 && (
+                        <Badge 
+                          variant="secondary" 
+                          className="absolute -top-1 -right-1 text-[9px] bg-gray-700 dark:bg-gray-600 text-white px-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full"
+                        >
+                          {taskCount}
+                        </Badge>
+                      )}
+                      {acceptedCount > 0 && (
+                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border border-white dark:border-card flex items-center justify-center">
+                          <Users className="w-2 h-2 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <div>
+                      <p className="font-semibold">{group.name}</p>
+                      <p className="text-[11px] text-gray-400 dark:text-muted-foreground">{taskCount} task{taskCount !== 1 ? 's' : ''}</p>
+                      {acceptedCount > 0 && (
+                        <p className="text-[11px] text-emerald-400">{acceptedCount} member{acceptedCount !== 1 ? 's' : ''}</p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
+
+  // Expanded view - Full layout
+  return (
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex items-center justify-between flex-shrink-0">
+        <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Task Manager</h2>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              onClick={onToggleCollapse}
+              variant="outline"
+              size="sm"
+              className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+            >
+              <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Collapse Sidebar (Ctrl+B)</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      <Button
+        onClick={() => setShowCreateGroupModal(true)}
+        variant="outline"
+        className="w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent justify-start flex-shrink-0"
+      >
+        <Plus className="h-4 w-4" />
+        New Group
+      </Button>
+
+      <Separator className="bg-gray-200 dark:bg-muted flex-shrink-0" />
+
+      {pendingInvitations.length > 0 && (
+        <>
+          <div className="space-y-2 flex-shrink-0">
+            <button
+              onClick={() => setShowPendingInvitations(true)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                <span className="text-[14px] text-yellow-800 dark:text-yellow-200 font-medium">Pending Invites</span>
+              </div>
+              <Badge className="bg-yellow-500 dark:bg-yellow-600 text-white text-[11px]">
+                {pendingInvitations.length}
+              </Badge>
+            </button>
+          </div>
+          <Separator className="bg-gray-200 dark:bg-muted flex-shrink-0" />
+        </>
+      )}
+
+      <div className="space-y-1 flex flex-col flex-1 min-h-0">
+        <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] uppercase tracking-wider font-semibold px-2 mb-2 flex-shrink-0">
+          WORKSPACES
+        </p>
+        
+        <button
+          onClick={() => setSelectedGroup(null)}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors flex-shrink-0 ${
+            selectedGroup === null
+              ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
+              : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-gray-400 dark:bg-muted-foreground" />
+            <span className="text-[13px]">All Tasks</span>
+          </div>
+          <Badge variant="secondary" className="text-[11px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground">
+            {tasks.length}
+          </Badge>
+        </button>
+
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="space-y-1 pr-2">
+            {accessibleGroups.map((group: Group) => {
+              const isPersonal = group.tag === '@personal';
+              const taskCount = tasks.filter((t: Task) => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
+              const acceptedCount = group.collaborators.filter((c: GroupCollaborator) => c.status === 'accepted').length;
+
+              return (
+                <div key={group.id} className="group relative">
+                  <button
+                    onClick={() => setSelectedGroup(group.tag)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors ${
+                      selectedGroup === group.tag
+                        ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
+                        : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
+                    }`}
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: group.color }}
+                    />
+                    <span className="text-[13px] truncate flex-1 text-left min-w-0">{group.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                      {!isPersonal && acceptedCount > 0 && (
+                        <div className="flex -space-x-1">
+                          {group.collaborators
+                            .filter((c: GroupCollaborator) => c.status === 'accepted')
+                            .slice(0, 2)
+                            .map((c: GroupCollaborator, i: number) => (
+                              <div
+                                key={c.userId}
+                                className="w-4 h-4 rounded-full border border-white dark:border-card flex items-center justify-center text-white text-[8px] font-medium"
+                                style={{ backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981'][i % 3] }}
+                              >
+                                {c.name[0]}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                      <Badge variant="secondary" className="text-[10px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground px-1.5 h-5">
+                        {taskCount}
+                      </Badge>
+                      {!isPersonal && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenManageGroup(group);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5"
+                        >
+                          <Settings className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+    </div>
+  );
+}
+
+// Right Sidebar Content Component
+interface Activity {
+  id: string;
+  type: 'task_created' | 'task_moved' | 'task_deleted' | 'task_updated';
+  taskTitle: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  timestamp: string;
+  fromStatus?: 'pending' | 'in-progress' | 'completed';
+  toStatus?: 'pending' | 'in-progress' | 'completed';
+  groupTag?: string;
+}
+
+function RightSidebarContent({ activities, onToggleCollapse, formatTimestamp }: { activities: Activity[], onToggleCollapse?: () => void, formatTimestamp: (timestamp: string) => string }) {
+  return (
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex items-center justify-between flex-shrink-0">
+        <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Recent Activity</h2>
+        {onToggleCollapse && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={onToggleCollapse}
+                variant="outline"
+                size="sm"
+                className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+              >
+                <ChevronRight className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Hide Activity (Ctrl+I)</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="space-y-3 pr-2">
+          {activities.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-[#4a5565] dark:text-muted-foreground text-[13px]">No activity yet</p>
+            </div>
+          ) : (
+            activities.map((activity, index) => {
+              const isCurrentUser = activity.userId === CURRENT_USER_ID;
+              const userAvatarColor = isCurrentUser 
+                ? 'bg-indigo-500 dark:bg-indigo-600' 
+                : ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][index % 5];
+              
+              return (
+                <motion.div
+                  key={activity.id}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex gap-3 p-3 bg-gray-50 dark:bg-muted/30 rounded-[8px] border border-gray-100 dark:border-transparent"
+                >
+                  <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                    <AvatarFallback className={`${userAvatarColor} text-white text-[11px]`}>
+                      {isCurrentUser ? 'You' : activity.userName.split(' ').map((n: string) => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[#101828] dark:text-foreground text-[12px] leading-[16px]">
+                      <span className="font-semibold">{activity.userName}</span>
+                      {activity.type === 'task_moved' ? (
+                        <>
+                          {' '}moved from{' '}
+                          <span className="font-medium text-indigo-500 dark:text-indigo-400 capitalize">{activity.fromStatus?.replace('-', ' ')}</span>
+                          {' '}→{' '}
+                          <span className="font-medium text-green-500 dark:text-green-400 capitalize">{activity.toStatus?.replace('-', ' ')}</span>
+                        </>
+                      ) : activity.type === 'task_created' ? (
+                        <>
+                          {' '}created task{' '}
+                          {activity.taskTitle && (
+                            <span className="font-medium">"{activity.taskTitle}"</span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {' '}deleted task{' '}
+                          {activity.taskTitle && (
+                            <span className="font-medium">"{activity.taskTitle}"</span>
+                          )}
+                        </>
+                      )}
+                    </p>
+                    <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] mt-0.5">{formatTimestamp(activity.timestamp)}</p>
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
 

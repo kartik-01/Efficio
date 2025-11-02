@@ -3,10 +3,12 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, User, Menu, Bell, Activity } from "lucide-react";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
+import { Sheet, SheetContent, SheetTrigger } from "@efficio/ui";
+import { Badge } from "@efficio/ui";
 
 // API base URL - injected by webpack DefinePlugin at build time
 declare const process: {
@@ -30,6 +32,11 @@ export const Navbar = ({
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showMobileActivity, setShowMobileActivity] = useState(false);
+  
+  // Mock pending invitations count (will be replaced with actual data later)
+  const pendingInvitationsCount = 0;
 
   // Initialize userApi with token getter (only once)
   useEffect(() => {
@@ -133,9 +140,26 @@ export const Navbar = ({
 
   return (
     <nav className="w-full h-16 border-b border-gray-200 dark:border-transparent bg-background dark:bg-card shadow-sm sticky top-0 z-50">
-      <div className="max-w-[1280px] mx-auto px-8 h-full flex items-center justify-between">
-        {/* Left side: logo + tabs */}
-        <div className="flex items-center gap-8">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 h-full flex items-center justify-between">
+        {/* Left side: mobile menu + logo + tabs */}
+        <div className="flex items-center gap-4 md:gap-8">
+          {/* Mobile Menu Button - Only show in task manager on mobile */}
+          {isAuthenticated && location.pathname.includes('task-manager') && (
+            <Sheet open={showMobileSidebar} onOpenChange={setShowMobileSidebar}>
+              <SheetTrigger asChild>
+                <button className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors">
+                  <Menu className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[280px] p-0">
+                {/* Mobile sidebar content will be passed from task manager */}
+                <div className="p-4 text-sm text-gray-600 dark:text-muted-foreground">
+                  Sidebar content will be shown here
+                </div>
+              </SheetContent>
+            </Sheet>
+          )}
+          
           {/* Logo */}
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
@@ -155,9 +179,9 @@ export const Navbar = ({
             <span className="text-lg font-bold text-gray-900 dark:text-foreground">Efficio</span>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs - Hidden on mobile for task manager */}
           {isAuthenticated && (
-            <div className="flex items-center gap-4">
+            <div className={`${location.pathname.includes('task-manager') ? 'hidden md:flex' : 'flex'} items-center gap-4`}>
               {tabs.map((tab) => {
                 const isActive = activeTabFromPath === tab.id;
                 return (
@@ -178,7 +202,7 @@ export const Navbar = ({
           )}
         </div>
 
-        {/* Right side */}
+        {/* Right side: notifications + user */}
         {!isAuthenticated ? (
           <button
             onClick={() => loginWithRedirect()}
@@ -187,7 +211,44 @@ export const Navbar = ({
             Log In
           </button>
         ) : (
-          <DropdownMenu.Root>
+          <div className="flex items-center gap-1">
+            {/* Mobile Activity Button - Only show in task manager on mobile */}
+            {location.pathname.includes('task-manager') && (
+              <Sheet open={showMobileActivity} onOpenChange={setShowMobileActivity}>
+                <SheetTrigger asChild>
+                  <button className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors">
+                    <Activity className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                  </button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[300px] p-0">
+                  {/* Mobile activity content will be passed from task manager */}
+                  <div className="p-4 text-sm text-gray-600 dark:text-muted-foreground">
+                    Activity content will be shown here
+                  </div>
+                </SheetContent>
+              </Sheet>
+            )}
+            
+            {/* Pending Invitations - Only show in task manager */}
+            {location.pathname.includes('task-manager') && pendingInvitationsCount > 0 && (
+              <button
+                onClick={() => {
+                  // Will be handled by task manager component
+                  window.dispatchEvent(new CustomEvent('openPendingInvitations'));
+                }}
+                className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+              >
+                <Bell className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                <Badge 
+                  variant="secondary" 
+                  className="absolute -top-1 -right-1 text-[10px] bg-red-500 text-white px-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-white dark:border-card"
+                >
+                  {pendingInvitationsCount}
+                </Badge>
+              </button>
+            )}
+            
+            <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <motion.button
                 className="flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-indigo-50 dark:hover:bg-accent focus:outline-none"
@@ -276,6 +337,7 @@ export const Navbar = ({
               </DropdownMenu.Content>
             </AnimatePresence>
           </DropdownMenu.Root>
+          </div>
         )}
       </div>
 
