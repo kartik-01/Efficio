@@ -132,7 +132,7 @@ export const Navbar = ({
   };
 
   return (
-    <nav className="w-full h-16 border-b border-gray-200 bg-white shadow-sm sticky top-0 z-50">
+    <nav className="w-full h-16 border-b border-gray-200 dark:border-transparent bg-white dark:bg-card shadow-sm sticky top-0 z-50">
       <div className="max-w-[1280px] mx-auto px-8 h-full flex items-center justify-between">
         {/* Left side: logo + tabs */}
         <div className="flex items-center gap-8">
@@ -152,7 +152,7 @@ export const Navbar = ({
                 />
               </svg>
             </div>
-            <span className="text-lg font-bold text-gray-900">Efficio</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-foreground">Efficio</span>
           </div>
 
           {/* Tabs */}
@@ -167,7 +167,7 @@ export const Navbar = ({
                     className={`px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors duration-200 ${
                       isActive
                         ? "bg-indigo-500 text-white border border-indigo-500"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        : "text-gray-600 dark:text-muted-foreground hover:text-gray-900 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent"
                     }`}
                   >
                     {tab.label}
@@ -190,7 +190,7 @@ export const Navbar = ({
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <motion.button
-                className="flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-indigo-50 focus:outline-none"
+                className="flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-indigo-50 dark:hover:bg-accent focus:outline-none"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 transition={{ duration: 0.15 }}
@@ -202,7 +202,7 @@ export const Navbar = ({
                     className="w-8 h-8 rounded-full border border-transparent"
                   />
                 )}
-                <span className="text-gray-700 font-medium hover:text-indigo-600 transition-colors">
+                <span className="text-gray-700 dark:text-foreground font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                   {(userProfile?.name || auth0User?.name)?.split(" ")[0]}
                 </span>
               </motion.button>
@@ -212,7 +212,7 @@ export const Navbar = ({
               <DropdownMenu.Content
                 align="end"
                 sideOffset={8}
-                className="z-[60] min-w-[160px] bg-white border border-gray-200 rounded-lg shadow-lg p-1"
+                className="z-[60] min-w-[160px] bg-white dark:bg-popover border border-gray-200 dark:border-transparent rounded-lg shadow-lg dark:shadow-[0_4px_12px_0_rgba(0,0,0,0.4)] p-1"
                 asChild
               >
                 <motion.div
@@ -231,7 +231,7 @@ export const Navbar = ({
                       asChild
                     >
                       <motion.button
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-colors w-full text-left"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-popover-foreground hover:bg-indigo-50 dark:hover:bg-accent hover:text-indigo-700 dark:hover:text-indigo-400 cursor-pointer rounded-md transition-colors w-full text-left"
                         whileHover={{ x: 2 }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.1 }}
@@ -246,7 +246,7 @@ export const Navbar = ({
                       asChild
                     >
                       <motion.button
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-colors w-full text-left"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-popover-foreground hover:bg-indigo-50 dark:hover:bg-accent hover:text-indigo-700 dark:hover:text-indigo-400 cursor-pointer rounded-md transition-colors w-full text-left"
                         whileHover={{ x: 2 }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.1 }}
@@ -255,7 +255,7 @@ export const Navbar = ({
                       </motion.button>
                     </DropdownMenu.Item>
 
-                    <DropdownMenu.Separator className="my-1 h-px bg-gray-200" />
+                    <DropdownMenu.Separator className="my-1 h-px bg-gray-200 dark:bg-muted" />
 
                     <DropdownMenu.Item
                       onClick={handleLogout}

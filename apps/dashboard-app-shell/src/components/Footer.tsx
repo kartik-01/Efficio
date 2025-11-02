@@ -15,7 +15,7 @@ export const Footer = () => {
   ];
 
   return (
-    <footer className="w-full bg-gray-900 py-12">
+    <footer className="w-full bg-white dark:bg-card border-t border-gray-200 dark:border-transparent shadow-sm py-12">
       <div className="max-w-[1280px] mx-auto px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           <div>
@@ -34,16 +34,16 @@ export const Footer = () => {
                   />
                 </svg>
               </div>
-              <span className="text-xl font-bold text-white">Efficio</span>
+              <span className="text-xl font-bold text-gray-900 dark:text-foreground">Efficio</span>
             </div>
-            <p className="text-sm text-gray-400 leading-5">
+            <p className="text-sm text-gray-600 dark:text-muted-foreground leading-5">
               The ultimate productivity platform for modern professionals.
             </p>
           </div>
 
           {footerSections.map((section, index) => (
             <div key={index}>
-              <h3 className="text-base font-semibold text-white mb-4">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-foreground mb-4">
                 {section.title}
               </h3>
               <ul className="space-y-2">
@@ -51,7 +51,7 @@ export const Footer = () => {
                   <li key={linkIndex}>
                     <a
                       href="#"
-                      className="text-sm text-gray-400 hover:text-white transition-colors"
+                      className="text-sm text-gray-600 dark:text-muted-foreground hover:text-gray-900 dark:hover:text-foreground transition-colors"
                     >
                       {link}
                     </a>
@@ -62,8 +62,8 @@ export const Footer = () => {
           ))}
         </div>
 
-        <div className="pt-8 border-t border-gray-800">
-          <p className="text-sm text-gray-400 text-center">
+        <div className="pt-8 border-t border-gray-200 dark:border-muted">
+          <p className="text-sm text-gray-600 dark:text-muted-foreground text-center">
             © 2025 Efficio. All rights reserved.
           </p>
         </div>
