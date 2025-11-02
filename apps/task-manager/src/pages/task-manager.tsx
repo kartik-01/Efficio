@@ -109,6 +109,8 @@ export function TaskManager() {
   const [editingCollaborators, setEditingCollaborators] = useState<GroupCollaborator[]>([]);
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [newGroup, setNewGroup] = useState({ name: '', tag: '' });
+  const [newGroupCollaborators, setNewGroupCollaborators] = useState<GroupCollaborator[]>([]);
+  const [newGroupMemberSearch, setNewGroupMemberSearch] = useState('');
   
   // Sidebar collapse states (persisted in localStorage)
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => {
@@ -591,13 +593,15 @@ export function TaskManager() {
       name: newGroup.name,
       color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
       owner: CURRENT_USER_ID,
-      collaborators: [],
+      collaborators: newGroupCollaborators,
       createdAt: new Date().toISOString(),
     };
 
     setGroups([...groups, group]);
     setShowCreateGroupModal(false);
     setNewGroup({ name: '', tag: '' });
+    setNewGroupCollaborators([]);
+    setNewGroupMemberSearch('');
     toast.success(`Group "${newGroup.name}" created!`);
   };
 
@@ -630,6 +634,26 @@ export function TaskManager() {
     setEditingCollaborators([...editingCollaborators, newCollaborator]);
     setCollaboratorSearch('');
     toast.success(`Invitation sent to ${user.name}`);
+  };
+
+  const handleAddNewGroupMember = (user: typeof mockUsers[0]) => {
+    const newCollaborator: GroupCollaborator = {
+      ...user,
+      role: 'editor',
+      status: 'pending',
+      invitedAt: new Date().toISOString(),
+    };
+    setNewGroupCollaborators([...newGroupCollaborators, newCollaborator]);
+    setNewGroupMemberSearch('');
+    toast.success(`Added ${user.name}`);
+  };
+
+  const handleRemoveNewGroupMember = (userId: string) => {
+    setNewGroupCollaborators(newGroupCollaborators.filter(c => c.userId !== userId));
+  };
+
+  const handleNewGroupRoleChange = (userId: string, role: 'viewer' | 'editor' | 'admin') => {
+    setNewGroupCollaborators(newGroupCollaborators.map(c => c.userId === userId ? { ...c, role } : c));
   };
 
   const handleRemoveCollaborator = (userId: string) => {
@@ -673,6 +697,13 @@ export function TaskManager() {
       (u.name.toLowerCase().includes(collaboratorSearch.toLowerCase()) ||
         u.email.toLowerCase().includes(collaboratorSearch.toLowerCase())) &&
       !editingCollaborators.find(c => c.userId === u.userId)
+  );
+
+  const newGroupSearchResults = mockUsers.filter(
+    u =>
+      (u.name.toLowerCase().includes(newGroupMemberSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(newGroupMemberSearch.toLowerCase())) &&
+      !newGroupCollaborators.find(c => c.userId === u.userId)
   );
 
   // Filter and sort tasks
@@ -1459,8 +1490,19 @@ export function TaskManager() {
         </AlertDialog>
 
         {/* Create Group Modal */}
-        <Dialog open={showCreateGroupModal} onOpenChange={setShowCreateGroupModal}>
-          <DialogContent className="sm:max-w-[500px]">
+        <Dialog 
+          open={showCreateGroupModal} 
+          onOpenChange={(open) => {
+            setShowCreateGroupModal(open);
+            if (!open) {
+              // Reset form when modal closes
+              setNewGroup({ name: '', tag: '' });
+              setNewGroupCollaborators([]);
+              setNewGroupMemberSearch('');
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Group</DialogTitle>
               <DialogDescription>
@@ -1476,7 +1518,7 @@ export function TaskManager() {
                   onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
                   className="h-[36px] rounded-[8px]"
                 />
-      </div>
+              </div>
               <div className="space-y-2">
                 <Label>Group Tag</Label>
                 <Input
@@ -1486,6 +1528,84 @@ export function TaskManager() {
                   className="h-[36px] rounded-[8px]"
                 />
               </div>
+
+              {/* Add Member Section */}
+              <div className="space-y-3">
+                <Label>Add Member</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={newGroupMemberSearch}
+                    onChange={(e) => setNewGroupMemberSearch(e.target.value)}
+                    className="pl-9 h-[36px] rounded-[8px]"
+                  />
+                </div>
+                {newGroupMemberSearch && (
+                  <div className="border border-gray-200 dark:border-transparent rounded-[8px] p-2 max-h-[200px] overflow-y-auto bg-card">
+                    {newGroupSearchResults.length === 0 ? (
+                      <p className="text-center text-[#4a5565] dark:text-muted-foreground text-[12px] py-4">No users found</p>
+                    ) : (
+                      newGroupSearchResults.map((user) => (
+                        <button
+                          key={user.userId}
+                          onClick={() => handleAddNewGroupMember(user)}
+                          className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors"
+                        >
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-purple-500 text-white text-[11px]">
+                              {user.name.split(' ').map(n => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="text-left flex-1">
+                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium">{user.name}</p>
+                            <p className="text-[#4a5565] dark:text-muted-foreground text-[11px]">{user.email}</p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Members List */}
+              {newGroupCollaborators.length > 0 && (
+                <div className="space-y-3">
+                  <Label>Members</Label>
+                  <div className="space-y-2">
+                    {newGroupCollaborators.map((collab) => (
+                      <div key={collab.userId} className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-blue-500 text-white text-[11px]">
+                              {collab.name.split(' ').map(n => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium truncate">{collab.name}</p>
+                            <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] truncate">{collab.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Select value={collab.role} onValueChange={(value: any) => handleNewGroupRoleChange(collab.userId, value)}>
+                            <SelectTrigger className="w-[90px] h-[30px] text-[12px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="viewer">Viewer</SelectItem>
+                              <SelectItem value="editor">Editor</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <button onClick={() => handleRemoveNewGroupMember(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowCreateGroupModal(false)} className="h-[36px] rounded-[8px]">
@@ -1926,7 +2046,7 @@ function LeftSidebarContent({
                             e.stopPropagation();
                             handleOpenManageGroup(group);
                           }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5"
+                          className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5 transition-colors"
                         >
                           <Settings className="h-3.5 w-3.5" />
                         </button>
