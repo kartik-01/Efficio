@@ -54,9 +54,9 @@ export function TaskColumn({ title, status, tasks, group, onTaskDrop, onProgress
   return (
     <div className="flex-1 min-w-0 flex flex-col h-full">
       <div className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] flex flex-col h-full">
-        <div className="border-b border-gray-200 dark:border-transparent p-4 bg-white dark:bg-card flex-shrink-0 rounded-t-xl sticky top-16 z-20">
+        <div className="border-b border-gray-200 dark:border-transparent p-4 bg-white dark:bg-card flex-shrink-0 rounded-t-xl sticky top-[64px] z-30 backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <h2 className="text-gray-900 dark:text-card-foreground">{title}</h2>
+            <h2 className="text-gray-900 dark:text-card-foreground font-semibold">{title}</h2>
             <Badge variant="secondary" className={`${statusColors[status]} rounded-full`}>
               {tasks.length}
             </Badge>
@@ -65,11 +65,11 @@ export function TaskColumn({ title, status, tasks, group, onTaskDrop, onProgress
 
         <div
           ref={drop as any}
-          className={`flex-1 p-4 transition-colors min-h-[400px] rounded-b-xl ${
+          className={`flex-1 transition-colors rounded-b-xl flex flex-col min-h-0 ${
             isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-white dark:bg-card'
           }`}
         >
-          <div ref={taskListRef} className="space-y-4">
+          <div ref={taskListRef} className="p-4 space-y-4">
           <AnimatePresence mode="popLayout">
             {tasks.map((task, index) => {
               const isNewlyAdded = task.id === newlyAddedTaskId;
