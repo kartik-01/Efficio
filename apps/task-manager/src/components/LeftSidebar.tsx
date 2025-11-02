@@ -490,7 +490,7 @@ export function LeftSidebar({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Group Name</Label>
+              <Label>Workspace Name</Label>
               <Input
                 placeholder="e.g., Web UI Project"
                 value={newGroup.name}
@@ -499,7 +499,7 @@ export function LeftSidebar({
               />
             </div>
             <div className="space-y-2">
-              <Label>Group Tag</Label>
+              <Label>Workspace Tag</Label>
               <Input
                 placeholder="e.g., web-ui or @web-ui"
                 value={newGroup.tag}
