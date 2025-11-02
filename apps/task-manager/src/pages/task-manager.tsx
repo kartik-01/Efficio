@@ -429,8 +429,8 @@ export function TaskManager() {
         {/* Page Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <p className="font-bold text-[24px] leading-[32px] text-gray-900">Task Manager</p>
-            <p className="font-normal text-[16px] leading-[24px] text-gray-600 mt-1">
+            <p className="font-bold text-[24px] leading-[32px] text-gray-900 dark:text-foreground">Task Manager</p>
+            <p className="font-normal text-[16px] leading-[24px] text-gray-600 dark:text-muted-foreground mt-1">
               Manage your tasks and projects efficiently
             </p>
           </div>
@@ -460,11 +460,11 @@ export function TaskManager() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <Card className="p-6 border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Tasks</p>
-                <p className="text-2xl font-semibold text-gray-900 mt-2">{totalTasks}</p>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">Total Tasks</p>
+                <p className="text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-2">{totalTasks}</p>
               </div>
               <div className="bg-blue-100 rounded-lg p-3">
                 <ListTodo className="h-6 w-6 text-blue-600" />
@@ -472,11 +472,11 @@ export function TaskManager() {
             </div>
           </Card>
 
-          <Card className="p-6 border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">In Progress</p>
-                <p className="text-2xl font-semibold text-gray-900 mt-2">{inProgressTasks.length}</p>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">In Progress</p>
+                <p className="text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-2">{inProgressTasks.length}</p>
               </div>
               <div className="bg-yellow-100 rounded-lg p-3">
                 <Clock className="h-6 w-6 text-yellow-600" />
@@ -484,11 +484,11 @@ export function TaskManager() {
             </div>
           </Card>
 
-          <Card className="p-6 border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-semibold text-gray-900 mt-2">{completedTasks.length}</p>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">Completed</p>
+                <p className="text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-2">{completedTasks.length}</p>
               </div>
               <div className="bg-green-100 rounded-lg p-3">
                 <TrendingUp className="h-6 w-6 text-green-600" />
@@ -496,10 +496,10 @@ export function TaskManager() {
             </div>
           </Card>
 
-          <Card className="p-6 border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Overdue</p>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">Overdue</p>
                 <p className="text-2xl font-semibold text-red-600 mt-2">{overdueTasks}</p>
               </div>
               <div className="bg-red-100 rounded-lg p-3">
@@ -510,26 +510,26 @@ export function TaskManager() {
         </div>
 
         {/* Filter and Search Bar */}
-        <Card className="p-4 mb-6 border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+        <Card className="p-4 mb-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             {/* Search Box */}
             <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search tasks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white border-gray-300"
+                className="pl-10"
               />
             </div>
 
             {/* Priority Filter */}
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-full md:w-[140px] bg-white border-gray-300">
+              <SelectTrigger className="w-full md:w-[140px]">
                 <SelectValue placeholder="All Priorities" />
               </SelectTrigger>
-              <SelectContent className="bg-white">
+              <SelectContent>
                 <SelectItem value="all">All Priorities</SelectItem>
                 <SelectItem value="High">High</SelectItem>
                 <SelectItem value="Medium">Medium</SelectItem>
@@ -539,10 +539,10 @@ export function TaskManager() {
 
             {/* Category Filter */}
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-[155px] bg-white border-gray-300">
+              <SelectTrigger className="w-full md:w-[155px]">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
-              <SelectContent className="bg-white">
+              <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
                 <SelectItem value="Work">Work</SelectItem>
                 <SelectItem value="Personal">Personal</SelectItem>
@@ -552,10 +552,10 @@ export function TaskManager() {
 
             {/* Sort By */}
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-full md:w-[180px] bg-white border-gray-300">
+              <SelectTrigger className="w-full md:w-[180px]">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
-              <SelectContent className="bg-white">
+              <SelectContent>
                 <SelectItem value="dueDate">Sort by Due Date</SelectItem>
                 <SelectItem value="priority">Sort by Priority</SelectItem>
                 <SelectItem value="title">Sort by Title</SelectItem>
@@ -567,7 +567,7 @@ export function TaskManager() {
         {/* Kanban Board */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <p className="text-gray-600">Loading tasks...</p>
+            <p className="text-gray-600 dark:text-muted-foreground">Loading tasks...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -697,7 +697,7 @@ export function TaskManager() {
                     <SelectTrigger id="priority" className="bg-white">
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white">
+                    <SelectContent>
                       <SelectItem value="High">High</SelectItem>
                       <SelectItem value="Medium">Medium</SelectItem>
                       <SelectItem value="Low">Low</SelectItem>
@@ -728,7 +728,7 @@ export function TaskManager() {
                     <SelectTrigger id="status" className="bg-white">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white">
+                    <SelectContent>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="in-progress">In Progress</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>

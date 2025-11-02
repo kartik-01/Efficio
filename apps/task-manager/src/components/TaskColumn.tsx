@@ -37,10 +37,10 @@ export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange,
 
   return (
     <div className="flex-1 min-w-0">
-      <div className="bg-white rounded-lg border border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
-        <div className="border-b border-gray-200 p-4">
+      <div className="bg-white dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
+        <div className="border-b border-gray-200 dark:border-transparent p-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-gray-900">{title}</h2>
+            <h2 className="text-gray-900 dark:text-card-foreground">{title}</h2>
             <Badge variant="secondary" className={`${statusColors[status]} rounded-full`}>
               {tasks.length}
             </Badge>
@@ -50,7 +50,7 @@ export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange,
         <div
           ref={drop as any}
           className={`p-4 min-h-[500px] transition-colors ${
-            isOver ? 'bg-indigo-50' : 'bg-white'
+            isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-white dark:bg-card'
           }`}
         >
           <div ref={taskListRef} className="space-y-4">

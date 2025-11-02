@@ -66,10 +66,10 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
   };
 
   const bgColor = task.status === 'completed' 
-    ? 'bg-green-50 border-green-200 opacity-75' 
+    ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-transparent opacity-75' 
     : task.isOverdue 
-    ? 'bg-red-50 border-red-200' 
-    : 'bg-white border-gray-200';
+    ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-transparent' 
+    : 'bg-card';
 
   const handleEdit = () => {
     setIsMenuOpen(false);
@@ -88,12 +88,12 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
   return (
     <div
       ref={drag as any}
-      className={`p-4 rounded-lg border ${bgColor} cursor-move transition-opacity shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] ${
+      className={`p-4 rounded-lg ${bgColor} cursor-move transition-opacity shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
-        <h4 className={`flex-1 ${task.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+        <h4 className={`flex-1 ${task.status === 'completed' ? 'line-through text-gray-500 dark:text-muted-foreground' : 'text-gray-900 dark:text-foreground'}`}>
           {task.title}
         </h4>
         <div className="flex items-center gap-2 shrink-0">
@@ -107,17 +107,17 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
                   e.stopPropagation();
                   setIsMenuOpen(true);
                 }}
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-muted rounded transition-colors"
                 aria-label="Task options"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 transition={{ duration: 0.15 }}
               >
-                <MoreVertical className="h-4 w-4 text-gray-600" />
+                <MoreVertical className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
               </motion.button>
             </PopoverTrigger>
             <PopoverContent 
-              className="w-48 p-2 bg-white" 
+              className="w-48 p-2 bg-white dark:bg-popover" 
               onClick={(e) => e.stopPropagation()}
               align="end"
               asChild
@@ -134,7 +134,7 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
                 <div className="flex flex-col gap-1">
                   <motion.button
                     onClick={handleEdit}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-popover-foreground hover:bg-gray-100 dark:hover:bg-accent rounded transition-colors"
                     whileHover={{ x: 2 }}
                     whileTap={{ scale: 0.98 }}
                     transition={{ duration: 0.1 }}
@@ -144,7 +144,7 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
                   </motion.button>
                   <motion.button
                     onClick={handleDelete}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-destructive hover:bg-red-50 dark:hover:bg-destructive/10 rounded transition-colors"
                     whileHover={{ x: 2 }}
                     whileTap={{ scale: 0.98 }}
                     transition={{ duration: 0.1 }}
@@ -159,15 +159,15 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
         </div>
       </div>
 
-      <p className={`text-sm text-gray-600 mb-4 ${task.status === 'completed' ? 'line-through' : ''}`}>
+      <p className={`text-sm text-gray-600 dark:text-muted-foreground mb-4 ${task.status === 'completed' ? 'line-through' : ''}`}>
         {task.description}
       </p>
 
       {task.progress !== undefined && task.status === 'in-progress' && (
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-sm text-gray-600">Progress</span>
-            <span className="text-sm text-gray-600">{localProgress}%</span>
+            <span className="text-sm text-gray-600 dark:text-muted-foreground">Progress</span>
+            <span className="text-sm text-gray-600 dark:text-muted-foreground">{localProgress}%</span>
           </div>
           {isDragging ? (
             <Progress value={localProgress} className="h-2 [&>div]:bg-indigo-500" />
@@ -178,7 +178,7 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
                   <Progress value={localProgress} className="h-2 [&>div]:bg-indigo-500" />
                 </div>
               </PopoverTrigger>
-              <PopoverContent className="w-64 bg-white" onClick={(e) => e.stopPropagation()}>
+              <PopoverContent className="w-64 bg-white dark:bg-popover" onClick={(e) => e.stopPropagation()}>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Set Progress</span>
@@ -203,12 +203,12 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
         {task.category && (
           <div className="flex items-center gap-2">
             <Circle className={`h-3 w-3 ${getCategoryColor(task.category)} rounded-full fill-current`} />
-            <span className="text-sm text-gray-600">{task.category}</span>
+            <span className="text-sm text-gray-600 dark:text-muted-foreground">{task.category}</span>
           </div>
         )}
 
         {task.dueDate && (
-          <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-600' : task.status === 'completed' ? 'text-green-600' : 'text-gray-600'} ${!task.category ? 'ml-auto' : ''}`}>
+          <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-600 dark:text-destructive' : task.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-muted-foreground'} ${!task.category ? 'ml-auto' : ''}`}>
             <Calendar className="h-3.5 w-3.5" />
             <span>{task.dueDate}</span>
           </div>
