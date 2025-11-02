@@ -132,7 +132,7 @@ export const Navbar = ({
   };
 
   return (
-    <nav className="w-full h-16 border-b border-gray-200 dark:border-transparent bg-white dark:bg-card shadow-sm sticky top-0 z-50">
+    <nav className="w-full h-16 border-b border-gray-200 dark:border-transparent bg-background dark:bg-card shadow-sm sticky top-0 z-50">
       <div className="max-w-[1280px] mx-auto px-8 h-full flex items-center justify-between">
         {/* Left side: logo + tabs */}
         <div className="flex items-center gap-8">
