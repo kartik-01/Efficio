@@ -12,6 +12,7 @@ import {
   AvatarImage,
   AvatarFallback,
 } from "@efficio/ui";
+import { motion, AnimatePresence } from "framer-motion";
 import { userApi, UserProfile } from "../services/userApi";
 import { Camera, Save, X } from "lucide-react";
 
@@ -189,119 +190,133 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Profile</DialogTitle>
-          <DialogDescription>
-            Manage your profile information and settings
-          </DialogDescription>
-        </DialogHeader>
+      <AnimatePresence>
+        {open && (
+          <DialogContent className="sm:max-w-[500px]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.88, y: 10 }}
+              transition={{
+                duration: 0.25,
+                ease: [0.34, 1.56, 0.64, 1]
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>Profile</DialogTitle>
+                <DialogDescription>
+                  Manage your profile information and settings
+                </DialogDescription>
+              </DialogHeader>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <p className="text-gray-500">Loading profile...</p>
-          </div>
-        ) : (
-          <div className="space-y-6 py-4">
-            {/* Profile Picture */}
-            <div className="flex flex-col items-center space-y-4">
-              <div className="relative">
-                <Avatar className="h-24 w-24">
-                  {getProfilePicture() && (
-                    <AvatarImage src={getProfilePicture()} alt={user?.name || "Profile"} />
-                  )}
-                  <AvatarFallback className="text-2xl">
-                    {user?.name?.charAt(0).toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="absolute bottom-0 right-0 h-8 w-8 rounded-full"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isSaving}
-                >
-                  <Camera className="h-4 w-4" />
-                </Button>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <p className="text-xs text-gray-500 text-center max-w-xs">
-                Click the camera icon to upload a new profile picture
-              </p>
-            </div>
-
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              {isEditingName ? (
-                <div className="flex gap-2">
-                  <Input
-                    id="name"
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    disabled={isSaving}
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={handleSaveName}
-                    disabled={isSaving || !editedName.trim()}
-                  >
-                    <Save className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={handleCancelEditName}
-                    disabled={isSaving}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-gray-500">Loading profile...</p>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{user?.name || "Not set"}</p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditingName(true)}
-                  >
-                    Edit
-                  </Button>
+                <div className="space-y-6 py-4">
+                  {/* Profile Picture */}
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="relative">
+                      <Avatar className="h-24 w-24">
+                        {getProfilePicture() && (
+                          <AvatarImage src={getProfilePicture()} alt={user?.name || "Profile"} />
+                        )}
+                        <AvatarFallback className="text-2xl">
+                          {user?.name?.charAt(0).toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="absolute bottom-0 right-0 h-8 w-8 rounded-full"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isSaving}
+                      >
+                        <Camera className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <p className="text-xs text-gray-500 text-center max-w-xs">
+                      Click the camera icon to upload a new profile picture
+                    </p>
+                  </div>
+
+                  {/* Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    {isEditingName ? (
+                      <div className="flex gap-2">
+                        <Input
+                          id="name"
+                          value={editedName}
+                          onChange={(e) => setEditedName(e.target.value)}
+                          disabled={isSaving}
+                        />
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={handleSaveName}
+                          disabled={isSaving || !editedName.trim()}
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={handleCancelEditName}
+                          disabled={isSaving}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">{user?.name || "Not set"}</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setIsEditingName(true)}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <p className="text-sm text-gray-600">{user?.email || "Not available"}</p>
+                  </div>
+
+                  {/* Account Info */}
+                  <div className="space-y-3 pt-4 border-t">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Last Login</span>
+                      <span className="text-sm font-medium">
+                        {formatDate(user?.lastLogin)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">Member Since</span>
+                      <span className="text-sm font-medium">
+                        {formatDate(user?.createdAt)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
-
-            {/* Email */}
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <p className="text-sm text-gray-600">{user?.email || "Not available"}</p>
-            </div>
-
-            {/* Account Info */}
-            <div className="space-y-3 pt-4 border-t">
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Last Login</span>
-                <span className="text-sm font-medium">
-                  {formatDate(user?.lastLogin)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Member Since</span>
-                <span className="text-sm font-medium">
-                  {formatDate(user?.createdAt)}
-                </span>
-              </div>
-            </div>
-          </div>
+            </motion.div>
+          </DialogContent>
         )}
-      </DialogContent>
+      </AnimatePresence>
     </Dialog>
   );
 };

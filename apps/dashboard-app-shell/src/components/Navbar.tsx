@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, Settings, User } from "lucide-react";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
@@ -188,7 +189,12 @@ export const Navbar = ({
         ) : (
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
-              <button className="flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-indigo-50 transition-all duration-150 focus:outline-none">
+              <motion.button
+                className="flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-indigo-50 focus:outline-none"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+              >
                 {(userProfile?.customPicture || auth0User?.picture) && (
                   <img
                     src={userProfile?.customPicture || auth0User?.picture}
@@ -199,37 +205,76 @@ export const Navbar = ({
                 <span className="text-gray-700 font-medium hover:text-indigo-600 transition-colors">
                   {(userProfile?.name || auth0User?.name)?.split(" ")[0]}
                 </span>
-              </button>
+              </motion.button>
             </DropdownMenu.Trigger>
 
-            <DropdownMenu.Content
-              align="end"
-              sideOffset={8}
-              className="z-[60] min-w-[160px] bg-white border border-gray-200 rounded-lg shadow-lg p-1"
-            >
-              <DropdownMenu.Item
-                onClick={() => setShowProfileModal(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-all"
+            <AnimatePresence>
+              <DropdownMenu.Content
+                align="end"
+                sideOffset={8}
+                className="z-[60] min-w-[160px] bg-white border border-gray-200 rounded-lg shadow-lg p-1"
+                asChild
               >
-                <User size={16} /> Profile
-              </DropdownMenu.Item>
-              
-              <DropdownMenu.Item
-                onClick={() => setShowSettingsModal(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-all"
-              >
-                <Settings size={16} /> Settings
-              </DropdownMenu.Item>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                  transition={{
+                    duration: 0.15,
+                    ease: [0.16, 1, 0.3, 1]
+                  }}
+                >
+                  <div className="flex flex-col gap-1">
+                    <DropdownMenu.Item
+                      onClick={() => setShowProfileModal(true)}
+                      className="p-0 m-0"
+                      asChild
+                    >
+                      <motion.button
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-colors w-full text-left"
+                        whileHover={{ x: 2 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ duration: 0.1 }}
+                      >
+                        <User size={16} /> Profile
+                      </motion.button>
+                    </DropdownMenu.Item>
+                    
+                    <DropdownMenu.Item
+                      onClick={() => setShowSettingsModal(true)}
+                      className="p-0 m-0"
+                      asChild
+                    >
+                      <motion.button
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer rounded-md transition-colors w-full text-left"
+                        whileHover={{ x: 2 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ duration: 0.1 }}
+                      >
+                        <Settings size={16} /> Settings
+                      </motion.button>
+                    </DropdownMenu.Item>
 
-              <DropdownMenu.Separator className="my-1 h-px bg-gray-200" />
+                    <DropdownMenu.Separator className="my-1 h-px bg-gray-200" />
 
-              <DropdownMenu.Item
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer rounded-md transition-all"
-              >
-                <LogOut size={16} /> Log Out
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
+                    <DropdownMenu.Item
+                      onClick={handleLogout}
+                      className="p-0 m-0"
+                      asChild
+                    >
+                      <motion.button
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer rounded-md transition-colors w-full text-left"
+                        whileHover={{ x: 2 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ duration: 0.1 }}
+                      >
+                        <LogOut size={16} /> Log Out
+                      </motion.button>
+                    </DropdownMenu.Item>
+                  </div>
+                </motion.div>
+              </DropdownMenu.Content>
+            </AnimatePresence>
           </DropdownMenu.Root>
         )}
       </div>
