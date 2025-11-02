@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { useAuth0 } from '@auth0/auth0-react';
 import { Button } from '@efficio/ui';
 import { Badge, ScrollArea, Separator, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Avatar, AvatarFallback, Card } from '@efficio/ui';
 import { Bell, ChevronLeft, ChevronRight, Plus, Settings, Users, Search, X } from 'lucide-react';
 import { Task } from './TaskCard';
+import { groupApi } from '../services/groupApi';
 
 export interface GroupCollaborator {
   userId: string;
@@ -25,19 +27,8 @@ export interface Group {
   createdAt: string;
 }
 
-// Mock current user ID (will be replaced with actual auth later)
-const CURRENT_USER_ID = 'user123';
-
-// Mock groups data (temporarily hardcoded)
+// Group colors for UI
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
-
-// Mock users for collaborator search
-const mockUsers = [
-  { userId: 'user456', name: 'Sarah Chen', email: 'sarah@example.com' },
-  { userId: 'user789', name: 'Mike Johnson', email: 'mike@example.com' },
-  { userId: 'user101', name: 'Emma Davis', email: 'emma@example.com' },
-  { userId: 'user102', name: 'John Smith', email: 'john@example.com' },
-];
 
 interface LeftSidebarProps {
   selectedGroup: string | null;
@@ -77,9 +68,110 @@ export function LeftSidebar({
   const [newGroupCollaborators, setNewGroupCollaborators] = useState<GroupCollaborator[]>([]);
   const [newGroupMemberSearch, setNewGroupMemberSearch] = useState('');
   const [showAddMembers, setShowAddMembers] = useState(false);
+  
+  // User search states
+  const [searchResults, setSearchResults] = useState<Array<{ userId: string; name: string; email: string; picture?: string }>>([]);
+  const [newGroupSearchResults, setNewGroupSearchResults] = useState<Array<{ userId: string; name: string; email: string; picture?: string }>>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  
+  // Get current user from Auth0
+  const { user: auth0User } = useAuth0();
+  const currentUserId = auth0User?.sub || '';
+
+  // Fetch groups and invitations on mount and when needed
+  useEffect(() => {
+    const loadGroups = async () => {
+      try {
+        const data = await groupApi.getGroups();
+        // Ensure all groups have id as string
+        setGroups(data.groups.map(g => ({
+          ...g,
+          id: g.id || g._id || '',
+        })));
+        
+        // Convert pending invitations to Group format for compatibility
+        const invitationGroups: Group[] = data.pendingInvitations.map(inv => ({
+          id: inv.groupId,
+          tag: inv.groupTag,
+          name: inv.groupName,
+          color: GROUP_COLORS[0],
+          owner: inv.owner.userId,
+          collaborators: [{
+            userId: currentUserId,
+            name: auth0User?.name || 'Unknown',
+            email: auth0User?.email || '',
+            role: inv.role,
+            status: 'pending' as const,
+            invitedAt: inv.invitedAt,
+          }],
+          createdAt: inv.invitedAt,
+        }));
+        
+        // Update parent's pendingInvitations (passed as prop, need to handle differently)
+        // For now, we'll manage invitations separately
+      } catch (error) {
+        console.error('Failed to load groups:', error);
+        toast.error('Failed to load workspaces');
+      }
+    };
+
+    if (currentUserId) {
+      loadGroups();
+    }
+  }, [currentUserId, auth0User]);
+
+  // User search with debouncing
+  useEffect(() => {
+    if (!collaboratorSearch.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await groupApi.searchUsers(collaboratorSearch);
+        setSearchResults(results.filter(
+          u => !editingCollaborators.find(c => c.userId === u.userId)
+        ));
+      } catch (error) {
+        console.error('Failed to search users:', error);
+        toast.error('Failed to search users');
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [collaboratorSearch, editingCollaborators]);
+
+  // New group member search with debouncing
+  useEffect(() => {
+    if (!newGroupMemberSearch.trim()) {
+      setNewGroupSearchResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await groupApi.searchUsers(newGroupMemberSearch);
+        setNewGroupSearchResults(results.filter(
+          u => !newGroupCollaborators.find(c => c.userId === u.userId)
+        ));
+      } catch (error) {
+        console.error('Failed to search users:', error);
+        toast.error('Failed to search users');
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [newGroupMemberSearch, newGroupCollaborators]);
 
   // Group handlers
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!newGroup.name || !newGroup.tag) {
       toast.error('Please enter group name and tag');
       return;
@@ -87,28 +179,39 @@ export function LeftSidebar({
 
     const tag = newGroup.tag.startsWith('@') ? newGroup.tag : `@${newGroup.tag}`;
 
-    if (groups.find(g => g.tag === tag)) {
-      toast.error('A group with this tag already exists');
-      return;
+    try {
+      // Prepare collaborators data
+      const collaborators = newGroupCollaborators.map(c => ({
+        userId: c.userId,
+        name: c.name,
+        email: c.email,
+        role: c.role || 'editor' as const,
+      }));
+
+      const createdGroup = await groupApi.createGroup({
+        name: newGroup.name,
+        tag,
+        color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
+        collaborators,
+      });
+
+      // Add to groups list
+      setGroups([...groups, {
+        ...createdGroup,
+        id: createdGroup.id || createdGroup._id || '',
+        color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
+      }]);
+      
+      setShowCreateGroupModal(false);
+      setNewGroup({ name: '', tag: '' });
+      setNewGroupCollaborators([]);
+      setNewGroupMemberSearch('');
+      setShowAddMembers(false);
+      toast.success(`Workspace "${newGroup.name}" created!`);
+    } catch (error) {
+      console.error('Failed to create group:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create workspace');
     }
-
-    const group: Group = {
-      id: Date.now().toString(),
-      tag,
-      name: newGroup.name,
-      color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
-      owner: CURRENT_USER_ID,
-      collaborators: newGroupCollaborators,
-      createdAt: new Date().toISOString(),
-    };
-
-    setGroups([...groups, group]);
-    setShowCreateGroupModal(false);
-    setNewGroup({ name: '', tag: '' });
-    setNewGroupCollaborators([]);
-    setNewGroupMemberSearch('');
-    setShowAddMembers(false);
-    toast.success(`Workspace "${newGroup.name}" created!`);
   };
 
   const handleOpenManageGroup = (group: Group) => {
@@ -117,20 +220,70 @@ export function LeftSidebar({
     setShowManageGroupModal(true);
   };
 
-  const handleSaveGroupCollaborators = () => {
-    if (selectedGroupForManagement) {
-      setGroups(groups.map(g =>
-        g.id === selectedGroupForManagement.id
-          ? { ...g, collaborators: editingCollaborators }
-          : g
-      ));
+  const handleSaveGroupCollaborators = async () => {
+    if (!selectedGroupForManagement) return;
+
+    try {
+      // Get current collaborators
+      const currentCollaborators = selectedGroupForManagement.collaborators;
+      
+      // Find added collaborators
+      const added = editingCollaborators.filter(ec => 
+        !currentCollaborators.find(cc => cc.userId === ec.userId)
+      );
+      
+      // Find removed collaborators
+      const removed = currentCollaborators.filter(cc => 
+        !editingCollaborators.find(ec => ec.userId === cc.userId)
+      );
+      
+      // Find role changes
+      const roleChanges = editingCollaborators.filter(ec => {
+        const current = currentCollaborators.find(cc => cc.userId === ec.userId);
+        return current && current.role !== ec.role;
+      });
+
+      // Invite new collaborators
+      for (const collaborator of added) {
+        await groupApi.inviteUser(selectedGroupForManagement.id, {
+          userId: collaborator.userId,
+          name: collaborator.name,
+          email: collaborator.email,
+          role: collaborator.role,
+        });
+      }
+
+      // Remove collaborators
+      for (const collaborator of removed) {
+        await groupApi.removeMember(selectedGroupForManagement.id, collaborator.userId);
+      }
+
+      // Update roles
+      for (const collaborator of roleChanges) {
+        await groupApi.updateMemberRole(
+          selectedGroupForManagement.id,
+          collaborator.userId,
+          collaborator.role
+        );
+      }
+
+      // Reload groups
+      const data = await groupApi.getGroups();
+      setGroups(data.groups.map(g => ({
+        ...g,
+        id: g.id || g._id || '',
+      })));
+
       setShowManageGroupModal(false);
       setSelectedGroupForManagement(null);
       toast.success('Collaborators updated');
+    } catch (error) {
+      console.error('Failed to update collaborators:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update collaborators');
     }
   };
 
-  const handleAddCollaborator = (user: typeof mockUsers[0]) => {
+  const handleAddCollaborator = (user: { userId: string; name: string; email: string }) => {
     const newCollaborator: GroupCollaborator = {
       ...user,
       role: 'editor',
@@ -139,10 +292,10 @@ export function LeftSidebar({
     };
     setEditingCollaborators([...editingCollaborators, newCollaborator]);
     setCollaboratorSearch('');
-    toast.success(`Invitation sent to ${user.name}`);
+    toast.success(`Added ${user.name}`);
   };
 
-  const handleAddNewGroupMember = (user: typeof mockUsers[0]) => {
+  const handleAddNewGroupMember = (user: { userId: string; name: string; email: string }) => {
     const newCollaborator: GroupCollaborator = {
       ...user,
       role: 'editor',
@@ -170,47 +323,41 @@ export function LeftSidebar({
     setEditingCollaborators(editingCollaborators.map(c => c.userId === userId ? { ...c, role } : c));
   };
 
-  const handleAcceptInvitation = (groupId: string) => {
-    setGroups(groups.map(g =>
-      g.id === groupId
-        ? {
-            ...g,
-            collaborators: g.collaborators.map(c =>
-              c.userId === CURRENT_USER_ID && c.status === 'pending'
-                ? { ...c, status: 'accepted', acceptedAt: new Date().toISOString() }
-                : c
-            ),
-          }
-        : g
-    ));
-    toast.success('Invitation accepted!');
+  const handleAcceptInvitation = async (groupId: string) => {
+    try {
+      await groupApi.acceptInvitation(groupId);
+      
+      // Reload groups
+      const data = await groupApi.getGroups();
+      setGroups(data.groups.map(g => ({
+        ...g,
+        id: g.id || g._id || '',
+      })));
+      
+      toast.success('Invitation accepted!');
+    } catch (error) {
+      console.error('Failed to accept invitation:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to accept invitation');
+    }
   };
 
-  const handleDeclineInvitation = (groupId: string) => {
-    setGroups(groups.map(g =>
-      g.id === groupId
-        ? {
-            ...g,
-            collaborators: g.collaborators.filter(c => !(c.userId === CURRENT_USER_ID && c.status === 'pending')),
-          }
-        : g
-    ));
-    toast.success('Invitation declined');
+  const handleDeclineInvitation = async (groupId: string) => {
+    try {
+      await groupApi.declineInvitation(groupId);
+      
+      // Reload groups to remove declined invitation
+      const data = await groupApi.getGroups();
+      setGroups(data.groups.map(g => ({
+        ...g,
+        id: g.id || g._id || '',
+      })));
+      
+      toast.success('Invitation declined');
+    } catch (error) {
+      console.error('Failed to decline invitation:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to decline invitation');
+    }
   };
-
-  const searchResults = mockUsers.filter(
-    u =>
-      (u.name.toLowerCase().includes(collaboratorSearch.toLowerCase()) ||
-        u.email.toLowerCase().includes(collaboratorSearch.toLowerCase())) &&
-      !editingCollaborators.find(c => c.userId === u.userId)
-  );
-
-  const newGroupSearchResults = mockUsers.filter(
-    u =>
-      (u.name.toLowerCase().includes(newGroupMemberSearch.toLowerCase()) ||
-        u.email.toLowerCase().includes(newGroupMemberSearch.toLowerCase())) &&
-      !newGroupCollaborators.find(c => c.userId === u.userId)
-  );
 
   return (
     <>
@@ -446,15 +593,24 @@ export function LeftSidebar({
                             {taskCount}
                           </Badge>
                           {!isPersonal && (
-                            <button
+                            <div
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleOpenManageGroup(group);
                               }}
-                              className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5 transition-colors"
+                              className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5 transition-colors cursor-pointer"
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleOpenManageGroup(group);
+                                }
+                              }}
                             >
                               <Settings className="h-3.5 w-3.5" />
-                            </button>
+                            </div>
                           )}
                         </div>
                       </button>
@@ -722,7 +878,7 @@ export function LeftSidebar({
           <div className="space-y-3 py-4">
             {pendingInvitations.map((group) => {
               const myInvite = group.collaborators.find(
-                c => c.userId === CURRENT_USER_ID && c.status === 'pending'
+                c => c.userId === currentUserId && c.status === 'pending'
               );
               return (
                 <Card key={group.id} className="p-4 border-gray-200 dark:border-transparent">
@@ -736,7 +892,7 @@ export function LeftSidebar({
                         <h4 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">{group.name}</h4>
                       </div>
                       <p className="text-[#4a5565] dark:text-muted-foreground text-[12px] mb-2">
-                        Invited by {group.owner === CURRENT_USER_ID ? 'You' : 'someone'}
+                        Invited by {group.owner === currentUserId ? 'You' : 'someone'}
                       </p>
                       <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px]">
                         Role: {myInvite?.role}

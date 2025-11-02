@@ -71,6 +71,7 @@ export interface CreateTaskData {
   dueDate?: string;
   progress?: number;
   isOverdue?: boolean;
+  groupTag?: string; // Group/Workspace tag (e.g., "@personal", "@web-ui")
 }
 
 export interface UpdateTaskData {
@@ -85,13 +86,20 @@ export interface UpdateTaskData {
 }
 
 export const taskApi = {
-  // Get all tasks
-  async getTasks(): Promise<Task[]> {
+  // Get all tasks (optionally filtered by groupTag)
+  async getTasks(groupTag?: string): Promise<Task[]> {
     const headers = await getHeaders();
-    console.log('Making request to:', `${API_BASE_URL}/tasks`);
+    
+    // Build URL with optional groupTag query param
+    let url = `${API_BASE_URL}/tasks`;
+    if (groupTag) {
+      url += `?groupTag=${encodeURIComponent(groupTag)}`;
+    }
+    
+    console.log('Making request to:', url);
     console.log('Headers include Authorization:', !!headers['Authorization']);
     
-    const response = await fetch(`${API_BASE_URL}/tasks`, {
+    const response = await fetch(url, {
       headers,
     });
     

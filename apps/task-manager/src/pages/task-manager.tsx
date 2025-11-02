@@ -20,11 +20,10 @@ import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circl
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge, ScrollArea, Separator, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
+import { activityApi } from '../services/activityApi';
+import { useAuth0 } from '@auth0/auth0-react';
 
 // Types are now imported from LeftSidebar component
-
-// Mock current user ID (will be replaced with actual auth later)
-const CURRENT_USER_ID = 'user123';
 
 // Mock groups data (temporarily hardcoded)
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
@@ -69,6 +68,9 @@ export function TaskManager() {
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
 
+  const { user: auth0User } = useAuth0();
+  const currentUserId = auth0User?.sub || '';
+
   // Collaboration state
   const [groups, setGroups] = useState<Group[]>([
     {
@@ -76,7 +78,7 @@ export function TaskManager() {
       tag: '@web-ui',
       name: 'Web UI Project',
       color: '#3b82f6',
-      owner: CURRENT_USER_ID,
+      owner: currentUserId,
       collaborators: [
         { userId: 'user456', name: 'Sarah Chen', email: 'sarah@example.com', role: 'editor', status: 'accepted', invitedAt: '2025-01-15T10:00:00.000Z', acceptedAt: '2025-01-15T11:00:00.000Z' },
         { userId: 'user789', name: 'Mike Johnson', email: 'mike@example.com', role: 'editor', status: 'accepted', invitedAt: '2025-01-15T10:00:00.000Z', acceptedAt: '2025-01-15T12:00:00.000Z' },
@@ -108,39 +110,39 @@ export function TaskManager() {
 
   // Activity type is now imported from RightSidebar component
 
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: '1',
-      type: 'task_created',
-      taskTitle: 'Build Authentication Module',
-      taskId: '1',
-      userId: CURRENT_USER_ID,
-      userName: 'You',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      groupTag: '@web-ui',
-    },
-    {
-      id: '2',
-      type: 'task_moved',
-      taskTitle: 'Build Authentication Module',
-      taskId: '1',
-      userId: 'user456',
-      userName: 'Sarah Chen',
-      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-      fromStatus: 'pending',
-      toStatus: 'in-progress',
-      groupTag: '@web-ui',
-    },
-  ]);
-
-  const addActivity = (activity: Omit<Activity, 'id' | 'timestamp'>) => {
-    const newActivity: Activity = {
-      ...activity,
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
+  const [activities, setActivities] = useState<Activity[]>([]);
+  
+  // Fetch activities on mount and when selected group changes
+  useEffect(() => {
+    const loadActivities = async () => {
+      try {
+        const fetchedActivities = await activityApi.getActivities({
+          groupTag: selectedGroup || undefined,
+          limit: 50,
+        });
+        
+        // Map backend activities to frontend format
+        const mappedActivities: Activity[] = fetchedActivities.map(act => ({
+          id: act.id || act._id || '',
+          type: act.type,
+          taskTitle: act.taskTitle || '',
+          taskId: act.taskId || '',
+          userId: act.userId,
+          userName: act.userName,
+          timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+          fromStatus: act.fromStatus,
+          toStatus: act.toStatus,
+          groupTag: act.groupTag,
+        }));
+        
+        setActivities(mappedActivities);
+      } catch (error) {
+        console.error('Failed to load activities:', error);
+      }
     };
-    setActivities(prev => [newActivity, ...prev].slice(0, 50)); // Keep last 50 activities
-  };
+
+    loadActivities();
+  }, [selectedGroup]);
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -188,10 +190,11 @@ export function TaskManager() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (groupTag?: string | null) => {
     try {
       setLoading(true);
-      const fetchedTasks = await taskApi.getTasks();
+      // Fetch tasks filtered by groupTag if provided
+      const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
       // Ensure all tasks have id property (map _id to id if needed)
       setTasks(fetchedTasks.map(task => ({ ...task, id: task.id || (task as any)._id || '' })));
     } catch (error) {
@@ -204,6 +207,12 @@ export function TaskManager() {
     }
   };
 
+  // Fetch tasks when selected group changes
+  useEffect(() => {
+    fetchTasks(selectedGroup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup]);
+
   const handleTaskDrop = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
     try {
       const task = tasks.find(t => t.id === taskId);
@@ -215,17 +224,25 @@ export function TaskManager() {
           )
         );
         
-        // Add activity
-        addActivity({
-          type: 'task_moved',
-          taskTitle: task.title,
-          taskId: task.id,
-          userId: CURRENT_USER_ID,
-          userName: 'You',
-          fromStatus: task.status,
-          toStatus: newStatus,
-          groupTag: task.groupTag,
+        // Activities are now fetched from API automatically
+        // Refresh activities after status change
+        const refreshedActivities = await activityApi.getActivities({
+          groupTag: selectedGroup || undefined,
+          limit: 50,
         });
+        const mappedActivities: Activity[] = refreshedActivities.map(act => ({
+          id: act.id || act._id || '',
+          type: act.type,
+          taskTitle: act.taskTitle || '',
+          taskId: act.taskId || '',
+          userId: act.userId,
+          userName: act.userName,
+          timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+          fromStatus: act.fromStatus,
+          toStatus: act.toStatus,
+          groupTag: act.groupTag,
+        }));
+        setActivities(mappedActivities);
       
       // Update via API
       await taskApi.updateTaskStatus(taskId, newStatus);
@@ -290,17 +307,25 @@ export function TaskManager() {
       await taskApi.deleteTask(taskIdToDelete);
       setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskIdToDelete));
       
-      // Add activity
-      if (taskToDeleteObj) {
-        addActivity({
-          type: 'task_deleted',
-          taskTitle: taskToDeleteObj.title,
-          taskId: taskToDeleteObj.id,
-          userId: CURRENT_USER_ID,
-          userName: 'You',
-          groupTag: taskToDeleteObj.groupTag,
-        });
-      }
+      // Activities are now fetched from API automatically
+      // Refresh activities after deletion
+      const refreshedActivities = await activityApi.getActivities({
+        groupTag: selectedGroup || undefined,
+        limit: 50,
+      });
+      const mappedActivities: Activity[] = refreshedActivities.map(act => ({
+        id: act.id || act._id || '',
+        type: act.type,
+        taskTitle: act.taskTitle || '',
+        taskId: act.taskId || '',
+        userId: act.userId,
+        userName: act.userName,
+        timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+        fromStatus: act.fromStatus,
+        toStatus: act.toStatus,
+        groupTag: act.groupTag,
+      }));
+      setActivities(mappedActivities);
       
       console.log('🍞 Toast: Task Deleted');
       toast.success('Task Deleted', {
@@ -465,15 +490,25 @@ export function TaskManager() {
           });
           console.log('🍞 Toast called for Task Added (with animation)');
           
-          // Add activity
-          addActivity({
-            type: 'task_created',
-            taskTitle: savedTask.title || newTask.title || '',
-            taskId: savedTask.id || savedTask._id || '',
-            userId: CURRENT_USER_ID,
-            userName: 'You',
-            groupTag: selectedGroup || '@personal',
+          // Activities are now fetched from API automatically
+          // Refresh activities after task creation
+          const refreshedActivities = await activityApi.getActivities({
+            groupTag: selectedGroup || undefined,
+            limit: 50,
           });
+          const mappedActivities: Activity[] = refreshedActivities.map(act => ({
+            id: act.id || act._id || '',
+            type: act.type,
+            taskTitle: act.taskTitle || '',
+            taskId: act.taskId || '',
+            userId: act.userId,
+            userName: act.userName,
+            timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+            fromStatus: act.fromStatus,
+            toStatus: act.toStatus,
+            groupTag: act.groupTag,
+          }));
+          setActivities(mappedActivities);
         }
       }
 
@@ -511,17 +546,17 @@ export function TaskManager() {
 
   // Helper functions for groups
   const hasGroupAccess = (group: Group) => {
-    if (group.owner === CURRENT_USER_ID) return true;
-    return group.collaborators.some(c => c.userId === CURRENT_USER_ID && c.status === 'accepted');
+    if (group.owner === currentUserId) return true;
+    return group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
   };
 
   const accessibleGroups = [
-    { id: 'personal', tag: '@personal', name: 'Personal', color: '#9ca3af', owner: CURRENT_USER_ID, collaborators: [], createdAt: '' },
+    { id: 'personal', tag: '@personal', name: 'Personal', color: '#9ca3af', owner: currentUserId, collaborators: [], createdAt: '' },
     ...groups.filter(hasGroupAccess),
   ];
 
   const pendingInvitations = groups.filter(group =>
-    group.collaborators.some(c => c.userId === CURRENT_USER_ID && c.status === 'pending')
+    group.collaborators.some(c => c.userId === currentUserId && c.status === 'pending')
   );
 
   const selectedGroupData = selectedGroup ? groups.find(g => g.tag === selectedGroup) : null;

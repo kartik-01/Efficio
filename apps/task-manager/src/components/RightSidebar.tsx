@@ -3,14 +3,13 @@ import { Button } from '@efficio/ui';
 import { Avatar, AvatarFallback, Badge, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@efficio/ui';
 import { ChevronRight } from 'lucide-react';
 
-// Mock current user ID (will be replaced with actual auth later)
-const CURRENT_USER_ID = 'user123';
+import { useAuth0 } from '@auth0/auth0-react';
 
 export interface Activity {
   id: string;
-  type: 'task_created' | 'task_moved' | 'task_deleted' | 'task_updated';
-  taskTitle: string;
-  taskId: string;
+  type: 'task_created' | 'task_moved' | 'task_deleted' | 'task_updated' | 'member_added' | 'member_removed' | 'member_role_changed';
+  taskTitle?: string;
+  taskId?: string;
   userId: string;
   userName: string;
   timestamp: string;
@@ -26,6 +25,9 @@ interface RightSidebarProps {
 }
 
 export function RightSidebar({ activities, onToggleCollapse, formatTimestamp }: RightSidebarProps) {
+  const { user: auth0User } = useAuth0();
+  const currentUserId = auth0User?.sub || '';
+
   return (
     <div className="flex flex-col h-full space-y-4 overflow-hidden">
       <div className="flex items-center justify-between flex-shrink-0">
@@ -57,7 +59,7 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp }: 
             </div>
           ) : (
             activities.map((activity, index) => {
-              const isCurrentUser = activity.userId === CURRENT_USER_ID;
+              const isCurrentUser = activity.userId === currentUserId;
               const userAvatarColor = isCurrentUser 
                 ? 'bg-indigo-500 dark:bg-indigo-600' 
                 : ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][index % 5];
