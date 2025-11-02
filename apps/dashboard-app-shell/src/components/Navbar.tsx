@@ -166,7 +166,7 @@ export const Navbar = ({
                     onClick={() => handleTabClick(tab.id as any)}
                     className={`px-4 py-2 text-sm font-medium rounded-md cursor-pointer transition-colors duration-200 ${
                       isActive
-                        ? "bg-indigo-500 text-white border border-indigo-500"
+                        ? "bg-indigo-500 dark:bg-indigo-700 text-white border border-indigo-500 dark:border-indigo-700"
                         : "text-gray-600 dark:text-muted-foreground hover:text-gray-900 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent"
                     }`}
                   >
@@ -182,7 +182,7 @@ export const Navbar = ({
         {!isAuthenticated ? (
           <button
             onClick={() => loginWithRedirect()}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium h-9 px-6 rounded-md transition-all duration-200 cursor-pointer"
+            className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white text-sm font-medium h-9 px-6 rounded-md transition-all duration-200 cursor-pointer"
           >
             Log In
           </button>
@@ -202,7 +202,7 @@ export const Navbar = ({
                     className="w-8 h-8 rounded-full border border-transparent"
                   />
                 )}
-                <span className="text-gray-700 dark:text-foreground font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                <span className="text-gray-700 dark:text-foreground font-medium hover:text-indigo-600 dark:hover:text-indigo-500 transition-colors">
                   {(userProfile?.name || auth0User?.name)?.split(" ")[0]}
                 </span>
               </motion.button>

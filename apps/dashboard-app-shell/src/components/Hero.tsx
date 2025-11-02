@@ -23,7 +23,7 @@ export const Hero = ({ onGetStarted }: HeroProps) => {
 
           <div className="flex flex-wrap items-center gap-4">
             <Button
-              className="bg-indigo-500 hover:bg-indigo-600 text-white h-[58px] px-8 rounded-lg text-base font-semibold flex items-center gap-2"
+              className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white h-[58px] px-8 rounded-lg text-base font-semibold flex items-center gap-2"
               onClick={onGetStarted}
             >
               Get Started Free

@@ -451,7 +451,7 @@ export function TaskManager() {
               setSkipModalAnimation(false); // Ensure animations are enabled for new task
               setShowModal(true);
             }}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-[8px] h-[40px] px-4"
+            className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4"
           >
             <Plus className="h-4 w-4 mr-2" />
             New Task
@@ -635,7 +635,7 @@ export function TaskManager() {
         >
           <DialogContent 
             ref={modalContentRef}
-            className={`overflow-hidden bg-white sm:max-w-[500px] ${
+            className={`overflow-hidden sm:max-w-[500px] ${
               skipModalAnimation 
                 ? 'duration-0 data-[state=closed]:duration-0' 
                 : ''
@@ -664,7 +664,7 @@ export function TaskManager() {
                   placeholder="Enter task title"
                   value={newTask.title || ''}
                   onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                  className="bg-white"
+                  className=""
                 />
               </div>
               <div className="grid gap-2">
@@ -674,7 +674,7 @@ export function TaskManager() {
                   placeholder="Enter task description"
                   value={newTask.description || ''}
                   onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                  className="bg-white h-32"
+                  className="h-32"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -685,7 +685,7 @@ export function TaskManager() {
                     placeholder="e.g., Work, Personal"
                     value={newTask.category || ''}
                     onChange={(e) => setNewTask({ ...newTask, category: e.target.value })}
-                    className="bg-white"
+                    className=""
                   />
                 </div>
                 <div className="grid gap-2">
@@ -694,7 +694,7 @@ export function TaskManager() {
                     value={newTask.priority || 'Medium'}
                     onValueChange={(value) => setNewTask({ ...newTask, priority: value as Task['priority'] })}
                   >
-                    <SelectTrigger id="priority" className="bg-white">
+                    <SelectTrigger id="priority" className="">
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -713,7 +713,7 @@ export function TaskManager() {
                   placeholder="mm/dd/yyyy"
                   value={newTask.dueDate || ''}
                   onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-                  className="bg-white"
+                  className=""
                 />
               </div>
 
@@ -725,7 +725,7 @@ export function TaskManager() {
                     value={newTask.status || 'pending'}
                     onValueChange={(value) => setNewTask({ ...newTask, status: value as Task['status'] })}
                   >
-                    <SelectTrigger id="status" className="bg-white">
+                    <SelectTrigger id="status" className="">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -775,7 +775,7 @@ export function TaskManager() {
               <Button
                 onClick={handleAddTask}
                 disabled={!newTask.title?.trim()}
-                className="w-full bg-indigo-500 hover:bg-indigo-600 text-white mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingTask ? 'Update Task' : 'Add Task'}
               </Button>
@@ -813,7 +813,7 @@ export function TaskManager() {
                 duration: 1.3,
                 ease: [0.34, 1.56, 0.64, 1], // Spring-like easing with more bounce
               }}
-              className="p-4 rounded-lg border bg-white border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pointer-events-none"
+              className="p-4 rounded-lg border bg-card border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] pointer-events-none"
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <h4 className="flex-1 text-gray-900">{flyingTask.task.title}</h4>
@@ -877,7 +877,7 @@ export function TaskManager() {
                   duration: 0.45,
                   ease: [0.34, 1.56, 0.64, 1],
                 }}
-                className="p-4 rounded-lg border bg-white border-gray-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                className="p-4 rounded-lg border bg-card border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]"
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <h4 className="flex-1 text-gray-900">{previewTask.title}</h4>
@@ -925,7 +925,7 @@ export function TaskManager() {
           }}
         >
           <AlertDialogContent 
-            className="bg-white sm:max-w-[425px] relative m-0" 
+            className="sm:max-w-[425px] relative m-0" 
             style={{ margin: 0 }}
             onOverlayClick={() => {
               setDeleteDialogOpen(false);
