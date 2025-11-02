@@ -14,10 +14,37 @@ import { Label } from '@efficio/ui';
 import { Textarea } from '@efficio/ui';
 import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
-import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle } from 'lucide-react';
+import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Badge } from '@efficio/ui';
+import { Badge, ScrollArea, Separator, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
+
+// Types for Collaboration
+interface GroupCollaborator {
+  userId: string;
+  name: string;
+  email: string;
+  role: 'viewer' | 'editor' | 'admin';
+  status: 'pending' | 'accepted' | 'declined';
+  invitedAt: string;
+  acceptedAt?: string;
+}
+
+interface Group {
+  id: string;
+  tag: string;
+  name: string;
+  color: string;
+  owner: string;
+  collaborators: GroupCollaborator[];
+  createdAt: string;
+}
+
+// Mock current user ID (will be replaced with actual auth later)
+const CURRENT_USER_ID = 'user123';
+
+// Mock groups data (temporarily hardcoded)
+const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
 
 const getCategoryColor = (category: string) => {
   const colors: { [key: string]: string } = {
@@ -59,6 +86,101 @@ export function TaskManager() {
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
 
+  // Collaboration state
+  const [groups, setGroups] = useState<Group[]>([
+    {
+      id: 'group1',
+      tag: '@web-ui',
+      name: 'Web UI Project',
+      color: '#3b82f6',
+      owner: CURRENT_USER_ID,
+      collaborators: [
+        { userId: 'user456', name: 'Sarah Chen', email: 'sarah@example.com', role: 'editor', status: 'accepted', invitedAt: '2025-01-15T10:00:00.000Z', acceptedAt: '2025-01-15T11:00:00.000Z' },
+        { userId: 'user789', name: 'Mike Johnson', email: 'mike@example.com', role: 'editor', status: 'accepted', invitedAt: '2025-01-15T10:00:00.000Z', acceptedAt: '2025-01-15T12:00:00.000Z' },
+      ],
+      createdAt: '2025-01-15T10:00:00.000Z',
+    },
+  ]);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showManageGroupModal, setShowManageGroupModal] = useState(false);
+  const [showPendingInvitations, setShowPendingInvitations] = useState(false);
+  const [selectedGroupForManagement, setSelectedGroupForManagement] = useState<Group | null>(null);
+  const [editingCollaborators, setEditingCollaborators] = useState<GroupCollaborator[]>([]);
+  const [collaboratorSearch, setCollaboratorSearch] = useState('');
+  const [newGroup, setNewGroup] = useState({ name: '', tag: '' });
+
+  // Mock users for collaborator search
+  const mockUsers = [
+    { userId: 'user456', name: 'Sarah Chen', email: 'sarah@example.com' },
+    { userId: 'user789', name: 'Mike Johnson', email: 'mike@example.com' },
+    { userId: 'user101', name: 'Emma Davis', email: 'emma@example.com' },
+    { userId: 'user102', name: 'John Smith', email: 'john@example.com' },
+  ];
+
+  // Activity tracking
+  interface Activity {
+    id: string;
+    type: 'task_created' | 'task_moved' | 'task_deleted' | 'task_updated';
+    taskTitle: string;
+    taskId: string;
+    userId: string;
+    userName: string;
+    timestamp: string;
+    fromStatus?: 'pending' | 'in-progress' | 'completed';
+    toStatus?: 'pending' | 'in-progress' | 'completed';
+    groupTag?: string;
+  }
+
+  const [activities, setActivities] = useState<Activity[]>([
+    {
+      id: '1',
+      type: 'task_created',
+      taskTitle: 'Build Authentication Module',
+      taskId: '1',
+      userId: CURRENT_USER_ID,
+      userName: 'You',
+      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      groupTag: '@web-ui',
+    },
+    {
+      id: '2',
+      type: 'task_moved',
+      taskTitle: 'Build Authentication Module',
+      taskId: '1',
+      userId: 'user456',
+      userName: 'Sarah Chen',
+      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+      fromStatus: 'pending',
+      toStatus: 'in-progress',
+      groupTag: '@web-ui',
+    },
+  ]);
+
+  const addActivity = (activity: Omit<Activity, 'id' | 'timestamp'>) => {
+    const newActivity: Activity = {
+      ...activity,
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+    };
+    setActivities(prev => [newActivity, ...prev].slice(0, 50)); // Keep last 50 activities
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   // Fetch tasks on component mount
   useEffect(() => {
     fetchTasks();
@@ -82,15 +204,30 @@ export function TaskManager() {
 
   const handleTaskDrop = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
     try {
+      const task = tasks.find(t => t.id === taskId);
+      if (task && task.status !== newStatus) {
       // Optimistically update UI
       setTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task.id === taskId ? { ...task, status: newStatus } : task
-        )
-      );
+          prevTasks.map((t) =>
+            t.id === taskId ? { ...t, status: newStatus } : t
+          )
+        );
+        
+        // Add activity
+        addActivity({
+          type: 'task_moved',
+          taskTitle: task.title,
+          taskId: task.id,
+          userId: CURRENT_USER_ID,
+          userName: 'You',
+          fromStatus: task.status,
+          toStatus: newStatus,
+          groupTag: task.groupTag,
+        });
       
       // Update via API
       await taskApi.updateTaskStatus(taskId, newStatus);
+      }
     } catch (error) {
       // Revert on error
       fetchTasks();
@@ -147,8 +284,22 @@ export function TaskManager() {
     setDeleteDialogOpen(false);
     
     try {
+      const taskToDeleteObj = tasks.find(t => t.id === taskIdToDelete);
       await taskApi.deleteTask(taskIdToDelete);
       setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskIdToDelete));
+      
+      // Add activity
+      if (taskToDeleteObj) {
+        addActivity({
+          type: 'task_deleted',
+          taskTitle: taskToDeleteObj.title,
+          taskId: taskToDeleteObj.id,
+          userId: CURRENT_USER_ID,
+          userName: 'You',
+          groupTag: taskToDeleteObj.groupTag,
+        });
+      }
+      
       console.log('🍞 Toast: Task Deleted');
       toast.success('Task Deleted', {
         description: 'The task has been permanently removed from your list.',
@@ -195,6 +346,7 @@ export function TaskManager() {
       status: editingTask ? (newTask.status || 'pending') : 'pending',
       dueDate: newTask.dueDate || '',
       progress: includeProgress ? (newTask.progress || 0) : undefined,
+      groupTag: selectedGroup || '@personal', // Add groupTag to task
     };
 
     try {
@@ -310,6 +462,16 @@ export function TaskManager() {
             duration: 2000,
           });
           console.log('🍞 Toast called for Task Added (with animation)');
+          
+          // Add activity
+          addActivity({
+            type: 'task_created',
+            taskTitle: savedTask.title || newTask.title || '',
+            taskId: savedTask.id || savedTask._id || '',
+            userId: CURRENT_USER_ID,
+            userName: 'You',
+            groupTag: selectedGroup || '@personal',
+          });
         }
       }
 
@@ -345,9 +507,153 @@ export function TaskManager() {
     }
   };
 
+  // Helper functions for groups
+  const hasGroupAccess = (group: Group) => {
+    if (group.owner === CURRENT_USER_ID) return true;
+    return group.collaborators.some(c => c.userId === CURRENT_USER_ID && c.status === 'accepted');
+  };
+
+  const accessibleGroups = [
+    { id: 'personal', tag: '@personal', name: 'Personal', color: '#9ca3af', owner: CURRENT_USER_ID, collaborators: [], createdAt: '' },
+    ...groups.filter(hasGroupAccess),
+  ];
+
+  const pendingInvitations = groups.filter(group =>
+    group.collaborators.some(c => c.userId === CURRENT_USER_ID && c.status === 'pending')
+  );
+
+  const selectedGroupData = selectedGroup ? groups.find(g => g.tag === selectedGroup) : null;
+  const acceptedCollaborators = selectedGroupData?.collaborators.filter(c => c.status === 'accepted') || [];
+
+  // Group handlers
+  const handleCreateGroup = () => {
+    if (!newGroup.name || !newGroup.tag) {
+      toast.error('Please enter group name and tag');
+      return;
+    }
+
+    const tag = newGroup.tag.startsWith('@') ? newGroup.tag : `@${newGroup.tag}`;
+
+    if (groups.find(g => g.tag === tag)) {
+      toast.error('A group with this tag already exists');
+      return;
+    }
+
+    const group: Group = {
+      id: Date.now().toString(),
+      tag,
+      name: newGroup.name,
+      color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
+      owner: CURRENT_USER_ID,
+      collaborators: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    setGroups([...groups, group]);
+    setShowCreateGroupModal(false);
+    setNewGroup({ name: '', tag: '' });
+    toast.success(`Group "${newGroup.name}" created!`);
+  };
+
+  const handleOpenManageGroup = (group: Group) => {
+    setSelectedGroupForManagement(group);
+    setEditingCollaborators([...group.collaborators]);
+    setShowManageGroupModal(true);
+  };
+
+  const handleSaveGroupCollaborators = () => {
+    if (selectedGroupForManagement) {
+      setGroups(groups.map(g =>
+        g.id === selectedGroupForManagement.id
+          ? { ...g, collaborators: editingCollaborators }
+          : g
+      ));
+      setShowManageGroupModal(false);
+      setSelectedGroupForManagement(null);
+      toast.success('Collaborators updated');
+    }
+  };
+
+  const handleAddCollaborator = (user: typeof mockUsers[0]) => {
+    const newCollaborator: GroupCollaborator = {
+      ...user,
+      role: 'editor',
+      status: 'pending',
+      invitedAt: new Date().toISOString(),
+    };
+    setEditingCollaborators([...editingCollaborators, newCollaborator]);
+    setCollaboratorSearch('');
+    toast.success(`Invitation sent to ${user.name}`);
+  };
+
+  const handleRemoveCollaborator = (userId: string) => {
+    setEditingCollaborators(editingCollaborators.filter(c => c.userId !== userId));
+  };
+
+  const handleRoleChange = (userId: string, role: 'viewer' | 'editor' | 'admin') => {
+    setEditingCollaborators(editingCollaborators.map(c => c.userId === userId ? { ...c, role } : c));
+  };
+
+  const handleAcceptInvitation = (groupId: string) => {
+    setGroups(groups.map(g =>
+      g.id === groupId
+        ? {
+            ...g,
+            collaborators: g.collaborators.map(c =>
+              c.userId === CURRENT_USER_ID && c.status === 'pending'
+                ? { ...c, status: 'accepted', acceptedAt: new Date().toISOString() }
+                : c
+            ),
+          }
+        : g
+    ));
+    toast.success('Invitation accepted!');
+  };
+
+  const handleDeclineInvitation = (groupId: string) => {
+    setGroups(groups.map(g =>
+      g.id === groupId
+        ? {
+            ...g,
+            collaborators: g.collaborators.filter(c => !(c.userId === CURRENT_USER_ID && c.status === 'pending')),
+          }
+        : g
+    ));
+    toast.success('Invitation declined');
+  };
+
+  const searchResults = mockUsers.filter(
+    u =>
+      (u.name.toLowerCase().includes(collaboratorSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(collaboratorSearch.toLowerCase())) &&
+      !editingCollaborators.find(c => c.userId === u.userId)
+  );
+
   // Filter and sort tasks
   const filteredAndSortedTasks = useMemo(() => {
     let filtered = tasks;
+
+    // Group filter
+    if (selectedGroup) {
+      if (selectedGroup === '@personal') {
+        filtered = filtered.filter(task => !task.groupTag || task.groupTag === '@personal');
+      } else {
+        filtered = filtered.filter(task => {
+          if (task.groupTag !== selectedGroup) return false;
+          const group = groups.find(g => g.tag === selectedGroup);
+          return group && hasGroupAccess(group);
+        });
+      }
+    } else {
+      // "All Tasks" - show all accessible tasks
+      filtered = filtered.filter(task => {
+        if (!task.groupTag || task.groupTag === '@personal') {
+          return true; // Personal tasks always visible
+        }
+        const group = groups.find(g => g.tag === task.groupTag);
+        return group && hasGroupAccess(group);
+      });
+    }
 
     // Search filter
     if (searchQuery) {
@@ -406,6 +712,32 @@ export function TaskManager() {
         [data-sonner-toast][data-type="error"] [data-icon] {
           color: rgb(220, 38, 38) !important;
         }
+        /* Transparent scrollbars */
+        [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+          width: 6px;
+        }
+        [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+          background: transparent;
+          border-radius: 3px;
+        }
+        [data-radix-scroll-area-viewport]:hover::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.2);
+        }
+        .dark [data-radix-scroll-area-viewport]:hover::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+        }
+        /* Hide scrollbars for kanban columns */
+        .kanban-column-scroll::-webkit-scrollbar {
+          display: none;
+          width: 0;
+        }
+        .kanban-column-scroll {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
       `}</style>
       <Toaster 
         position="bottom-center" 
@@ -425,15 +757,213 @@ export function TaskManager() {
         }}
         theme="light"
       />
-      <div className="py-6 min-h-[calc(100vh-4rem)]">
+      <div className="w-full flex min-h-[calc(100vh-4rem)] gap-6 py-6">
+        {/* Left Sidebar - Extreme Left */}
+        <div className="w-[280px] bg-card dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] h-[calc(50vh)] p-4 space-y-6 flex-shrink-0 ml-6">
+          <div>
+            <h2 className="text-[#101828] dark:text-foreground text-[16px] font-semibold mb-4">Task Manager</h2>
+            <Button
+              onClick={() => setShowCreateGroupModal(true)}
+              variant="outline"
+              className="w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent"
+            >
+              <Plus className="h-4 w-4" />
+              New Group
+            </Button>
+          </div>
+
+          {/* Pending Invitations */}
+          {pendingInvitations.length > 0 && (
+            <>
+              <Separator className="bg-gray-200 dark:bg-muted" />
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowPendingInvitations(true)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                    <span className="text-[14px] text-yellow-800 dark:text-yellow-200 font-medium">Pending Invites</span>
+                  </div>
+                  <Badge className="bg-yellow-500 dark:bg-yellow-600 text-white text-[11px]">
+                    {pendingInvitations.length}
+                  </Badge>
+                </button>
+              </div>
+            </>
+          )}
+
+          <Separator className="bg-gray-200 dark:bg-muted" />
+
+          <div className="space-y-2">
+            <h3 className="text-[#4a5565] dark:text-muted-foreground text-[12px] uppercase tracking-wider font-semibold mb-3">
+              Workspaces
+            </h3>
+            
+            <button
+              onClick={() => setSelectedGroup(null)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
+                selectedGroup === null
+                  ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
+                  : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Circle className="h-4 w-4 fill-gray-400 dark:fill-muted-foreground text-gray-400 dark:text-muted-foreground" />
+                <span className="text-[14px]">All Tasks</span>
+              </div>
+              <Badge variant="secondary" className="text-[11px]">
+                {filteredAndSortedTasks.length}
+              </Badge>
+            </button>
+
+            <ScrollArea className="h-[calc(50vh-250px)]">
+              {accessibleGroups.map((group) => {
+                const isPersonal = group.tag === '@personal';
+                const taskCount = tasks.filter(t => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
+                const acceptedCount = group.collaborators.filter(c => c.status === 'accepted').length;
+                const pendingCount = group.collaborators.filter(c => c.status === 'pending').length;
+
+                return (
+                  <div key={group.id} className="mb-1">
+                    <button
+                      onClick={() => setSelectedGroup(group.tag)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
+                        selectedGroup === group.tag
+                          ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
+                          : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: group.color }}
+                        />
+                        <span className="text-[14px] truncate capitalize">{group.name}</span>
+                        {!isPersonal && acceptedCount > 0 && (
+                          <Users className="h-3 w-3 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge variant="secondary" className="text-[11px]">
+                          {taskCount}
+                        </Badge>
+                        {!isPersonal && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenManageGroup(group as Group);
+                            }}
+                            className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </button>
+                    {!isPersonal && (acceptedCount > 0 || pendingCount > 0) && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="ml-8 mt-1 text-[11px] text-[#4a5565] dark:text-muted-foreground cursor-help">
+                              {acceptedCount} member{acceptedCount !== 1 ? 's' : ''}
+                              {pendingCount > 0 && ` • ${pendingCount} pending`}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-[250px]">
+                            <div className="space-y-2">
+                              {acceptedCount > 0 && (
+                                <div>
+                                  <p className="font-semibold text-[11px] mb-1">Members:</p>
+                                  {group.collaborators
+                                    .filter(c => c.status === 'accepted')
+                                    .map(c => (
+                                      <p key={c.userId} className="text-[11px]">
+                                        • {c.name} ({c.role})
+                                      </p>
+                                    ))}
+                                </div>
+                              )}
+                              {pendingCount > 0 && (
+                                <div>
+                                  <p className="font-semibold text-[11px] mb-1">Pending:</p>
+                                  {group.collaborators
+                                    .filter(c => c.status === 'pending')
+                                    .map(c => (
+                                      <p key={c.userId} className="text-[11px]">
+                                        • {c.name} ({c.role})
+                                      </p>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                );
+              })}
+            </ScrollArea>
+            
+            <div className="pt-4 border-t border-gray-200 dark:border-muted space-y-2 mt-4">
+              <p className="text-[#4a5565] dark:text-muted-foreground text-[11px]">
+                💡 <strong>Tip:</strong> Drag & drop cards between columns
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content - Centered and aligned with navbar */}
+        <div className="flex-1">
+          <div className="max-w-[1280px] mx-auto px-8 w-full">
         {/* Page Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <p className="font-bold text-[24px] leading-[32px] text-gray-900 dark:text-foreground">Task Manager</p>
-            <p className="font-normal text-[16px] leading-[24px] text-gray-600 dark:text-muted-foreground mt-1">
-              Manage your tasks and projects efficiently
+              <h1 className="text-[#101828] dark:text-foreground text-[24px] leading-[32px] tracking-[0.0703px]">
+                {selectedGroup
+                  ? accessibleGroups.find(g => g.tag === selectedGroup)?.name || 'Tasks'
+                  : 'All Tasks'}
+              </h1>
+              <p className="text-[#4a5565] dark:text-muted-foreground text-[14px] leading-[20px] mt-1">
+                {selectedGroupData && acceptedCollaborators.length > 0
+                  ? `Shared with ${acceptedCollaborators.length} member${acceptedCollaborators.length !== 1 ? 's' : ''}`
+                  : selectedGroup
+                  ? `Viewing ${selectedGroup}`
+                  : 'Manage your tasks and projects efficiently'}
             </p>
           </div>
+            {selectedGroupData && acceptedCollaborators.length > 0 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex -space-x-2 cursor-help">
+                      {acceptedCollaborators.slice(0, 5).map((collab, i) => (
+                        <Avatar key={collab.userId} className="h-8 w-8 border-2 border-white dark:border-card">
+                          <AvatarFallback className={`text-white text-[11px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][i % 5]}`}>
+                            {collab.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                      {acceptedCollaborators.length > 5 && (
+                        <div className="h-8 w-8 border-2 border-white dark:border-card rounded-full bg-gray-200 dark:bg-muted flex items-center justify-center">
+                          <span className="text-[#4a5565] dark:text-muted-foreground text-[11px] font-semibold">+{acceptedCollaborators.length - 5}</span>
+                        </div>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1">
+                      {acceptedCollaborators.map(c => (
+                        <p key={c.userId} className="text-[11px]">
+                          {c.name} ({c.role})
+                        </p>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           <Button
             onClick={() => {
               setIsCollapsing(false); // Reset collapsing state when opening modal
@@ -451,7 +981,7 @@ export function TaskManager() {
               setSkipModalAnimation(false); // Ensure animations are enabled for new task
               setShowModal(true);
             }}
-            className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4"
+              className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4"
           >
             <Plus className="h-4 w-4 mr-2" />
             New Task
@@ -510,7 +1040,7 @@ export function TaskManager() {
         </div>
 
         {/* Filter and Search Bar */}
-        <Card className="p-4 mb-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
+          <Card className="p-4 mb-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             {/* Search Box */}
             <div className="relative flex-1 max-w-xs">
@@ -570,12 +1100,13 @@ export function TaskManager() {
             <p className="text-gray-600 dark:text-muted-foreground">Loading tasks...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div ref={pendingColumnRef}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            <div ref={pendingColumnRef} className="flex flex-col">
               <TaskColumn
                 title="Pending"
                 status="pending"
                 tasks={pendingTasks}
+                group={selectedGroupData || undefined}
                 onTaskDrop={handleTaskDrop}
                 onProgressChange={handleProgressChange}
                 onEdit={handleEdit}
@@ -584,28 +1115,139 @@ export function TaskManager() {
                 taskListRef={pendingTaskListRef as React.RefObject<HTMLDivElement>}
             />
             </div>
-            <TaskColumn
-              title="In Progress"
+            <div className="flex flex-col">
+              <TaskColumn
+                title="In Progress"
               status="in-progress"
               tasks={inProgressTasks}
+              group={selectedGroupData || undefined}
               onTaskDrop={handleTaskDrop}
               onProgressChange={handleProgressChange}
               onEdit={handleEdit}
               onDelete={handleDeleteClick}
               newlyAddedTaskId={newlyAddedTaskId}
-            />
-            <TaskColumn
-              title="Completed"
+              />
+            </div>
+            <div className="flex flex-col">
+              <TaskColumn
+                title="Completed"
               status="completed"
               tasks={completedTasks}
+              group={selectedGroupData || undefined}
               onTaskDrop={handleTaskDrop}
               onProgressChange={handleProgressChange}
               onEdit={handleEdit}
               onDelete={handleDeleteClick}
               newlyAddedTaskId={newlyAddedTaskId}
-            />
+              />
+            </div>
           </div>
         )}
+          </div>
+        </div>
+
+        {/* Right Activity Sidebar - Extreme Right */}
+        <div className="w-[340px] bg-card dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] h-[calc(50vh)] p-4 space-y-6 flex-shrink-0 mr-6">
+          <div>
+            <h2 className="text-[#101828] dark:text-foreground text-[16px] font-semibold mb-4 flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Recent Activity
+            </h2>
+          </div>
+
+          <Separator className="bg-gray-200 dark:bg-muted" />
+
+          <ScrollArea className="h-[calc(50vh-150px)]">
+            <div className="space-y-4">
+              <AnimatePresence>
+                {activities.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-[#4a5565] dark:text-muted-foreground text-[13px]">No activity yet</p>
+                  </div>
+                ) : (
+                  activities.map((activity, index) => {
+                    const isCurrentUser = activity.userId === CURRENT_USER_ID;
+                    const userAvatarColor = isCurrentUser 
+                      ? 'bg-indigo-500' 
+                      : ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][index % 5];
+                    
+                    return (
+                      <motion.div
+                        key={activity.id}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex gap-3"
+                      >
+                        <div className="flex flex-col items-center">
+                          <Avatar className="h-7 w-7 border-2 border-white dark:border-card">
+                            <AvatarFallback className={`${userAvatarColor} text-white text-[10px]`}>
+                              {isCurrentUser ? 'You' : activity.userName.split(' ').map(n => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          {index < activities.length - 1 && (
+                            <div className="w-0.5 h-full min-h-[40px] bg-gray-200 dark:bg-muted mt-2" />
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0 pb-4">
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium break-words flex-1 min-w-0">
+                              {activity.taskTitle}
+                            </p>
+                            <span className="text-[#4a5565] dark:text-muted-foreground text-[11px] whitespace-nowrap shrink-0 ml-2">
+                              {formatTimestamp(activity.timestamp)}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-start gap-2 flex-wrap">
+                            {activity.type === 'task_created' && (
+                              <>
+                                <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0 mt-1.5" />
+                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
+                                  <span className="font-medium">{activity.userName}</span> created this task
+                                </p>
+                              </>
+                            )}
+                            {activity.type === 'task_moved' && (
+                              <>
+                                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0 mt-1.5" />
+                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
+                                  <span className="font-medium">{activity.userName}</span> moved from{' '}
+                                  <span className="capitalize">{activity.fromStatus?.replace('-', ' ')}</span>
+                                  {' '}<ArrowRight className="h-3 w-3 inline align-middle" />{' '}
+                                  <span className="capitalize">{activity.toStatus?.replace('-', ' ')}</span>
+                                </p>
+                              </>
+                            )}
+                            {activity.type === 'task_deleted' && (
+                              <>
+                                <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
+                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
+                                  <span className="font-medium">{activity.userName}</span> deleted this task
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          
+                          {activity.groupTag && activity.groupTag !== '@personal' && (
+                            <div className="mt-1.5">
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                {groups.find(g => g.tag === activity.groupTag)?.name || activity.groupTag}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </AnimatePresence>
+            </div>
+          </ScrollArea>
+        </div>
+      </div>
 
         {/* Add Task Modal */}
         <Dialog 
@@ -967,7 +1609,215 @@ export function TaskManager() {
             </AnimatePresence>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Create Group Modal */}
+        <Dialog open={showCreateGroupModal} onOpenChange={setShowCreateGroupModal}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Create New Group</DialogTitle>
+              <DialogDescription>
+                Create a shared project workspace
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Group Name</Label>
+                <Input
+                  placeholder="e.g., Web UI Project"
+                  value={newGroup.name}
+                  onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
+                  className="h-[36px] rounded-[8px]"
+                />
       </div>
+              <div className="space-y-2">
+                <Label>Group Tag</Label>
+                <Input
+                  placeholder="e.g., web-ui or @web-ui"
+                  value={newGroup.tag}
+                  onChange={(e) => setNewGroup({ ...newGroup, tag: e.target.value })}
+                  className="h-[36px] rounded-[8px]"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowCreateGroupModal(false)} className="h-[36px] rounded-[8px]">
+                Cancel
+              </Button>
+              <Button onClick={handleCreateGroup} className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 h-[36px] rounded-[8px]">
+                Create Group
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Group Modal */}
+        <Dialog open={showManageGroupModal} onOpenChange={setShowManageGroupModal}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Manage Group Members</DialogTitle>
+              <DialogDescription>
+                {selectedGroupForManagement?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {editingCollaborators.length > 0 && (
+                <div className="space-y-3">
+                  <Label>Members</Label>
+                  {editingCollaborators.map((collab) => (
+                    <div key={collab.userId} className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-blue-500 text-white text-[11px]">
+                            {collab.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium truncate">{collab.name}</p>
+                            {collab.status === 'pending' && (
+                              <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] px-1.5 py-0">
+                                Pending
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] truncate">{collab.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Select value={collab.role} onValueChange={(value: any) => handleRoleChange(collab.userId, value)}>
+                          <SelectTrigger className="w-[90px] h-[30px] text-[12px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="viewer">Viewer</SelectItem>
+                            <SelectItem value="editor">Editor</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <button onClick={() => handleRemoveCollaborator(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <Label>Add Member</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={collaboratorSearch}
+                    onChange={(e) => setCollaboratorSearch(e.target.value)}
+                    className="pl-9 h-[36px] rounded-[8px]"
+                  />
+                </div>
+                {collaboratorSearch && (
+                  <div className="border border-gray-200 dark:border-transparent rounded-[8px] p-2 max-h-[200px] overflow-y-auto bg-card">
+                    {searchResults.length === 0 ? (
+                      <p className="text-center text-[#4a5565] dark:text-muted-foreground text-[12px] py-4">No users found</p>
+                    ) : (
+                      searchResults.map((user) => (
+                        <button
+                          key={user.userId}
+                          onClick={() => handleAddCollaborator(user)}
+                          className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors"
+                        >
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-purple-500 text-white text-[11px]">
+                              {user.name.split(' ').map(n => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="text-left flex-1">
+                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium">{user.name}</p>
+                            <p className="text-[#4a5565] dark:text-muted-foreground text-[11px]">{user.email}</p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowManageGroupModal(false)} className="h-[36px] rounded-[8px]">
+                Cancel
+              </Button>
+              <Button onClick={handleSaveGroupCollaborators} className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 h-[36px] rounded-[8px]">
+                Save Changes
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Pending Invitations Dialog */}
+        <Dialog open={showPendingInvitations} onOpenChange={setShowPendingInvitations}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Pending Invitations</DialogTitle>
+              <DialogDescription>
+                You have {pendingInvitations.length} group invitation{pendingInvitations.length !== 1 ? 's' : ''}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-4">
+              {pendingInvitations.map((group) => {
+                const myInvite = group.collaborators.find(
+                  c => c.userId === CURRENT_USER_ID && c.status === 'pending'
+                );
+                return (
+                  <Card key={group.id} className="p-4 border-gray-200 dark:border-transparent">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: group.color }}
+                          />
+                          <h4 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">{group.name}</h4>
+                        </div>
+                        <p className="text-[#4a5565] dark:text-muted-foreground text-[12px] mb-2">
+                          Invited by {group.owner === CURRENT_USER_ID ? 'You' : 'someone'}
+                        </p>
+                        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px]">
+                          Role: {myInvite?.role}
+                        </Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            handleAcceptInvitation(group.id);
+                            if (pendingInvitations.length === 1) {
+                              setShowPendingInvitations(false);
+                            }
+                          }}
+                          className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 h-[30px] text-[12px]"
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            handleDeclineInvitation(group.id);
+                            if (pendingInvitations.length === 1) {
+                              setShowPendingInvitations(false);
+                            }
+                          }}
+                          className="h-[30px] text-[12px]"
+                        >
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
     </DndProvider>
   );
 }

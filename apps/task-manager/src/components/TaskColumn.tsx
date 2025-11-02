@@ -4,10 +4,26 @@ import { TaskCard, Task } from './TaskCard';
 
 import { Badge } from '@efficio/ui';
 
+interface Group {
+  id: string;
+  tag: string;
+  name: string;
+  color: string;
+  owner: string;
+  collaborators: Array<{
+    userId: string;
+    name: string;
+    email: string;
+    role: 'viewer' | 'editor' | 'admin';
+    status: 'pending' | 'accepted' | 'declined';
+  }>;
+}
+
 interface TaskColumnProps {
   title: string;
   status: 'pending' | 'in-progress' | 'completed';
   tasks: Task[];
+  group?: Group; // Group data to pass to TaskCard
   onTaskDrop: (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => void;
   onProgressChange?: (taskId: string, progress: number) => void;
   onEdit?: (task: Task) => void;
@@ -22,7 +38,7 @@ const statusColors = {
   completed: 'bg-green-100 text-green-700',
 };
 
-export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange, onEdit, onDelete, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
+export function TaskColumn({ title, status, tasks, group, onTaskDrop, onProgressChange, onEdit, onDelete, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'TASK',
     drop: (item: { id: string; status: string }, monitor) => {
@@ -36,9 +52,9 @@ export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange,
   }), [status, onTaskDrop]);
 
   return (
-    <div className="flex-1 min-w-0">
-      <div className="bg-white dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
-        <div className="border-b border-gray-200 dark:border-transparent p-4">
+    <div className="flex-1 min-w-0 flex flex-col h-full">
+      <div className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] flex flex-col h-full">
+        <div className="border-b border-gray-200 dark:border-transparent p-4 bg-white dark:bg-card flex-shrink-0 rounded-t-xl sticky top-16 z-20">
           <div className="flex items-center justify-between">
             <h2 className="text-gray-900 dark:text-card-foreground">{title}</h2>
             <Badge variant="secondary" className={`${statusColors[status]} rounded-full`}>
@@ -49,7 +65,7 @@ export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange,
 
         <div
           ref={drop as any}
-          className={`p-4 min-h-[500px] transition-colors ${
+          className={`flex-1 p-4 transition-colors min-h-[400px] rounded-b-xl ${
             isOver ? 'bg-indigo-50 dark:bg-indigo-950/30' : 'bg-white dark:bg-card'
           }`}
         >
@@ -85,7 +101,8 @@ export function TaskColumn({ title, status, tasks, onTaskDrop, onProgressChange,
                   style={{ willChange: "transform" }}
                 >
                   <TaskCard 
-                    task={task} 
+                    task={task}
+                    group={group}
                     onProgressChange={onProgressChange}
                     onEdit={onEdit}
                     onDelete={onDelete}

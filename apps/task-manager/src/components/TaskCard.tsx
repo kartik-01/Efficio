@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useDrag } from 'react-dnd';
-import { Calendar, Circle, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { Calendar, Circle, MoreVertical, Edit, Trash2, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider } from '@efficio/ui';
+import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
 
 export interface Task {
   id: string;
@@ -15,10 +15,30 @@ export interface Task {
   dueDate?: string;
   progress?: number;
   isOverdue?: boolean;
+  groupTag?: string; // Group tag (e.g., '@web-ui', '@personal')
+  assignedTo?: string[]; // Array of user IDs assigned to this task
+}
+
+interface GroupCollaborator {
+  userId: string;
+  name: string;
+  email: string;
+  role: 'viewer' | 'editor' | 'admin';
+  status: 'pending' | 'accepted' | 'declined';
+}
+
+interface Group {
+  id: string;
+  tag: string;
+  name: string;
+  color: string;
+  owner: string;
+  collaborators: GroupCollaborator[];
 }
 
 interface TaskCardProps {
   task: Task;
+  group?: Group; // Optional group data if task belongs to a group
   onProgressChange?: (taskId: string, progress: number) => void;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
@@ -39,7 +59,7 @@ const priorityColors = {
   Low: 'bg-green-100 text-green-800',
 };
 
-export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardProps) {
+export function TaskCard({ task, group, onProgressChange, onEdit, onDelete }: TaskCardProps) {
   const [localProgress, setLocalProgress] = useState(task.progress || 0);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -71,6 +91,11 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
     ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-transparent' 
     : 'bg-background';
 
+  const isGroupTask = group && group.collaborators.length > 0 && task.groupTag && task.groupTag !== '@personal';
+  const assignedUsers = task.assignedTo && group 
+    ? group.collaborators.filter(c => c.status === 'accepted' && task.assignedTo?.includes(c.userId))
+    : [];
+
   const handleEdit = () => {
     setIsMenuOpen(false);
     if (onEdit) {
@@ -88,7 +113,7 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
   return (
     <div
       ref={drag as any}
-      className={`p-4 rounded-lg ${bgColor} cursor-move transition-opacity shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] ${
+      className={`p-4 rounded-lg ${bgColor} ${isGroupTask ? 'border-l-4 border-l-emerald-500 dark:border-l-emerald-600' : ''} cursor-move transition-opacity shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] ${
         isDragging ? 'opacity-50' : 'opacity-100'
       }`}
     >
@@ -200,15 +225,48 @@ export function TaskCard({ task, onProgressChange, onEdit, onDelete }: TaskCardP
       )}
 
       <div className="flex items-center justify-between">
-        {task.category && (
-          <div className="flex items-center gap-2">
-            <Circle className={`h-3 w-3 ${getCategoryColor(task.category)} rounded-full fill-current`} />
-            <span className="text-sm text-gray-600 dark:text-muted-foreground">{task.category}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {assignedUsers.length > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex -space-x-1.5">
+                    {assignedUsers.slice(0, 2).map((user) => (
+                      <Avatar key={user.userId} className="h-5 w-5 border-2 border-white dark:border-card">
+                        <AvatarFallback className={`text-white text-[9px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][assignedUsers.indexOf(user) % 5]}`}>
+                          {user.name.split(' ').map((n) => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                    ))}
+                    {assignedUsers.length > 2 && (
+                      <div className="h-5 w-5 border-2 border-white dark:border-card rounded-full bg-gray-200 dark:bg-muted flex items-center justify-center">
+                        <span className="text-[#4a5565] dark:text-muted-foreground text-[8px] font-semibold">+{assignedUsers.length - 2}</span>
+                      </div>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="space-y-1">
+                    {assignedUsers.map((user) => (
+                      <p key={user.userId} className="text-[11px]">
+                        {user.name}
+                      </p>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {task.category && (
+            <div className="flex items-center gap-2">
+              <Circle className={`h-3 w-3 ${getCategoryColor(task.category)} rounded-full fill-current`} />
+              <span className="text-sm text-gray-600 dark:text-muted-foreground">{task.category}</span>
+            </div>
+          )}
+        </div>
 
         {task.dueDate && (
-          <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-600 dark:text-destructive' : task.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-muted-foreground'} ${!task.category ? 'ml-auto' : ''}`}>
+          <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-600 dark:text-destructive' : task.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-muted-foreground'} ${!task.category && assignedUsers.length === 0 ? 'ml-auto' : ''}`}>
             <Calendar className="h-3.5 w-3.5" />
             <span>{task.dueDate}</span>
           </div>
