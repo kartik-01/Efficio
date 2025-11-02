@@ -190,13 +190,58 @@ export function TaskManager() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Listen for navigation events from notifications
+  useEffect(() => {
+    const handleNavigateToGroup = (event: CustomEvent) => {
+      const { groupTag, taskId } = event.detail || {};
+      if (groupTag) {
+        setSelectedGroup(groupTag);
+        // Optionally scroll to or highlight the task if taskId is provided
+        if (taskId) {
+          // Could add logic to highlight the specific task
+          setTimeout(() => {
+            const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (taskElement) {
+              taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // Add a highlight effect
+              taskElement.classList.add('ring-2', 'ring-indigo-500');
+              setTimeout(() => {
+                taskElement.classList.remove('ring-2', 'ring-indigo-500');
+              }, 2000);
+            }
+          }, 500);
+        }
+      }
+    };
+
+    const handleOpenPendingInvitations = () => {
+      // This will be handled by LeftSidebar component
+      window.dispatchEvent(new CustomEvent('leftSidebarOpenInvitations'));
+    };
+
+    window.addEventListener('navigateToGroup', handleNavigateToGroup as EventListener);
+    window.addEventListener('openPendingInvitations', handleOpenPendingInvitations);
+    
+    return () => {
+      window.removeEventListener('navigateToGroup', handleNavigateToGroup as EventListener);
+      window.removeEventListener('openPendingInvitations', handleOpenPendingInvitations);
+    };
+  }, [setSelectedGroup]);
+
   const fetchTasks = async (groupTag?: string | null) => {
     try {
       setLoading(true);
       // Fetch tasks filtered by groupTag if provided
       const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
-      // Ensure all tasks have id property (map _id to id if needed)
-      setTasks(fetchedTasks.map(task => ({ ...task, id: task.id || (task as any)._id || '' })));
+      // Ensure all tasks have id property and userId (map _id to id if needed)
+      setTasks(fetchedTasks.map(task => ({ 
+        ...task, 
+        id: task.id || (task as any)._id || '',
+        userId: (task.userId || (task as any).userId || '').toString().trim(), // Include userId from backend, ensure it's a string
+        groupTag: task.groupTag || (task as any).groupTag || undefined,
+        assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
+        assignedUsers: task.assignedUsers || (task as any).assignedUsers || [], // Include assignedUsers from backend
+      })));
     } catch (error) {
       toast.error('Failed to Fetch Tasks', {
         description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
@@ -271,6 +316,30 @@ export function TaskManager() {
   };
 
   const handleEdit = (task: Task) => {
+    // Check if user can edit this task
+    const canEdit = () => {
+      if (!selectedGroupData || selectedGroup === '@personal') return true; // Personal tasks always editable
+      if (!userRole) return true; // No role means personal task
+      
+      // Owner and admin can edit any task
+      if (userRole === 'owner' || userRole === 'admin') return true;
+      
+      // Editor can edit any task
+      if (userRole === 'editor') return true;
+      
+      // Viewer can only edit their own tasks
+      if (userRole === 'viewer') {
+        return task.userId === currentUserId;
+      }
+      
+      return true;
+    };
+
+    if (!canEdit()) {
+      toast.error('You do not have permission to edit this task');
+      return;
+    }
+
     setEditingTask(task);
     setNewTask({
       title: task.title,
@@ -280,6 +349,7 @@ export function TaskManager() {
       status: task.status,
       dueDate: task.dueDate || '',
       progress: task.progress || 20,
+      assignedTo: task.assignedTo || [],
     });
     setIncludeProgress(task.progress !== undefined);
     setSkipModalAnimation(false); // Ensure animations are enabled for edit mode
@@ -374,6 +444,7 @@ export function TaskManager() {
       dueDate: newTask.dueDate || '',
       progress: includeProgress ? (newTask.progress || 0) : undefined,
       groupTag: selectedGroup || '@personal', // Add groupTag to task
+      assignedTo: newTask.assignedTo || [], // Add assignedTo array
     };
 
     try {
@@ -559,8 +630,47 @@ export function TaskManager() {
     group.collaborators.some(c => c.userId === currentUserId && c.status === 'pending')
   );
 
-  const selectedGroupData = selectedGroup ? groups.find(g => g.tag === selectedGroup) : null;
-  const acceptedCollaborators = selectedGroupData?.collaborators.filter(c => c.status === 'accepted') || [];
+  // Memoize selectedGroupData to update when groups or selectedGroup changes
+  const selectedGroupData = useMemo(() => {
+    return selectedGroup ? groups.find(g => g.tag === selectedGroup) : null;
+  }, [selectedGroup, groups, currentUserId]);
+  
+  const acceptedCollaborators = useMemo(() => {
+    return selectedGroupData?.collaborators.filter(c => c.status === 'accepted') || [];
+  }, [selectedGroupData]);
+  
+  // Calculate current user's role in the selected group
+  const userRole = useMemo((): 'viewer' | 'editor' | 'admin' | 'owner' | undefined => {
+    if (!selectedGroupData || selectedGroup === '@personal') return undefined;
+    
+    // Check if user is the owner
+    if (selectedGroupData.owner === currentUserId) {
+      return 'owner';
+    }
+    
+    // Find user's collaborator entry - check for accepted status
+    const collaborator = selectedGroupData.collaborators.find(
+      c => c.userId === currentUserId && c.status === 'accepted'
+    );
+    
+    // If no accepted collaborator found, try to find any collaborator entry (might be pending)
+    // But only return role if accepted
+    if (collaborator) {
+      return collaborator.role as 'viewer' | 'editor' | 'admin';
+    }
+    
+    // Debug: log if we can't find the role
+    if (selectedGroupData.collaborators.some(c => c.userId === currentUserId)) {
+      console.warn('User found in group collaborators but status is not accepted:', {
+        userId: currentUserId,
+        collaborators: selectedGroupData.collaborators.filter(c => c.userId === currentUserId)
+      });
+    }
+    
+    return undefined;
+  }, [selectedGroupData, currentUserId, selectedGroup]);
+  const canCreateTask = !selectedGroupData || selectedGroup === '@personal' || userRole === 'admin' || userRole === 'owner';
+  const canSeeAssignTo = selectedGroupData && selectedGroup !== '@personal' && (userRole === 'admin' || userRole === 'owner' || userRole === 'editor') && acceptedCollaborators.length > 0;
 
   // Group handlers are now in LeftSidebar component
 
@@ -580,13 +690,25 @@ export function TaskManager() {
         });
       }
     } else {
-      // "All Tasks" - show all accessible tasks
+      // "All Tasks" - show personal tasks AND only group tasks where user is assigned AND has accepted access
       filtered = filtered.filter(task => {
+        // Personal tasks always visible
         if (!task.groupTag || task.groupTag === '@personal') {
-          return true; // Personal tasks always visible
+          return true;
         }
+        // For group tasks:
+        // 1. User must have accepted access to the group (not just pending)
         const group = groups.find(g => g.tag === task.groupTag);
-        return group && hasGroupAccess(group);
+        if (!group) return false;
+        
+        const hasAcceptedAccess = group.owner === currentUserId || 
+          group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
+        
+        if (!hasAcceptedAccess) return false;
+        
+        // 2. User must be assigned to the task
+        const isAssigned = task.assignedTo && task.assignedTo.some(id => id?.trim() === currentUserId?.trim());
+        return isAssigned;
       });
     }
 
@@ -765,28 +887,31 @@ export function TaskManager() {
                 </Tooltip>
               </TooltipProvider>
             )}
-          <Button
-            onClick={() => {
-              setIsCollapsing(false); // Reset collapsing state when opening modal
-              setEditingTask(null);
-              setNewTask({
-                title: '',
-                description: '',
-                category: '',
-                priority: 'Medium',
-                status: 'pending',
-                dueDate: '',
-                progress: 20,
-              });
-              setIncludeProgress(false);
-              setSkipModalAnimation(false); // Ensure animations are enabled for new task
-              setShowModal(true);
-            }}
+          {canCreateTask && (
+            <Button
+              onClick={() => {
+                setIsCollapsing(false); // Reset collapsing state when opening modal
+                setEditingTask(null);
+                setNewTask({
+                  title: '',
+                  description: '',
+                  category: '',
+                  priority: 'Medium',
+                  status: 'pending',
+                  dueDate: '',
+                  progress: 20,
+                  assignedTo: [],
+                });
+                setIncludeProgress(false);
+                setSkipModalAnimation(false); // Ensure animations are enabled for new task
+                setShowModal(true);
+              }}
               className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Task
-          </Button>
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Task
+            </Button>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -908,6 +1033,8 @@ export function TaskManager() {
                 status="pending"
                 tasks={pendingTasks}
                 group={selectedGroupData || undefined}
+                currentUserId={currentUserId}
+                userRole={userRole}
                 onTaskDrop={handleTaskDrop}
                 onProgressChange={handleProgressChange}
                 onEdit={handleEdit}
@@ -919,14 +1046,16 @@ export function TaskManager() {
             <div className="flex flex-col">
               <TaskColumn
                 title="In Progress"
-              status="in-progress"
-              tasks={inProgressTasks}
-              group={selectedGroupData || undefined}
-              onTaskDrop={handleTaskDrop}
-              onProgressChange={handleProgressChange}
-              onEdit={handleEdit}
-              onDelete={handleDeleteClick}
-              newlyAddedTaskId={newlyAddedTaskId}
+                status="in-progress"
+                tasks={inProgressTasks}
+                group={selectedGroupData || undefined}
+                currentUserId={currentUserId}
+                userRole={userRole}
+                onTaskDrop={handleTaskDrop}
+                onProgressChange={handleProgressChange}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+                newlyAddedTaskId={newlyAddedTaskId}
               />
             </div>
             <div className="flex flex-col">
@@ -935,6 +1064,8 @@ export function TaskManager() {
                 status="completed"
                 tasks={completedTasks}
                 group={selectedGroupData || undefined}
+                currentUserId={currentUserId}
+                userRole={userRole}
                 onTaskDrop={handleTaskDrop}
                 onProgressChange={handleProgressChange}
                 onEdit={handleEdit}
@@ -1004,6 +1135,7 @@ export function TaskManager() {
                 status: 'pending',
                 dueDate: '',
                 progress: 20,
+                assignedTo: [],
               });
               setIncludeProgress(false);
               setSkipModalAnimation(false);
@@ -1146,6 +1278,33 @@ export function TaskManager() {
                     onValueChange={(value) => setNewTask({ ...newTask, progress: value[0] })}
                     className="[&_[data-radix-slider-range]]:bg-purple-500 [&_[data-radix-slider-thumb]]:border-purple-500"
                   />
+                </div>
+              )}
+
+              {/* Assign To field - only for collaborated groups, visible to admin/editor/owner */}
+              {canSeeAssignTo && !editingTask && (
+                <div className="grid gap-2">
+                  <Label htmlFor="assignTo">Assign To</Label>
+                  <Select
+                    value={(newTask.assignedTo && newTask.assignedTo.length > 0) ? newTask.assignedTo[0] : undefined}
+                    onValueChange={(value) => {
+                      setNewTask({ 
+                        ...newTask, 
+                        assignedTo: value ? [value] : [] 
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="assignTo">
+                      <SelectValue placeholder="Select a team member (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {acceptedCollaborators.map((collab) => (
+                        <SelectItem key={collab.userId} value={collab.userId}>
+                          {collab.name} ({collab.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 

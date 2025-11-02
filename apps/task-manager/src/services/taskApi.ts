@@ -52,6 +52,7 @@ const getHeaders = async (): Promise<HeadersInit> => {
 export interface Task {
   _id?: string;
   id?: string;
+  userId?: string; // Task owner's auth0Id
   title: string;
   description: string;
   category: string;
@@ -60,6 +61,9 @@ export interface Task {
   dueDate?: string;
   progress?: number;
   isOverdue?: boolean;
+  groupTag?: string; // Group/Workspace tag
+  assignedTo?: string[]; // Array of user IDs assigned to this task
+  assignedUsers?: Array<{ userId: string; name: string; email?: string }>; // Assigned user info (for displaying exited users)
 }
 
 export interface CreateTaskData {
@@ -72,6 +76,7 @@ export interface CreateTaskData {
   progress?: number;
   isOverdue?: boolean;
   groupTag?: string; // Group/Workspace tag (e.g., "@personal", "@web-ui")
+  assignedTo?: string[]; // Array of user IDs assigned to this task
 }
 
 export interface UpdateTaskData {

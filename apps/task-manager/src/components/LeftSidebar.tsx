@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Button } from '@efficio/ui';
 import { Badge, ScrollArea, Separator, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Avatar, AvatarFallback, Card } from '@efficio/ui';
-import { Bell, ChevronLeft, ChevronRight, Plus, Settings, Users, Search, X } from 'lucide-react';
+import { Bell, ChevronLeft, ChevronRight, Plus, Settings, Users, Search, X, Trash2, LogOut } from 'lucide-react';
 import { Task } from './TaskCard';
 import { groupApi } from '../services/groupApi';
 
@@ -120,6 +120,23 @@ export function LeftSidebar({
     }
   }, [currentUserId, auth0User]);
 
+  // Listen for open invitations event from navbar or task manager
+  useEffect(() => {
+    const handleOpenInvitations = () => {
+      if (pendingInvitations.length > 0) {
+        setShowPendingInvitations(true);
+      }
+    };
+
+    window.addEventListener('leftSidebarOpenInvitations', handleOpenInvitations);
+    window.addEventListener('openPendingInvitations', handleOpenInvitations);
+    
+    return () => {
+      window.removeEventListener('leftSidebarOpenInvitations', handleOpenInvitations);
+      window.removeEventListener('openPendingInvitations', handleOpenInvitations);
+    };
+  }, [pendingInvitations.length]);
+
   // User search with debouncing
   useEffect(() => {
     if (!collaboratorSearch.trim()) {
@@ -214,10 +231,79 @@ export function LeftSidebar({
     }
   };
 
+  // Helper to get user's role in a group
+  const getUserRoleInGroup = (group: Group): 'owner' | 'admin' | 'editor' | 'viewer' | null => {
+    if (group.owner === currentUserId) return 'owner';
+    const collaborator = group.collaborators.find(c => c.userId === currentUserId && c.status === 'accepted');
+    return collaborator?.role as 'admin' | 'editor' | 'viewer' | null || null;
+  };
+
   const handleOpenManageGroup = (group: Group) => {
+    const userRole = getUserRoleInGroup(group);
+    // Only admin and owner can access settings
+    if (userRole !== 'owner' && userRole !== 'admin') {
+      toast.error('Only admins and owners can manage group settings');
+      return;
+    }
     setSelectedGroupForManagement(group);
     setEditingCollaborators([...group.collaborators]);
     setShowManageGroupModal(true);
+  };
+
+  const handleDeleteGroup = async (group: Group) => {
+    if (!confirm(`Are you sure you want to delete "${group.name}"? This will permanently delete all tasks and activities associated with this group. This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await groupApi.deleteGroup(group.id);
+      toast.success('Group deleted successfully');
+      
+      // Reload groups
+      const data = await groupApi.getGroups();
+      setGroups(data.groups.map(g => ({
+        ...g,
+        id: g.id || g._id || '',
+      })));
+
+      // If deleted group was selected, switch to personal
+      if (selectedGroup === group.tag) {
+        setSelectedGroup('@personal');
+      }
+    } catch (error) {
+      console.error('Failed to delete group:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete group');
+    }
+  };
+
+  const handleExitGroup = async (group: Group) => {
+    if (!confirm(`Are you sure you want to leave "${group.name}"? You will no longer have access to this group.`)) {
+      return;
+    }
+
+    try {
+      await groupApi.exitGroup(group.id);
+      
+      // Reload groups
+      const data = await groupApi.getGroups();
+      const updatedGroups = data.groups.map(g => ({
+        ...g,
+        id: g.id || g._id || '',
+      }));
+      setGroups(updatedGroups);
+
+      // If exited group was selected, switch to personal (use setTimeout to avoid render warning)
+      if (selectedGroup === group.tag) {
+        setTimeout(() => {
+          setSelectedGroup('@personal');
+        }, 0);
+      }
+      
+      toast.success('You have left the group');
+    } catch (error) {
+      console.error('Failed to exit group:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to exit group');
+    }
   };
 
   const handleSaveGroupCollaborators = async () => {
@@ -592,26 +678,99 @@ export function LeftSidebar({
                           <Badge variant="secondary" className="text-[10px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground px-1.5 h-5">
                             {taskCount}
                           </Badge>
-                          {!isPersonal && (
-                            <div
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenManageGroup(group);
-                              }}
-                              className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5 transition-colors cursor-pointer"
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleOpenManageGroup(group);
-                                }
-                              }}
-                            >
-                              <Settings className="h-3.5 w-3.5" />
-                            </div>
-                          )}
+                          {!isPersonal && (() => {
+                            const userRole = getUserRoleInGroup(group);
+                            const isOwner = userRole === 'owner';
+                            const isAdmin = userRole === 'admin';
+                            const canManage = isOwner || isAdmin;
+                            const canExit = userRole === 'editor' || userRole === 'viewer';
+
+                            return (
+                              <div className="flex items-center gap-1">
+                                {canManage && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenManageGroup(group);
+                                        }}
+                                        className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5 transition-colors cursor-pointer"
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleOpenManageGroup(group);
+                                          }
+                                        }}
+                                      >
+                                        <Settings className="h-3.5 w-3.5" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">Manage Group</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {isOwner && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteGroup(group);
+                                        }}
+                                        className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive p-0.5 transition-colors cursor-pointer"
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleDeleteGroup(group);
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">Delete Group</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {canExit && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleExitGroup(group);
+                                        }}
+                                        className="text-gray-400 dark:text-muted-foreground hover:text-orange-500 dark:hover:text-orange-400 p-0.5 transition-colors cursor-pointer"
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleExitGroup(group);
+                                          }
+                                        }}
+                                      >
+                                        <LogOut className="h-3.5 w-3.5" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">Exit Group</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </button>
                     </div>
@@ -774,46 +933,98 @@ export function LeftSidebar({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {editingCollaborators.length > 0 && (
-              <div className="space-y-3">
-                <Label>Members</Label>
-                {editingCollaborators.map((collab) => (
-                  <div key={collab.userId} className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
+            {/* Show Owner first if exists */}
+            {selectedGroupForManagement && selectedGroupForManagement.owner && (() => {
+              // Try to find owner in collaborators, but owner might not be in the list
+              const ownerUser = selectedGroupForManagement.collaborators.find(c => c.userId === selectedGroupForManagement.owner);
+              // If owner is the current user, use current user info, else use collaborator info
+              const ownerName = ownerUser?.name || (selectedGroupForManagement.owner === currentUserId ? (auth0User?.name || 'You') : 'Owner');
+              const ownerEmail = ownerUser?.email || (selectedGroupForManagement.owner === currentUserId ? (auth0User?.email || '') : '');
+              return (
+                <div className="space-y-3">
+                  <Label>Owner</Label>
+                  <div className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-blue-500 text-white text-[11px]">
-                          {collab.name.split(' ').map(n => n[0]).join('')}
+                        <AvatarFallback className="bg-purple-500 text-white text-[11px]">
+                          {ownerName.split(' ').map(n => n[0]).join('')}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-[#101828] dark:text-foreground text-[13px] font-medium truncate">{collab.name}</p>
-                          {collab.status === 'pending' && (
-                            <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] px-1.5 py-0">
-                              Pending
-                            </Badge>
-                          )}
+                          <p className="text-[#101828] dark:text-foreground text-[13px] font-medium truncate">{ownerName}</p>
+                          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] px-1.5 py-0">
+                            Owner
+                          </Badge>
                         </div>
-                        <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] truncate">{collab.email}</p>
+                        {ownerEmail && (
+                          <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] truncate">{ownerEmail}</p>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Select value={collab.role} onValueChange={(value: any) => handleRoleChange(collab.userId, value)}>
-                        <SelectTrigger className="w-[90px] h-[30px] text-[12px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="viewer">Viewer</SelectItem>
-                          <SelectItem value="editor">Editor</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <button onClick={() => handleRemoveCollaborator(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
-                ))}
+                </div>
+              );
+            })()}
+
+            {editingCollaborators.length > 0 && (
+              <div className="space-y-3">
+                <Label>Members</Label>
+                {editingCollaborators.map((collab) => {
+                  const isOwner = selectedGroupForManagement?.owner === collab.userId;
+                  const currentUserRole = selectedGroupForManagement ? getUserRoleInGroup(selectedGroupForManagement) : null;
+                  const canChangeRoles = currentUserRole === 'owner' || currentUserRole === 'admin';
+                  
+                  return (
+                    <div key={collab.userId} className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-blue-500 text-white text-[11px]">
+                            {collab.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium truncate">{collab.name}</p>
+                            {collab.status === 'pending' && (
+                              <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] px-1.5 py-0">
+                                Pending
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] truncate">{collab.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isOwner ? (
+                          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] px-2 py-0.5">
+                            Owner
+                          </Badge>
+                        ) : canChangeRoles ? (
+                          <>
+                            <Select value={collab.role} onValueChange={(value: any) => handleRoleChange(collab.userId, value)}>
+                              <SelectTrigger className="w-[90px] h-[30px] text-[12px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="viewer">Viewer</SelectItem>
+                                <SelectItem value="editor">Editor</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <button onClick={() => handleRemoveCollaborator(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <Badge className="bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground text-[10px] px-2 py-0.5">
+                            {collab.role.charAt(0).toUpperCase() + collab.role.slice(1)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

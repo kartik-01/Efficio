@@ -24,6 +24,8 @@ interface TaskColumnProps {
   status: 'pending' | 'in-progress' | 'completed';
   tasks: Task[];
   group?: Group; // Group data to pass to TaskCard
+  currentUserId?: string; // Current user's auth0Id
+  userRole?: 'viewer' | 'editor' | 'admin' | 'owner'; // Current user's role in the group
   onTaskDrop: (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => void;
   onProgressChange?: (taskId: string, progress: number) => void;
   onEdit?: (task: Task) => void;
@@ -38,7 +40,7 @@ const statusColors = {
   completed: 'bg-green-100 text-green-700',
 };
 
-export function TaskColumn({ title, status, tasks, group, onTaskDrop, onProgressChange, onEdit, onDelete, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
+export function TaskColumn({ title, status, tasks, group, currentUserId, userRole, onTaskDrop, onProgressChange, onEdit, onDelete, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'TASK',
     drop: (item: { id: string; status: string }, monitor) => {
@@ -103,6 +105,8 @@ export function TaskColumn({ title, status, tasks, group, onTaskDrop, onProgress
                   <TaskCard 
                     task={task}
                     group={group}
+                    currentUserId={currentUserId}
+                    userRole={userRole}
                     onProgressChange={onProgressChange}
                     onEdit={onEdit}
                     onDelete={onDelete}

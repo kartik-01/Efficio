@@ -340,5 +340,42 @@ export const groupApi = {
     
     return result.data;
   },
+
+  // Exit group (leave group as a member)
+  async exitGroup(groupId: string): Promise<void> {
+    const headers = await getHeaders();
+    const response = await fetch(`${API_BASE_URL}/groups/${groupId}/exit`, {
+      method: 'POST',
+      headers,
+    });
+    
+    if (!response.ok) {
+      // Try to parse JSON, but handle HTML error pages
+      let errorMessage = `Failed to exit group: ${response.status} ${response.statusText}`;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const result = await response.json();
+          errorMessage = result.message || errorMessage;
+        } catch {
+          // If JSON parsing fails, use default message
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    // Try to parse JSON if available, but don't fail if there's no body
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const result = await response.json();
+        return result;
+      } catch {
+        // If no JSON body, that's fine
+      }
+    }
+  },
 };
 
