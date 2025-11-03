@@ -3,76 +3,18 @@ import userEvent from '@testing-library/user-event';
 import { TaskCard, Task } from '../TaskCard';
 
 // Mock react-dnd
-jest.mock('react-dnd', () => ({
-  DndProvider: ({ children }: any) => <div>{children}</div>,
-  useDrag: () => [{}, jest.fn()],
-  useDrop: () => [{}, jest.fn()],
-}));
+jest.mock('react-dnd', () => require('./mocks.tsx').reactDndMocks);
 
-jest.mock('react-dnd-html5-backend', () => ({
-  HTML5Backend: {},
-}));
+jest.mock('react-dnd-html5-backend', () => require('./mocks.tsx').reactDndHtml5BackendMock);
 
 // Mock @efficio/ui
-jest.mock('@efficio/ui', () => ({
-  Badge: ({ children, className, ...props }: any) => (
-    <span className={className} {...props}>{children}</span>
-  ),
-  Progress: ({ value, className }: any) => (
-    <div data-testid="progress" className={className} data-value={value} />
-  ),
-  Popover: ({ children, open, onOpenChange }: any) => (
-    <div data-testid="popover" data-open={open}>
-      {children}
-    </div>
-  ),
-  PopoverTrigger: ({ children, asChild }: any) => (
-    <div data-testid="popover-trigger">{children}</div>
-  ),
-  PopoverContent: ({ children }: any) => (
-    <div data-testid="popover-content">{children}</div>
-  ),
-  Slider: ({ value, onValueChange, min, max }: any) => (
-    <input
-      type="range"
-      data-testid="slider"
-      value={value?.[0] || 0}
-      min={min}
-      max={max}
-      onChange={(e) => onValueChange?.([parseInt(e.target.value)])}
-    />
-  ),
-  Avatar: ({ children, className }: any) => (
-    <div className={className} data-testid="avatar">{children}</div>
-  ),
-  AvatarImage: ({ src, alt }: any) => <img src={src} alt={alt} data-testid="avatar-image" />,
-  AvatarFallback: ({ children, className }: any) => (
-    <div className={className} data-testid="avatar-fallback">{children}</div>
-  ),
-  Tooltip: ({ children }: any) => <div>{children}</div>,
-  TooltipProvider: ({ children }: any) => <div>{children}</div>,
-  TooltipTrigger: ({ children, asChild }: any) => <div>{children}</div>,
-  TooltipContent: ({ children }: any) => <div>{children}</div>,
-}));
+jest.mock('@efficio/ui', () => require('./mocks.tsx').efficioUIMocks);
 
 // Mock lucide-react icons
-jest.mock('lucide-react', () => ({
-  Calendar: () => <svg data-testid="calendar-icon" />,
-  Circle: () => <svg data-testid="circle-icon" />,
-  MoreVertical: () => <svg data-testid="more-vertical-icon" />,
-  Edit: () => <svg data-testid="edit-icon" />,
-  Trash2: () => <svg data-testid="trash-icon" />,
-  Users: () => <svg data-testid="users-icon" />,
-}));
+jest.mock('lucide-react', () => require('./mocks.tsx').lucideReactMocks);
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
-  motion: {
-    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  },
-  AnimatePresence: ({ children }: any) => <div>{children}</div>,
-}));
+jest.mock('framer-motion', () => require('./mocks.tsx').framerMotionMocks);
 
 const mockTask: Task = {
   id: '1',
@@ -100,43 +42,13 @@ const renderWithDnd = (component: React.ReactElement) => {
 };
 
 describe('TaskCard', () => {
-  it('renders task title correctly', () => {
-    renderWithDnd(
-      <TaskCard task={mockTask} />
-    );
+  it('renders all task information correctly', () => {
+    renderWithDnd(<TaskCard task={mockTask} />);
     
     expect(screen.getByText('Test Task')).toBeInTheDocument();
-  });
-
-  it('renders task description correctly', () => {
-    renderWithDnd(
-      <TaskCard task={mockTask} />
-    );
-    
     expect(screen.getByText('Test Description')).toBeInTheDocument();
-  });
-
-  it('renders priority badge correctly', () => {
-    renderWithDnd(
-      <TaskCard task={mockTask} />
-    );
-    
     expect(screen.getByText('High')).toBeInTheDocument();
-  });
-
-  it('renders category correctly', () => {
-    renderWithDnd(
-      <TaskCard task={mockTask} />
-    );
-    
     expect(screen.getByText('Work')).toBeInTheDocument();
-  });
-
-  it('renders due date correctly', () => {
-    renderWithDnd(
-      <TaskCard task={mockTask} />
-    );
-    
     expect(screen.getByText('2025-01-20')).toBeInTheDocument();
   });
 

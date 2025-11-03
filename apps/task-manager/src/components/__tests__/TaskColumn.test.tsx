@@ -3,15 +3,9 @@ import { TaskColumn } from '../TaskColumn';
 import { Task } from '../TaskCard';
 
 // Mock react-dnd
-jest.mock('react-dnd', () => ({
-  DndProvider: ({ children }: any) => <div>{children}</div>,
-  useDrag: () => [{}, jest.fn()],
-  useDrop: () => [{}, jest.fn()],
-}));
+jest.mock('react-dnd', () => require('./mocks.tsx').reactDndMocks);
 
-jest.mock('react-dnd-html5-backend', () => ({
-  HTML5Backend: {},
-}));
+jest.mock('react-dnd-html5-backend', () => require('./mocks.tsx').reactDndHtml5BackendMock);
 
 // Mock TaskCard
 jest.mock('../TaskCard', () => ({
@@ -21,20 +15,10 @@ jest.mock('../TaskCard', () => ({
 }));
 
 // Mock @efficio/ui
-jest.mock('@efficio/ui', () => ({
-  Badge: ({ children, className, ...props }: any) => (
-    <span className={className} {...props}>{children}</span>
-  ),
-  ScrollArea: ({ children }: any) => <div>{children}</div>,
-}));
+jest.mock('@efficio/ui', () => require('./mocks.tsx').efficioUIMocks);
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  },
-  AnimatePresence: ({ children, mode }: any) => <div data-mode={mode}>{children}</div>,
-}));
+jest.mock('framer-motion', () => require('./mocks.tsx').framerMotionMocks);
 
 const mockTask: Task = {
   id: '1',
