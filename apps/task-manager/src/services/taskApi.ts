@@ -52,6 +52,7 @@ const getHeaders = async (): Promise<HeadersInit> => {
 export interface Task {
   _id?: string;
   id?: string;
+  userId?: string; // Task owner's auth0Id
   title: string;
   description: string;
   category: string;
@@ -60,6 +61,9 @@ export interface Task {
   dueDate?: string;
   progress?: number;
   isOverdue?: boolean;
+  groupTag?: string; // Group/Workspace tag
+  assignedTo?: string[]; // Array of user IDs assigned to this task
+  assignedUsers?: Array<{ userId: string; name: string; email?: string; picture?: string | null }>; // Assigned user info (for displaying exited users)
 }
 
 export interface CreateTaskData {
@@ -71,6 +75,8 @@ export interface CreateTaskData {
   dueDate?: string;
   progress?: number;
   isOverdue?: boolean;
+  groupTag?: string; // Group/Workspace tag (e.g., "@personal", "@web-ui")
+  assignedTo?: string[]; // Array of user IDs assigned to this task
 }
 
 export interface UpdateTaskData {
@@ -85,13 +91,20 @@ export interface UpdateTaskData {
 }
 
 export const taskApi = {
-  // Get all tasks
-  async getTasks(): Promise<Task[]> {
+  // Get all tasks (optionally filtered by groupTag)
+  async getTasks(groupTag?: string): Promise<Task[]> {
     const headers = await getHeaders();
-    console.log('Making request to:', `${API_BASE_URL}/tasks`);
+    
+    // Build URL with optional groupTag query param
+    let url = `${API_BASE_URL}/tasks`;
+    if (groupTag) {
+      url += `?groupTag=${encodeURIComponent(groupTag)}`;
+    }
+    
+    console.log('Making request to:', url);
     console.log('Headers include Authorization:', !!headers['Authorization']);
     
-    const response = await fetch(`${API_BASE_URL}/tasks`, {
+    const response = await fetch(url, {
       headers,
     });
     

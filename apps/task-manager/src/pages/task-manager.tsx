@@ -1,9 +1,11 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { toast, Toaster } from 'sonner';
 import { TaskColumn } from '../components/TaskColumn';
 import { Task } from '../components/TaskCard';
+import { LeftSidebar, Group, GroupCollaborator } from '../components/LeftSidebar';
+import { RightSidebar, Activity } from '../components/RightSidebar';
 import { Card } from '@efficio/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@efficio/ui';
 import { Input } from '@efficio/ui';
@@ -14,34 +16,14 @@ import { Label } from '@efficio/ui';
 import { Textarea } from '@efficio/ui';
 import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
-import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight } from 'lucide-react';
+import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight, Menu, ChevronLeft, ChevronRight, Activity as ActivityIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Badge, ScrollArea, Separator, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
+import { Badge, ScrollArea, Separator, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
+import { activityApi } from '../services/activityApi';
+import { useAuth0 } from '@auth0/auth0-react';
 
-// Types for Collaboration
-interface GroupCollaborator {
-  userId: string;
-  name: string;
-  email: string;
-  role: 'viewer' | 'editor' | 'admin';
-  status: 'pending' | 'accepted' | 'declined';
-  invitedAt: string;
-  acceptedAt?: string;
-}
-
-interface Group {
-  id: string;
-  tag: string;
-  name: string;
-  color: string;
-  owner: string;
-  collaborators: GroupCollaborator[];
-  createdAt: string;
-}
-
-// Mock current user ID (will be replaced with actual auth later)
-const CURRENT_USER_ID = 'user123';
+// Types are now imported from LeftSidebar component
 
 // Mock groups data (temporarily hardcoded)
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
@@ -56,7 +38,9 @@ const getCategoryColor = (category: string) => {
 };
 
 export function TaskManager() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]); // Filtered tasks for current view
+  const [allTasks, setAllTasks] = useState<Task[]>([]); // All tasks for counting in sidebar (personal + assigned only, matching "All Tasks" view)
+  const [groupTasksMap, setGroupTasksMap] = useState<Map<string, Task[]>>(new Map()); // Tasks per group for accurate group counts
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -86,6 +70,9 @@ export function TaskManager() {
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
 
+  const { user: auth0User } = useAuth0();
+  const currentUserId = auth0User?.sub || '';
+
   // Collaboration state
   const [groups, setGroups] = useState<Group[]>([
     {
@@ -93,7 +80,7 @@ export function TaskManager() {
       tag: '@web-ui',
       name: 'Web UI Project',
       color: '#3b82f6',
-      owner: CURRENT_USER_ID,
+      owner: currentUserId,
       collaborators: [
         { userId: 'user456', name: 'Sarah Chen', email: 'sarah@example.com', role: 'editor', status: 'accepted', invitedAt: '2025-01-15T10:00:00.000Z', acceptedAt: '2025-01-15T11:00:00.000Z' },
         { userId: 'user789', name: 'Mike Johnson', email: 'mike@example.com', role: 'editor', status: 'accepted', invitedAt: '2025-01-15T10:00:00.000Z', acceptedAt: '2025-01-15T12:00:00.000Z' },
@@ -102,69 +89,64 @@ export function TaskManager() {
     },
   ]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
-  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
-  const [showManageGroupModal, setShowManageGroupModal] = useState(false);
-  const [showPendingInvitations, setShowPendingInvitations] = useState(false);
-  const [selectedGroupForManagement, setSelectedGroupForManagement] = useState<Group | null>(null);
-  const [editingCollaborators, setEditingCollaborators] = useState<GroupCollaborator[]>([]);
-  const [collaboratorSearch, setCollaboratorSearch] = useState('');
-  const [newGroup, setNewGroup] = useState({ name: '', tag: '' });
+  
+  // Sidebar collapse states (persisted in localStorage)
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('leftSidebarCollapsed');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('rightSidebarCollapsed');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+  
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showMobileActivity, setShowMobileActivity] = useState(false);
 
-  // Mock users for collaborator search
-  const mockUsers = [
-    { userId: 'user456', name: 'Sarah Chen', email: 'sarah@example.com' },
-    { userId: 'user789', name: 'Mike Johnson', email: 'mike@example.com' },
-    { userId: 'user101', name: 'Emma Davis', email: 'emma@example.com' },
-    { userId: 'user102', name: 'John Smith', email: 'john@example.com' },
-  ];
+  // Activity type is now imported from RightSidebar component
 
-  // Activity tracking
-  interface Activity {
-    id: string;
-    type: 'task_created' | 'task_moved' | 'task_deleted' | 'task_updated';
-    taskTitle: string;
-    taskId: string;
-    userId: string;
-    userName: string;
-    timestamp: string;
-    fromStatus?: 'pending' | 'in-progress' | 'completed';
-    toStatus?: 'pending' | 'in-progress' | 'completed';
-    groupTag?: string;
-  }
+  const [activities, setActivities] = useState<Activity[]>([]);
+  
+  // Function to load activities (can be called manually for refresh)
+  const loadActivities = useCallback(async (groupTag?: string | null) => {
+    try {
+      const fetchedActivities = await activityApi.getActivities({
+        groupTag: groupTag !== undefined ? (groupTag || undefined) : (selectedGroup || undefined),
+        limit: 50,
+      });
+      
+      // Map backend activities to frontend format
+      const mappedActivities: Activity[] = fetchedActivities.map(act => ({
+        id: act.id || act._id || '',
+        type: act.type,
+        taskTitle: act.taskTitle || '',
+        taskId: act.taskId || '',
+        userId: act.userId,
+        userName: act.userName,
+        userPicture: act.userPicture || null,
+        timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+        fromStatus: act.fromStatus,
+        toStatus: act.toStatus,
+        groupTag: act.groupTag,
+      }));
+      
+      setActivities(mappedActivities);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+    }
+  }, [selectedGroup]);
 
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: '1',
-      type: 'task_created',
-      taskTitle: 'Build Authentication Module',
-      taskId: '1',
-      userId: CURRENT_USER_ID,
-      userName: 'You',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      groupTag: '@web-ui',
-    },
-    {
-      id: '2',
-      type: 'task_moved',
-      taskTitle: 'Build Authentication Module',
-      taskId: '1',
-      userId: 'user456',
-      userName: 'Sarah Chen',
-      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-      fromStatus: 'pending',
-      toStatus: 'in-progress',
-      groupTag: '@web-ui',
-    },
-  ]);
-
-  const addActivity = (activity: Omit<Activity, 'id' | 'timestamp'>) => {
-    const newActivity: Activity = {
-      ...activity,
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-    };
-    setActivities(prev => [newActivity, ...prev].slice(0, 50)); // Keep last 50 activities
-  };
+  // Fetch activities on mount and when selected group changes
+  useEffect(() => {
+    loadActivities();
+  }, [selectedGroup, loadActivities]);
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -185,13 +167,104 @@ export function TaskManager() {
   useEffect(() => {
     fetchTasks();
   }, []);
+  
+  // Persist sidebar states
+  useEffect(() => {
+    localStorage.setItem('leftSidebarCollapsed', JSON.stringify(leftSidebarCollapsed));
+  }, [leftSidebarCollapsed]);
 
-  const fetchTasks = async () => {
+  useEffect(() => {
+    localStorage.setItem('rightSidebarCollapsed', JSON.stringify(rightSidebarCollapsed));
+  }, [rightSidebarCollapsed]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        setLeftSidebarCollapsed((prev: boolean) => !prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+        e.preventDefault();
+        setRightSidebarCollapsed((prev: boolean) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Listen for navigation events from notifications
+  useEffect(() => {
+    const handleNavigateToGroup = (event: CustomEvent) => {
+      const { groupTag, taskId } = event.detail || {};
+      if (groupTag) {
+        setSelectedGroup(groupTag);
+        // Optionally scroll to or highlight the task if taskId is provided
+        if (taskId) {
+          // Could add logic to highlight the specific task
+          setTimeout(() => {
+            const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (taskElement) {
+              taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // Add a highlight effect
+              taskElement.classList.add('ring-2', 'ring-indigo-500');
+              setTimeout(() => {
+                taskElement.classList.remove('ring-2', 'ring-indigo-500');
+              }, 2000);
+            }
+          }, 500);
+        }
+      }
+    };
+
+    const handleOpenPendingInvitations = () => {
+      // This will be handled by LeftSidebar component
+      window.dispatchEvent(new CustomEvent('leftSidebarOpenInvitations'));
+    };
+
+    window.addEventListener('navigateToGroup', handleNavigateToGroup as EventListener);
+    window.addEventListener('openPendingInvitations', handleOpenPendingInvitations);
+    
+    return () => {
+      window.removeEventListener('navigateToGroup', handleNavigateToGroup as EventListener);
+      window.removeEventListener('openPendingInvitations', handleOpenPendingInvitations);
+    };
+  }, [setSelectedGroup]);
+
+  const fetchTasks = async (groupTag?: string | null) => {
     try {
       setLoading(true);
-      const fetchedTasks = await taskApi.getTasks();
-      // Ensure all tasks have id property (map _id to id if needed)
-      setTasks(fetchedTasks.map(task => ({ ...task, id: task.id || (task as any)._id || '' })));
+      // Fetch tasks filtered by groupTag if provided
+      const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
+      // Ensure all tasks have id property and userId (map _id to id if needed)
+      const mappedTasks = fetchedTasks.map(task => ({ 
+        ...task, 
+        id: task.id || (task as any)._id || '',
+        userId: (task.userId || (task as any).userId || '').toString().trim(), // Include userId from backend, ensure it's a string
+        groupTag: task.groupTag || (task as any).groupTag || undefined,
+        assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
+        assignedUsers: task.assignedUsers || (task as any).assignedUsers || [], // Include assignedUsers from backend
+      }));
+      setTasks(mappedTasks);
+      
+      // Update groupTasksMap for accurate group-specific counts
+      if (groupTag) {
+        // Store all tasks for this specific group (for accurate group count)
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          if (groupTag === '@personal') {
+            newMap.set('@personal', mappedTasks);
+          } else {
+            newMap.set(groupTag, mappedTasks);
+          }
+          return newMap;
+        });
+      } else {
+        // If no groupTag, this is "All Tasks" - update allTasks with fetched tasks
+        // These are already filtered by backend to show personal + assigned only
+        setAllTasks(mappedTasks);
+      }
     } catch (error) {
       toast.error('Failed to Fetch Tasks', {
         description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
@@ -201,6 +274,62 @@ export function TaskManager() {
       setLoading(false);
     }
   };
+
+  // Fetch all tasks for sidebar counting (on mount and when groups change)
+  // Apply same filtering logic as "All Tasks" view: personal tasks + assigned group tasks only
+  useEffect(() => {
+    const fetchAllTasks = async () => {
+      try {
+        // Fetch all tasks (no groupTag filter) for counting in sidebar
+        const fetchedAllTasks = await taskApi.getTasks(undefined);
+        const mappedAllTasks = fetchedAllTasks.map(task => ({ 
+          ...task, 
+          id: task.id || (task as any)._id || '',
+          userId: (task.userId || (task as any).userId || '').toString().trim(),
+          groupTag: task.groupTag || (task as any).groupTag || undefined,
+          assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
+          assignedUsers: task.assignedUsers || (task as any).assignedUsers || [],
+        }));
+        
+        // Apply same filtering as "All Tasks" view:
+        // - Personal tasks: always include
+        // - Group tasks: only include if user has accepted access AND is assigned
+        const filteredAllTasks = mappedAllTasks.filter(task => {
+          // Personal tasks always visible
+          if (!task.groupTag || task.groupTag === '@personal') {
+            return true;
+          }
+          // For group tasks:
+          // 1. User must have accepted access to the group (not just pending)
+          const group = groups.find(g => g.tag === task.groupTag);
+          if (!group) return false;
+          
+          const hasAcceptedAccess = group.owner === currentUserId || 
+            group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
+          
+          if (!hasAcceptedAccess) return false;
+          
+          // 2. User must be assigned to the task
+          const isAssigned = task.assignedTo && task.assignedTo.some((id: string) => id?.trim() === currentUserId?.trim());
+          return isAssigned;
+        });
+        
+        setAllTasks(filteredAllTasks);
+      } catch (error) {
+        console.error('Failed to fetch all tasks for counting:', error);
+      }
+    };
+    
+    if (groups.length > 0 && currentUserId) {
+      fetchAllTasks();
+    }
+  }, [groups, currentUserId]); // Reload when groups or currentUserId changes
+
+  // Fetch tasks when selected group changes
+  useEffect(() => {
+    fetchTasks(selectedGroup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup]);
 
   const handleTaskDrop = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
     try {
@@ -212,25 +341,47 @@ export function TaskManager() {
             t.id === taskId ? { ...t, status: newStatus } : t
           )
         );
-        
-        // Add activity
-        addActivity({
-          type: 'task_moved',
-          taskTitle: task.title,
-          taskId: task.id,
-          userId: CURRENT_USER_ID,
-          userName: 'You',
-          fromStatus: task.status,
-          toStatus: newStatus,
-          groupTag: task.groupTag,
+      setAllTasks((prevTasks) =>
+        prevTasks.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus } : t
+        )
+      );
+      // Also update in groupTasksMap
+      setGroupTasksMap((prev) => {
+        const newMap = new Map(prev);
+        newMap.forEach((groupTasks, groupTag) => {
+          const updatedTasks = groupTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
+          newMap.set(groupTag, updatedTasks);
         });
+        return newMap;
+      });
+        
+        // Activities are now fetched from API automatically
+        // Refresh activities after status change
+        const refreshedActivities = await activityApi.getActivities({
+          groupTag: selectedGroup || undefined,
+          limit: 50,
+        });
+        const mappedActivities: Activity[] = refreshedActivities.map(act => ({
+          id: act.id || act._id || '',
+          type: act.type,
+          taskTitle: act.taskTitle || '',
+          taskId: act.taskId || '',
+          userId: act.userId,
+          userName: act.userName,
+          timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+          fromStatus: act.fromStatus,
+          toStatus: act.toStatus,
+          groupTag: act.groupTag,
+        }));
+        setActivities(mappedActivities);
       
       // Update via API
       await taskApi.updateTaskStatus(taskId, newStatus);
       }
     } catch (error) {
-      // Revert on error
-      fetchTasks();
+      // Revert on error - refetch both
+      await fetchTasks(selectedGroup);
     }
   };
 
@@ -242,16 +393,54 @@ export function TaskManager() {
           task.id === taskId ? { ...task, progress } : task
         )
       );
+      setAllTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId ? { ...task, progress } : task
+        )
+      );
+      // Also update in groupTasksMap
+      setGroupTasksMap((prev) => {
+        const newMap = new Map(prev);
+        newMap.forEach((groupTasks, groupTag) => {
+          const updatedTasks = groupTasks.map(t => t.id === taskId ? { ...t, progress } : t);
+          newMap.set(groupTag, updatedTasks);
+        });
+        return newMap;
+      });
       
       // Update via API
       await taskApi.updateTaskProgress(taskId, progress);
     } catch (error) {
-      // Revert on error
-      fetchTasks();
+      // Revert on error - refetch both
+      await fetchTasks(selectedGroup);
     }
   };
 
   const handleEdit = (task: Task) => {
+    // Check if user can edit this task
+    const canEdit = () => {
+      if (!selectedGroupData || selectedGroup === '@personal') return true; // Personal tasks always editable
+      if (!userRole) return true; // No role means personal task
+      
+      // Owner and admin can edit any task
+      if (userRole === 'owner' || userRole === 'admin') return true;
+      
+      // Editor can edit any task
+      if (userRole === 'editor') return true;
+      
+      // Viewer can only edit their own tasks
+      if (userRole === 'viewer') {
+        return task.userId === currentUserId;
+      }
+      
+      return true;
+    };
+
+    if (!canEdit()) {
+      toast.error('You do not have permission to edit this task');
+      return;
+    }
+
     setEditingTask(task);
     setNewTask({
       title: task.title,
@@ -261,6 +450,7 @@ export function TaskManager() {
       status: task.status,
       dueDate: task.dueDate || '',
       progress: task.progress || 20,
+      assignedTo: task.assignedTo || [],
     });
     setIncludeProgress(task.progress !== undefined);
     setSkipModalAnimation(false); // Ensure animations are enabled for edit mode
@@ -287,18 +477,40 @@ export function TaskManager() {
       const taskToDeleteObj = tasks.find(t => t.id === taskIdToDelete);
       await taskApi.deleteTask(taskIdToDelete);
       setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskIdToDelete));
-      
-      // Add activity
-      if (taskToDeleteObj) {
-        addActivity({
-          type: 'task_deleted',
-          taskTitle: taskToDeleteObj.title,
-          taskId: taskToDeleteObj.id,
-          userId: CURRENT_USER_ID,
-          userName: 'You',
-          groupTag: taskToDeleteObj.groupTag,
+      setAllTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskIdToDelete));
+      // Also remove from groupTasksMap
+      if (taskToDeleteObj?.groupTag) {
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          const groupTag = taskToDeleteObj.groupTag === '@personal' || !taskToDeleteObj.groupTag 
+            ? '@personal' 
+            : taskToDeleteObj.groupTag;
+          const groupTasks = newMap.get(groupTag) || [];
+          newMap.set(groupTag, groupTasks.filter(t => t.id !== taskIdToDelete));
+          return newMap;
         });
       }
+      
+      // Activities are now fetched from API automatically
+      // Refresh activities after deletion
+      const refreshedActivities = await activityApi.getActivities({
+        groupTag: selectedGroup || undefined,
+        limit: 50,
+      });
+      const mappedActivities: Activity[] = refreshedActivities.map(act => ({
+        id: act.id || act._id || '',
+        type: act.type,
+        taskTitle: act.taskTitle || '',
+        taskId: act.taskId || '',
+        userId: act.userId,
+        userName: act.userName,
+        userPicture: act.userPicture || null,
+        timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+        fromStatus: act.fromStatus,
+        toStatus: act.toStatus,
+        groupTag: act.groupTag,
+      }));
+      setActivities(mappedActivities);
       
       console.log('🍞 Toast: Task Deleted');
       toast.success('Task Deleted', {
@@ -347,6 +559,7 @@ export function TaskManager() {
       dueDate: newTask.dueDate || '',
       progress: includeProgress ? (newTask.progress || 0) : undefined,
       groupTag: selectedGroup || '@personal', // Add groupTag to task
+      assignedTo: newTask.assignedTo || [], // Add assignedTo array
     };
 
     try {
@@ -359,6 +572,19 @@ export function TaskManager() {
         setTasks((prevTasks) =>
           prevTasks.map((task) => (task.id === editingTask.id ? updatedTask : task))
         );
+        setAllTasks((prevTasks) =>
+          prevTasks.map((task) => (task.id === editingTask.id ? updatedTask : task))
+        );
+        // Also update in groupTasksMap
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          if (updatedTask.groupTag) {
+            const groupTag = updatedTask.groupTag === '@personal' ? '@personal' : updatedTask.groupTag;
+            const groupTasks = newMap.get(groupTag) || [];
+            newMap.set(groupTag, groupTasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+          }
+          return newMap;
+        });
         console.log('🍞 Toast: Task Updated');
         toast.success('Task Updated', {
           description: 'Your task has been successfully updated.',
@@ -373,6 +599,17 @@ export function TaskManager() {
         if (!modalContentRef.current || !pendingColumnRef.current) {
           const newTask: Task = { ...savedTask, id: savedTask.id || savedTask._id || '' };
           setTasks((prevTasks) => [...prevTasks, newTask]);
+          setAllTasks((prevTasks) => [...prevTasks, newTask]);
+          // Also add to groupTasksMap if it's a group task
+          if (newTask.groupTag) {
+            setGroupTasksMap((prev) => {
+              const newMap = new Map(prev);
+              const groupTag = newTask.groupTag === '@personal' ? '@personal' : newTask.groupTag!;
+              const groupTasks = newMap.get(groupTag) || [];
+              newMap.set(groupTag, [...groupTasks, newTask]);
+              return newMap;
+            });
+          }
           console.log('🍞 Toast: Task Added (fallback path)');
           toast.success('Task Added', {
             description: 'Your new task has been successfully added to the list.',
@@ -463,15 +700,25 @@ export function TaskManager() {
           });
           console.log('🍞 Toast called for Task Added (with animation)');
           
-          // Add activity
-          addActivity({
-            type: 'task_created',
-            taskTitle: savedTask.title || newTask.title || '',
-            taskId: savedTask.id || savedTask._id || '',
-            userId: CURRENT_USER_ID,
-            userName: 'You',
-            groupTag: selectedGroup || '@personal',
+          // Activities are now fetched from API automatically
+          // Refresh activities after task creation
+          const refreshedActivities = await activityApi.getActivities({
+            groupTag: selectedGroup || undefined,
+            limit: 50,
           });
+          const mappedActivities: Activity[] = refreshedActivities.map(act => ({
+            id: act.id || act._id || '',
+            type: act.type,
+            taskTitle: act.taskTitle || '',
+            taskId: act.taskId || '',
+            userId: act.userId,
+            userName: act.userName,
+            timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+            fromStatus: act.fromStatus,
+            toStatus: act.toStatus,
+            groupTag: act.groupTag,
+          }));
+          setActivities(mappedActivities);
         }
       }
 
@@ -509,125 +756,62 @@ export function TaskManager() {
 
   // Helper functions for groups
   const hasGroupAccess = (group: Group) => {
-    if (group.owner === CURRENT_USER_ID) return true;
-    return group.collaborators.some(c => c.userId === CURRENT_USER_ID && c.status === 'accepted');
+    if (group.owner === currentUserId) return true;
+    return group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
   };
 
   const accessibleGroups = [
-    { id: 'personal', tag: '@personal', name: 'Personal', color: '#9ca3af', owner: CURRENT_USER_ID, collaborators: [], createdAt: '' },
+    { id: 'personal', tag: '@personal', name: 'Personal', color: '#9ca3af', owner: currentUserId, collaborators: [], createdAt: '' },
     ...groups.filter(hasGroupAccess),
   ];
 
   const pendingInvitations = groups.filter(group =>
-    group.collaborators.some(c => c.userId === CURRENT_USER_ID && c.status === 'pending')
+    group.collaborators.some(c => c.userId === currentUserId && c.status === 'pending')
   );
 
-  const selectedGroupData = selectedGroup ? groups.find(g => g.tag === selectedGroup) : null;
-  const acceptedCollaborators = selectedGroupData?.collaborators.filter(c => c.status === 'accepted') || [];
-
-  // Group handlers
-  const handleCreateGroup = () => {
-    if (!newGroup.name || !newGroup.tag) {
-      toast.error('Please enter group name and tag');
-      return;
+  // Memoize selectedGroupData to update when groups or selectedGroup changes
+  const selectedGroupData = useMemo(() => {
+    return selectedGroup ? groups.find(g => g.tag === selectedGroup) : null;
+  }, [selectedGroup, groups, currentUserId]);
+  
+  const acceptedCollaborators = useMemo(() => {
+    return selectedGroupData?.collaborators.filter(c => c.status === 'accepted') || [];
+  }, [selectedGroupData]);
+  
+  // Calculate current user's role in the selected group
+  const userRole = useMemo((): 'viewer' | 'editor' | 'admin' | 'owner' | undefined => {
+    if (!selectedGroupData || selectedGroup === '@personal') return undefined;
+    
+    // Check if user is the owner
+    if (selectedGroupData.owner === currentUserId) {
+      return 'owner';
     }
-
-    const tag = newGroup.tag.startsWith('@') ? newGroup.tag : `@${newGroup.tag}`;
-
-    if (groups.find(g => g.tag === tag)) {
-      toast.error('A group with this tag already exists');
-      return;
+    
+    // Find user's collaborator entry - check for accepted status
+    const collaborator = selectedGroupData.collaborators.find(
+      c => c.userId === currentUserId && c.status === 'accepted'
+    );
+    
+    // If no accepted collaborator found, try to find any collaborator entry (might be pending)
+    // But only return role if accepted
+    if (collaborator) {
+      return collaborator.role as 'viewer' | 'editor' | 'admin';
     }
-
-    const group: Group = {
-      id: Date.now().toString(),
-      tag,
-      name: newGroup.name,
-      color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
-      owner: CURRENT_USER_ID,
-      collaborators: [],
-      createdAt: new Date().toISOString(),
-    };
-
-    setGroups([...groups, group]);
-    setShowCreateGroupModal(false);
-    setNewGroup({ name: '', tag: '' });
-    toast.success(`Group "${newGroup.name}" created!`);
-  };
-
-  const handleOpenManageGroup = (group: Group) => {
-    setSelectedGroupForManagement(group);
-    setEditingCollaborators([...group.collaborators]);
-    setShowManageGroupModal(true);
-  };
-
-  const handleSaveGroupCollaborators = () => {
-    if (selectedGroupForManagement) {
-      setGroups(groups.map(g =>
-        g.id === selectedGroupForManagement.id
-          ? { ...g, collaborators: editingCollaborators }
-          : g
-      ));
-      setShowManageGroupModal(false);
-      setSelectedGroupForManagement(null);
-      toast.success('Collaborators updated');
+    
+    // Debug: log if we can't find the role
+    if (selectedGroupData.collaborators.some(c => c.userId === currentUserId)) {
+      console.warn('User found in group collaborators but status is not accepted:', {
+        userId: currentUserId,
+        collaborators: selectedGroupData.collaborators.filter(c => c.userId === currentUserId)
+      });
     }
-  };
+    
+    return undefined;
+  }, [selectedGroupData, currentUserId, selectedGroup]);
+  const canCreateTask = !selectedGroupData || selectedGroup === '@personal' || userRole === 'admin' || userRole === 'owner';
+  const canSeeAssignTo = selectedGroupData && selectedGroup !== '@personal' && (userRole === 'admin' || userRole === 'owner' || userRole === 'editor') && acceptedCollaborators.length > 0;
 
-  const handleAddCollaborator = (user: typeof mockUsers[0]) => {
-    const newCollaborator: GroupCollaborator = {
-      ...user,
-      role: 'editor',
-      status: 'pending',
-      invitedAt: new Date().toISOString(),
-    };
-    setEditingCollaborators([...editingCollaborators, newCollaborator]);
-    setCollaboratorSearch('');
-    toast.success(`Invitation sent to ${user.name}`);
-  };
-
-  const handleRemoveCollaborator = (userId: string) => {
-    setEditingCollaborators(editingCollaborators.filter(c => c.userId !== userId));
-  };
-
-  const handleRoleChange = (userId: string, role: 'viewer' | 'editor' | 'admin') => {
-    setEditingCollaborators(editingCollaborators.map(c => c.userId === userId ? { ...c, role } : c));
-  };
-
-  const handleAcceptInvitation = (groupId: string) => {
-    setGroups(groups.map(g =>
-      g.id === groupId
-        ? {
-            ...g,
-            collaborators: g.collaborators.map(c =>
-              c.userId === CURRENT_USER_ID && c.status === 'pending'
-                ? { ...c, status: 'accepted', acceptedAt: new Date().toISOString() }
-                : c
-            ),
-          }
-        : g
-    ));
-    toast.success('Invitation accepted!');
-  };
-
-  const handleDeclineInvitation = (groupId: string) => {
-    setGroups(groups.map(g =>
-      g.id === groupId
-        ? {
-            ...g,
-            collaborators: g.collaborators.filter(c => !(c.userId === CURRENT_USER_ID && c.status === 'pending')),
-          }
-        : g
-    ));
-    toast.success('Invitation declined');
-  };
-
-  const searchResults = mockUsers.filter(
-    u =>
-      (u.name.toLowerCase().includes(collaboratorSearch.toLowerCase()) ||
-        u.email.toLowerCase().includes(collaboratorSearch.toLowerCase())) &&
-      !editingCollaborators.find(c => c.userId === u.userId)
-  );
+  // Group handlers are now in LeftSidebar component
 
   // Filter and sort tasks
   const filteredAndSortedTasks = useMemo(() => {
@@ -645,13 +829,25 @@ export function TaskManager() {
         });
       }
     } else {
-      // "All Tasks" - show all accessible tasks
+      // "All Tasks" - show personal tasks AND only group tasks where user is assigned AND has accepted access
       filtered = filtered.filter(task => {
+        // Personal tasks always visible
         if (!task.groupTag || task.groupTag === '@personal') {
-          return true; // Personal tasks always visible
+          return true;
         }
+        // For group tasks:
+        // 1. User must have accepted access to the group (not just pending)
         const group = groups.find(g => g.tag === task.groupTag);
-        return group && hasGroupAccess(group);
+        if (!group) return false;
+        
+        const hasAcceptedAccess = group.owner === currentUserId || 
+          group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
+        
+        if (!hasAcceptedAccess) return false;
+        
+        // 2. User must be assigned to the task
+        const isAssigned = task.assignedTo && task.assignedTo.some(id => id?.trim() === currentUserId?.trim());
+        return isAssigned;
       });
     }
 
@@ -688,7 +884,7 @@ export function TaskManager() {
     });
 
     return sorted;
-  }, [tasks, searchQuery, priorityFilter, categoryFilter, sortBy]);
+  }, [tasks, searchQuery, priorityFilter, categoryFilter, sortBy, selectedGroup, groups]);
 
   const pendingTasks = filteredAndSortedTasks.filter((task) => task.status === 'pending');
   const inProgressTasks = filteredAndSortedTasks.filter((task) => task.status === 'in-progress');
@@ -757,166 +953,33 @@ export function TaskManager() {
         }}
         theme="light"
       />
-      <div className="w-full flex min-h-[calc(100vh-4rem)] gap-6 py-6">
-        {/* Left Sidebar - Extreme Left */}
-        <div className="w-[280px] bg-card dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] h-[calc(50vh)] p-4 space-y-6 flex-shrink-0 ml-6">
-          <div>
-            <h2 className="text-[#101828] dark:text-foreground text-[16px] font-semibold mb-4">Task Manager</h2>
-            <Button
-              onClick={() => setShowCreateGroupModal(true)}
-              variant="outline"
-              className="w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent"
-            >
-              <Plus className="h-4 w-4" />
-              New Group
-            </Button>
-          </div>
-
-          {/* Pending Invitations */}
-          {pendingInvitations.length > 0 && (
-            <>
-              <Separator className="bg-gray-200 dark:bg-muted" />
-              <div className="space-y-2">
-                <button
-                  onClick={() => setShowPendingInvitations(true)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-                    <span className="text-[14px] text-yellow-800 dark:text-yellow-200 font-medium">Pending Invites</span>
-                  </div>
-                  <Badge className="bg-yellow-500 dark:bg-yellow-600 text-white text-[11px]">
-                    {pendingInvitations.length}
-                  </Badge>
-                </button>
-              </div>
-            </>
-          )}
-
-          <Separator className="bg-gray-200 dark:bg-muted" />
-
-          <div className="space-y-2">
-            <h3 className="text-[#4a5565] dark:text-muted-foreground text-[12px] uppercase tracking-wider font-semibold mb-3">
-              Workspaces
-            </h3>
-            
-            <button
-              onClick={() => setSelectedGroup(null)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
-                selectedGroup === null
-                  ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
-                  : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Circle className="h-4 w-4 fill-gray-400 dark:fill-muted-foreground text-gray-400 dark:text-muted-foreground" />
-                <span className="text-[14px]">All Tasks</span>
-              </div>
-              <Badge variant="secondary" className="text-[11px]">
-                {filteredAndSortedTasks.length}
-              </Badge>
-            </button>
-
-            <ScrollArea className="h-[calc(50vh-250px)]">
-              {accessibleGroups.map((group) => {
-                const isPersonal = group.tag === '@personal';
-                const taskCount = tasks.filter(t => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
-                const acceptedCount = group.collaborators.filter(c => c.status === 'accepted').length;
-                const pendingCount = group.collaborators.filter(c => c.status === 'pending').length;
-
-                return (
-                  <div key={group.id} className="mb-1">
-                    <button
-                      onClick={() => setSelectedGroup(group.tag)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
-                        selectedGroup === group.tag
-                          ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
-                          : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div
-                          className="w-3 h-3 rounded-full shrink-0"
-                          style={{ backgroundColor: group.color }}
-                        />
-                        <span className="text-[14px] truncate capitalize">{group.name}</span>
-                        {!isPersonal && acceptedCount > 0 && (
-                          <Users className="h-3 w-3 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant="secondary" className="text-[11px]">
-                          {taskCount}
-                        </Badge>
-                        {!isPersonal && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenManageGroup(group as Group);
-                            }}
-                            className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
-                          >
-                            <Settings className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </button>
-                    {!isPersonal && (acceptedCount > 0 || pendingCount > 0) && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="ml-8 mt-1 text-[11px] text-[#4a5565] dark:text-muted-foreground cursor-help">
-                              {acceptedCount} member{acceptedCount !== 1 ? 's' : ''}
-                              {pendingCount > 0 && ` • ${pendingCount} pending`}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-[250px]">
-                            <div className="space-y-2">
-                              {acceptedCount > 0 && (
-                                <div>
-                                  <p className="font-semibold text-[11px] mb-1">Members:</p>
-                                  {group.collaborators
-                                    .filter(c => c.status === 'accepted')
-                                    .map(c => (
-                                      <p key={c.userId} className="text-[11px]">
-                                        • {c.name} ({c.role})
-                                      </p>
-                                    ))}
-                                </div>
-                              )}
-                              {pendingCount > 0 && (
-                                <div>
-                                  <p className="font-semibold text-[11px] mb-1">Pending:</p>
-                                  {group.collaborators
-                                    .filter(c => c.status === 'pending')
-                                    .map(c => (
-                                      <p key={c.userId} className="text-[11px]">
-                                        • {c.name} ({c.role})
-                                      </p>
-                                    ))}
-                                </div>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
-                );
-              })}
-            </ScrollArea>
-            
-            <div className="pt-4 border-t border-gray-200 dark:border-muted space-y-2 mt-4">
-              <p className="text-[#4a5565] dark:text-muted-foreground text-[11px]">
-                💡 <strong>Tip:</strong> Drag & drop cards between columns
-              </p>
+      <TooltipProvider>
+        <div className="flex">
+          {/* Left Sidebar - Desktop Only */}
+          <div 
+            className={`hidden md:block bg-white dark:bg-card border-r border-gray-200 dark:border-transparent sticky top-[64px] h-[calc(100vh-64px)] transition-all duration-300 ${
+              leftSidebarCollapsed ? 'w-[60px]' : 'w-[280px]'
+            }`}
+          >
+            <div className={`${leftSidebarCollapsed ? 'p-2' : 'p-4'} h-full flex flex-col overflow-hidden`}>
+            <LeftSidebar
+                selectedGroup={selectedGroup}
+                setSelectedGroup={setSelectedGroup}
+                accessibleGroups={accessibleGroups}
+                groups={groups}
+              setGroups={setGroups}
+              tasks={allTasks}
+                pendingInvitations={pendingInvitations}
+                collapsed={leftSidebarCollapsed}
+                onToggleCollapse={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
+              onRefreshActivities={() => loadActivities()}
+              />
             </div>
           </div>
-        </div>
 
-        {/* Main Content - Centered and aligned with navbar */}
-        <div className="flex-1">
-          <div className="max-w-[1280px] mx-auto px-8 w-full">
+          {/* Center Content */}
+          <div className="flex-1 p-3 md:p-6">
+            <div className="max-w-[1280px] mx-auto px-8 w-full">
         {/* Page Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -940,6 +1003,7 @@ export function TaskManager() {
                     <div className="flex -space-x-2 cursor-help">
                       {acceptedCollaborators.slice(0, 5).map((collab, i) => (
                         <Avatar key={collab.userId} className="h-8 w-8 border-2 border-white dark:border-card">
+                          {collab.picture && <AvatarImage src={collab.picture} alt={collab.name} />}
                           <AvatarFallback className={`text-white text-[11px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][i % 5]}`}>
                             {collab.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
@@ -964,6 +1028,7 @@ export function TaskManager() {
                 </Tooltip>
               </TooltipProvider>
             )}
+          {canCreateTask && (
           <Button
             onClick={() => {
               setIsCollapsing(false); // Reset collapsing state when opening modal
@@ -976,6 +1041,7 @@ export function TaskManager() {
                 status: 'pending',
                 dueDate: '',
                 progress: 20,
+                  assignedTo: [],
               });
               setIncludeProgress(false);
               setSkipModalAnimation(false); // Ensure animations are enabled for new task
@@ -986,6 +1052,7 @@ export function TaskManager() {
             <Plus className="h-4 w-4 mr-2" />
             New Task
           </Button>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -1107,6 +1174,9 @@ export function TaskManager() {
                 status="pending"
                 tasks={pendingTasks}
                 group={selectedGroupData || undefined}
+                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
+                currentUserId={currentUserId}
+                userRole={userRole}
                 onTaskDrop={handleTaskDrop}
                 onProgressChange={handleProgressChange}
                 onEdit={handleEdit}
@@ -1118,136 +1188,77 @@ export function TaskManager() {
             <div className="flex flex-col">
               <TaskColumn
                 title="In Progress"
-              status="in-progress"
-              tasks={inProgressTasks}
-              group={selectedGroupData || undefined}
-              onTaskDrop={handleTaskDrop}
-              onProgressChange={handleProgressChange}
-              onEdit={handleEdit}
-              onDelete={handleDeleteClick}
-              newlyAddedTaskId={newlyAddedTaskId}
+                status="in-progress"
+                tasks={inProgressTasks}
+                group={selectedGroupData || undefined}
+                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
+                currentUserId={currentUserId}
+                userRole={userRole}
+                onTaskDrop={handleTaskDrop}
+                onProgressChange={handleProgressChange}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+                newlyAddedTaskId={newlyAddedTaskId}
               />
             </div>
             <div className="flex flex-col">
               <TaskColumn
                 title="Completed"
-              status="completed"
-              tasks={completedTasks}
-              group={selectedGroupData || undefined}
-              onTaskDrop={handleTaskDrop}
-              onProgressChange={handleProgressChange}
-              onEdit={handleEdit}
-              onDelete={handleDeleteClick}
-              newlyAddedTaskId={newlyAddedTaskId}
+                status="completed"
+                tasks={completedTasks}
+                group={selectedGroupData || undefined}
+                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
+                currentUserId={currentUserId}
+                userRole={userRole}
+                onTaskDrop={handleTaskDrop}
+                onProgressChange={handleProgressChange}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+                newlyAddedTaskId={newlyAddedTaskId}
               />
             </div>
           </div>
         )}
-          </div>
-        </div>
-
-        {/* Right Activity Sidebar - Extreme Right */}
-        <div className="w-[340px] bg-card dark:bg-card rounded-lg border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] h-[calc(50vh)] p-4 space-y-6 flex-shrink-0 mr-6">
-          <div>
-            <h2 className="text-[#101828] dark:text-foreground text-[16px] font-semibold mb-4 flex items-center gap-2">
-              <History className="h-4 w-4" />
-              Recent Activity
-            </h2>
-          </div>
-
-          <Separator className="bg-gray-200 dark:bg-muted" />
-
-          <ScrollArea className="h-[calc(50vh-150px)]">
-            <div className="space-y-4">
-              <AnimatePresence>
-                {activities.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-[#4a5565] dark:text-muted-foreground text-[13px]">No activity yet</p>
-                  </div>
-                ) : (
-                  activities.map((activity, index) => {
-                    const isCurrentUser = activity.userId === CURRENT_USER_ID;
-                    const userAvatarColor = isCurrentUser 
-                      ? 'bg-indigo-500' 
-                      : ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][index % 5];
-                    
-                    return (
-                      <motion.div
-                        key={activity.id}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex gap-3"
-                      >
-                        <div className="flex flex-col items-center">
-                          <Avatar className="h-7 w-7 border-2 border-white dark:border-card">
-                            <AvatarFallback className={`${userAvatarColor} text-white text-[10px]`}>
-                              {isCurrentUser ? 'You' : activity.userName.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          {index < activities.length - 1 && (
-                            <div className="w-0.5 h-full min-h-[40px] bg-gray-200 dark:bg-muted mt-2" />
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0 pb-4">
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium break-words flex-1 min-w-0">
-                              {activity.taskTitle}
-                            </p>
-                            <span className="text-[#4a5565] dark:text-muted-foreground text-[11px] whitespace-nowrap shrink-0 ml-2">
-                              {formatTimestamp(activity.timestamp)}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-start gap-2 flex-wrap">
-                            {activity.type === 'task_created' && (
-                              <>
-                                <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0 mt-1.5" />
-                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
-                                  <span className="font-medium">{activity.userName}</span> created this task
-                                </p>
-                              </>
-                            )}
-                            {activity.type === 'task_moved' && (
-                              <>
-                                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0 mt-1.5" />
-                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
-                                  <span className="font-medium">{activity.userName}</span> moved from{' '}
-                                  <span className="capitalize">{activity.fromStatus?.replace('-', ' ')}</span>
-                                  {' '}<ArrowRight className="h-3 w-3 inline align-middle" />{' '}
-                                  <span className="capitalize">{activity.toStatus?.replace('-', ' ')}</span>
-                                </p>
-                              </>
-                            )}
-                            {activity.type === 'task_deleted' && (
-                              <>
-                                <div className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0 mt-1.5" />
-                                <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] leading-relaxed">
-                                  <span className="font-medium">{activity.userName}</span> deleted this task
-                                </p>
-                              </>
-                            )}
-                          </div>
-                          
-                          {activity.groupTag && activity.groupTag !== '@personal' && (
-                            <div className="mt-1.5">
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                {groups.find(g => g.tag === activity.groupTag)?.name || activity.groupTag}
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })
-                )}
-              </AnimatePresence>
             </div>
-          </ScrollArea>
+          </div>
+
+          {/* Right Sidebar - Desktop Only */}
+          <div 
+            className={`hidden lg:block bg-white dark:bg-card border-l border-gray-200 dark:border-transparent sticky top-[64px] h-[calc(100vh-64px)] transition-all duration-300 ${
+              rightSidebarCollapsed ? 'w-[48px]' : 'w-[300px]'
+            }`}
+          >
+            {rightSidebarCollapsed ? (
+              <div className="flex items-start justify-center pt-4 h-full">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => setRightSidebarCollapsed(false)}
+                    variant="outline"
+                    size="sm"
+                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                  >
+                    <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>Show Activity (Ctrl+I)</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            ) : (
+              <div className="p-4 h-full flex flex-col overflow-hidden">
+                <RightSidebar 
+                  activities={activities}
+                  onToggleCollapse={() => setRightSidebarCollapsed(!rightSidebarCollapsed)}
+                  formatTimestamp={formatTimestamp}
+                  groups={groups.map(g => ({ tag: g.tag, name: g.name }))}
+                />
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </TooltipProvider>
 
         {/* Add Task Modal */}
         <Dialog 
@@ -1269,6 +1280,7 @@ export function TaskManager() {
                 status: 'pending',
                 dueDate: '',
                 progress: 20,
+                assignedTo: [],
               });
               setIncludeProgress(false);
               setSkipModalAnimation(false);
@@ -1411,6 +1423,33 @@ export function TaskManager() {
                     onValueChange={(value) => setNewTask({ ...newTask, progress: value[0] })}
                     className="[&_[data-radix-slider-range]]:bg-purple-500 [&_[data-radix-slider-thumb]]:border-purple-500"
                   />
+                </div>
+              )}
+
+              {/* Assign To field - only for collaborated groups, visible to admin/editor/owner */}
+              {canSeeAssignTo && !editingTask && (
+                <div className="grid gap-2">
+                  <Label htmlFor="assignTo">Assign To</Label>
+                  <Select
+                    value={(newTask.assignedTo && newTask.assignedTo.length > 0) ? newTask.assignedTo[0] : undefined}
+                    onValueChange={(value) => {
+                      setNewTask({ 
+                        ...newTask, 
+                        assignedTo: value ? [value] : [] 
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="assignTo">
+                      <SelectValue placeholder="Select a team member (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {acceptedCollaborators.map((collab) => (
+                        <SelectItem key={collab.userId} value={collab.userId}>
+                          {collab.name} ({collab.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
@@ -1610,214 +1649,7 @@ export function TaskManager() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Create Group Modal */}
-        <Dialog open={showCreateGroupModal} onOpenChange={setShowCreateGroupModal}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Create New Group</DialogTitle>
-              <DialogDescription>
-                Create a shared project workspace
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Group Name</Label>
-                <Input
-                  placeholder="e.g., Web UI Project"
-                  value={newGroup.name}
-                  onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
-                  className="h-[36px] rounded-[8px]"
-                />
-      </div>
-              <div className="space-y-2">
-                <Label>Group Tag</Label>
-                <Input
-                  placeholder="e.g., web-ui or @web-ui"
-                  value={newGroup.tag}
-                  onChange={(e) => setNewGroup({ ...newGroup, tag: e.target.value })}
-                  className="h-[36px] rounded-[8px]"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowCreateGroupModal(false)} className="h-[36px] rounded-[8px]">
-                Cancel
-              </Button>
-              <Button onClick={handleCreateGroup} className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 h-[36px] rounded-[8px]">
-                Create Group
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Manage Group Modal */}
-        <Dialog open={showManageGroupModal} onOpenChange={setShowManageGroupModal}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Manage Group Members</DialogTitle>
-              <DialogDescription>
-                {selectedGroupForManagement?.name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              {editingCollaborators.length > 0 && (
-                <div className="space-y-3">
-                  <Label>Members</Label>
-                  {editingCollaborators.map((collab) => (
-                    <div key={collab.userId} className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-blue-500 text-white text-[11px]">
-                            {collab.name.split(' ').map(n => n[0]).join('')}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium truncate">{collab.name}</p>
-                            {collab.status === 'pending' && (
-                              <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] px-1.5 py-0">
-                                Pending
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-[#4a5565] dark:text-muted-foreground text-[11px] truncate">{collab.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Select value={collab.role} onValueChange={(value: any) => handleRoleChange(collab.userId, value)}>
-                          <SelectTrigger className="w-[90px] h-[30px] text-[12px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="editor">Editor</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <button onClick={() => handleRemoveCollaborator(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <Label>Add Member</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name or email..."
-                    value={collaboratorSearch}
-                    onChange={(e) => setCollaboratorSearch(e.target.value)}
-                    className="pl-9 h-[36px] rounded-[8px]"
-                  />
-                </div>
-                {collaboratorSearch && (
-                  <div className="border border-gray-200 dark:border-transparent rounded-[8px] p-2 max-h-[200px] overflow-y-auto bg-card">
-                    {searchResults.length === 0 ? (
-                      <p className="text-center text-[#4a5565] dark:text-muted-foreground text-[12px] py-4">No users found</p>
-                    ) : (
-                      searchResults.map((user) => (
-                        <button
-                          key={user.userId}
-                          onClick={() => handleAddCollaborator(user)}
-                          className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors"
-                        >
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-purple-500 text-white text-[11px]">
-                              {user.name.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="text-left flex-1">
-                            <p className="text-[#101828] dark:text-foreground text-[13px] font-medium">{user.name}</p>
-                            <p className="text-[#4a5565] dark:text-muted-foreground text-[11px]">{user.email}</p>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowManageGroupModal(false)} className="h-[36px] rounded-[8px]">
-                Cancel
-              </Button>
-              <Button onClick={handleSaveGroupCollaborators} className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 h-[36px] rounded-[8px]">
-                Save Changes
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Pending Invitations Dialog */}
-        <Dialog open={showPendingInvitations} onOpenChange={setShowPendingInvitations}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Pending Invitations</DialogTitle>
-              <DialogDescription>
-                You have {pendingInvitations.length} group invitation{pendingInvitations.length !== 1 ? 's' : ''}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-4">
-              {pendingInvitations.map((group) => {
-                const myInvite = group.collaborators.find(
-                  c => c.userId === CURRENT_USER_ID && c.status === 'pending'
-                );
-                return (
-                  <Card key={group.id} className="p-4 border-gray-200 dark:border-transparent">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: group.color }}
-                          />
-                          <h4 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">{group.name}</h4>
-                        </div>
-                        <p className="text-[#4a5565] dark:text-muted-foreground text-[12px] mb-2">
-                          Invited by {group.owner === CURRENT_USER_ID ? 'You' : 'someone'}
-                        </p>
-                        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px]">
-                          Role: {myInvite?.role}
-                        </Badge>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            handleAcceptInvitation(group.id);
-                            if (pendingInvitations.length === 1) {
-                              setShowPendingInvitations(false);
-                            }
-                          }}
-                          className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 h-[30px] text-[12px]"
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            handleDeclineInvitation(group.id);
-                            if (pendingInvitations.length === 1) {
-                              setShowPendingInvitations(false);
-                            }
-                          }}
-                          className="h-[30px] text-[12px]"
-                        >
-                          Decline
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Workspace modals are now in LeftSidebar component */}
     </DndProvider>
   );
 }

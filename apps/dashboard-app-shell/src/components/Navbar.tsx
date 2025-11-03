@@ -3,10 +3,12 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, User, Menu, Bell, Activity } from "lucide-react";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
+import { notificationApi, initializeNotificationApi, isNotificationApiReady, NotificationsResponse } from "../services/notificationApi";
+import { Badge, ScrollArea, Sheet, SheetContent, SheetTrigger } from "@efficio/ui";
 
 // API base URL - injected by webpack DefinePlugin at build time
 declare const process: {
@@ -30,6 +32,25 @@ export const Navbar = ({
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showMobileActivity, setShowMobileActivity] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationsResponse | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  
+  // Initialize notificationApi with token getter (only once)
+  useEffect(() => {
+    if (isAuthenticated) {
+      initializeNotificationApi(async () => {
+        try {
+          return await getAccessTokenSilently();
+        } catch (error) {
+          console.error("Failed to get access token:", error);
+          return undefined;
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   // Initialize userApi with token getter (only once)
   useEffect(() => {
@@ -60,6 +81,60 @@ export const Navbar = ({
       profileLoadedRef.current = false;
       setUserProfile(null);
     }
+  }, [isAuthenticated]);
+
+  // Load notifications when authenticated and API is ready
+  useEffect(() => {
+    if (isAuthenticated && isNotificationApiReady()) {
+      loadNotifications();
+      // Refresh notifications every 30 seconds
+      const interval = setInterval(loadNotifications, 30000);
+      
+      // Listen for manual refresh events (e.g., after accepting/declining invitations)
+      const handleRefresh = () => {
+        loadNotifications();
+      };
+      window.addEventListener('refreshNotifications', handleRefresh);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('refreshNotifications', handleRefresh);
+      };
+    }
+    // Reset when user logs out
+    if (!isAuthenticated) {
+      setNotifications(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  const loadNotifications = async () => {
+    try {
+      const data = await notificationApi.getNotifications();
+      setNotifications(data);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+      // Set empty notifications object on error so icon still appears and shows "No notifications"
+      setNotifications({
+        notifications: [],
+        pendingInvitationsCount: 0,
+        taskAssignmentsCount: 0,
+        totalUnreadCount: 0,
+      });
+    }
+  };
+
+  // Initialize notifications to empty state so icon appears immediately
+  useEffect(() => {
+    if (isAuthenticated && isNotificationApiReady() && notifications === null) {
+      setNotifications({
+        notifications: [],
+        pendingInvitationsCount: 0,
+        taskAssignmentsCount: 0,
+        totalUnreadCount: 0,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   const loadUserProfile = async () => {
@@ -133,9 +208,26 @@ export const Navbar = ({
 
   return (
     <nav className="w-full h-16 border-b border-gray-200 dark:border-transparent bg-background dark:bg-card shadow-sm sticky top-0 z-50">
-      <div className="max-w-[1280px] mx-auto px-8 h-full flex items-center justify-between">
-        {/* Left side: logo + tabs */}
-        <div className="flex items-center gap-8">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 h-full flex items-center justify-between">
+        {/* Left side: mobile menu + logo + tabs */}
+        <div className="flex items-center gap-4 md:gap-8">
+          {/* Mobile Menu Button - Only show in task manager on mobile */}
+          {isAuthenticated && location.pathname.includes('task-manager') && (
+            <Sheet open={showMobileSidebar} onOpenChange={setShowMobileSidebar}>
+              <SheetTrigger asChild>
+                <button className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors">
+                  <Menu className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[280px] p-0">
+                {/* Mobile sidebar content will be passed from task manager */}
+                <div className="p-4 text-sm text-gray-600 dark:text-muted-foreground">
+                  Sidebar content will be shown here
+                </div>
+              </SheetContent>
+            </Sheet>
+          )}
+          
           {/* Logo */}
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
@@ -155,9 +247,9 @@ export const Navbar = ({
             <span className="text-lg font-bold text-gray-900 dark:text-foreground">Efficio</span>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs - Hidden on mobile for task manager */}
           {isAuthenticated && (
-            <div className="flex items-center gap-4">
+            <div className={`${location.pathname.includes('task-manager') ? 'hidden md:flex' : 'flex'} items-center gap-4`}>
               {tabs.map((tab) => {
                 const isActive = activeTabFromPath === tab.id;
                 return (
@@ -178,7 +270,7 @@ export const Navbar = ({
           )}
         </div>
 
-        {/* Right side */}
+        {/* Right side: notifications + user */}
         {!isAuthenticated ? (
           <button
             onClick={() => loginWithRedirect()}
@@ -187,7 +279,197 @@ export const Navbar = ({
             Log In
           </button>
         ) : (
-          <DropdownMenu.Root>
+          <div className="flex items-center gap-1">
+            {/* Mobile Activity Button - Only show in task manager on mobile */}
+            {location.pathname.includes('task-manager') && (
+              <Sheet open={showMobileActivity} onOpenChange={setShowMobileActivity}>
+                <SheetTrigger asChild>
+                  <button className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors">
+                    <Activity className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                  </button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[300px] p-0">
+                  {/* Mobile activity content will be passed from task manager */}
+                  <div className="p-4 text-sm text-gray-600 dark:text-muted-foreground">
+                    Activity content will be shown here
+                  </div>
+                </SheetContent>
+              </Sheet>
+            )}
+            
+            {/* Notifications - Only show in task manager, always visible */}
+            {location.pathname.includes('task-manager') && isNotificationApiReady() && (
+              <DropdownMenu.Root open={showNotifications} onOpenChange={setShowNotifications}>
+                <DropdownMenu.Trigger asChild>
+                  <motion.button
+                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Bell className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                    {notifications && notifications.totalUnreadCount > 0 && (
+                      <Badge 
+                        variant="secondary" 
+                        className="absolute -top-1 -right-1 text-[10px] bg-red-500 text-white px-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-white dark:border-card"
+                      >
+                        {notifications.totalUnreadCount > 99 ? '99+' : notifications.totalUnreadCount}
+                      </Badge>
+                    )}
+                  </motion.button>
+                </DropdownMenu.Trigger>
+
+                <AnimatePresence>
+                  <DropdownMenu.Content
+                    align="end"
+                    sideOffset={8}
+                    className="z-[60] w-[380px] max-h-[500px] bg-white dark:bg-popover border border-gray-200 dark:border-transparent rounded-lg shadow-lg dark:shadow-[0_4px_12px_0_rgba(0,0,0,0.4)] p-0 overflow-hidden"
+                    asChild
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                      transition={{
+                        duration: 0.15,
+                        ease: [0.16, 1, 0.3, 1]
+                      }}
+                    >
+                      <div className="flex flex-col">
+                        {/* Header */}
+                        <div className="p-4 border-b border-gray-200 dark:border-transparent">
+                          <h2 className="text-lg font-semibold text-gray-900 dark:text-foreground">Notifications</h2>
+                        </div>
+                        
+                        {/* Content */}
+                        <ScrollArea className="max-h-[400px]">
+                          <div className="p-4">
+                            {!notifications || notifications.totalUnreadCount === 0 ? (
+                              <div className="flex flex-col items-center justify-center text-center py-12">
+                                <Bell className="h-12 w-12 text-gray-300 dark:text-muted-foreground mb-4" />
+                                <p className="text-gray-600 dark:text-muted-foreground text-sm">No notifications</p>
+                                <p className="text-gray-500 dark:text-muted-foreground text-xs mt-2">
+                                  You're all caught up!
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {/* Pending Invitations */}
+                                {notifications.pendingInvitationsCount > 0 && (
+                                  <div className="space-y-2">
+                                    <h3 className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wide">Pending Invitations</h3>
+                                    {notifications.notifications
+                                      .filter(n => n.type === 'invitation')
+                                      .map(notification => (
+                                        <DropdownMenu.Item
+                                          key={notification.id}
+                                          className="p-0 m-0 cursor-pointer"
+                                          asChild
+                                          onSelect={async (e) => {
+                                            e.preventDefault();
+                                            // Mark notification as read
+                                            try {
+                                              await notificationApi.markAsRead(notification.id);
+                                              // Refresh notifications to update count
+                                              loadNotifications();
+                                            } catch (error) {
+                                              console.error('Failed to mark notification as read:', error);
+                                            }
+                                            setShowNotifications(false);
+                                            window.dispatchEvent(new CustomEvent('openPendingInvitations'));
+                                          }}
+                                        >
+                                          <motion.div
+                                            className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
+                                            whileHover={{ x: 2 }}
+                                            whileTap={{ scale: 0.98 }}
+                                          >
+                                            <div className="flex items-start justify-between">
+                                              <div className="flex-1">
+                                                <p className="text-sm font-medium text-gray-900 dark:text-foreground">
+                                                  {notification.groupName}
+                                                </p>
+                                                <p className="text-xs text-gray-600 dark:text-muted-foreground mt-1">
+                                                  Group invitation pending
+                                                </p>
+                                              </div>
+                                              <Badge className="bg-yellow-500 text-white text-[10px] ml-2">
+                                                New
+                                              </Badge>
+                                            </div>
+                                          </motion.div>
+                                        </DropdownMenu.Item>
+                                      ))}
+                                  </div>
+                                )}
+                                
+                                {/* Task Assignments */}
+                                {notifications.taskAssignmentsCount > 0 && (
+                                  <div className="space-y-2">
+                                    {notifications.pendingInvitationsCount > 0 && (
+                                      <div className="pt-2 border-t border-gray-200 dark:border-transparent" />
+                                    )}
+                                    <h3 className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wide">Task Assignments</h3>
+                                    {notifications.notifications
+                                      .filter(n => n.type === 'task_assigned')
+                                      .map(notification => (
+                                        <DropdownMenu.Item
+                                          key={notification.id}
+                                          className="p-0 m-0 cursor-pointer"
+                                          asChild
+                                          onSelect={async (e) => {
+                                            e.preventDefault();
+                                            // Mark notification as read
+                                            try {
+                                              await notificationApi.markAsRead(notification.id);
+                                              // Refresh notifications to update count
+                                              loadNotifications();
+                                            } catch (error) {
+                                              console.error('Failed to mark notification as read:', error);
+                                            }
+                                            setShowNotifications(false);
+                                            if (notification.groupTag) {
+                                              window.dispatchEvent(new CustomEvent('navigateToGroup', { 
+                                                detail: { groupTag: notification.groupTag, taskId: notification.taskId } 
+                                              }));
+                                            }
+                                          }}
+                                        >
+                                          <motion.div
+                                            className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+                                            whileHover={{ x: 2 }}
+                                            whileTap={{ scale: 0.98 }}
+                                          >
+                                            <div className="flex items-start justify-between">
+                                              <div className="flex-1">
+                                                <p className="text-sm font-medium text-gray-900 dark:text-foreground">
+                                                  {notification.taskTitle}
+                                                </p>
+                                                <p className="text-xs text-gray-600 dark:text-muted-foreground mt-1">
+                                                  Assigned to you in {notification.groupTag}
+                                                </p>
+                                              </div>
+                                              <Badge className="bg-blue-500 text-white text-[10px] ml-2">
+                                                New
+                                              </Badge>
+                                            </div>
+                                          </motion.div>
+                                        </DropdownMenu.Item>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    </motion.div>
+                  </DropdownMenu.Content>
+                </AnimatePresence>
+              </DropdownMenu.Root>
+            )}
+            
+            <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <motion.button
                 className="flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-indigo-50 dark:hover:bg-accent focus:outline-none"
@@ -276,6 +558,7 @@ export const Navbar = ({
               </DropdownMenu.Content>
             </AnimatePresence>
           </DropdownMenu.Root>
+          </div>
         )}
       </div>
 
