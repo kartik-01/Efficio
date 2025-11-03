@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useAuth0 } from '@auth0/auth0-react';
 import { Button } from '@efficio/ui';
-import { Badge, ScrollArea, Separator, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Avatar, AvatarFallback, Card } from '@efficio/ui';
+import { Badge, ScrollArea, Separator, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Avatar, AvatarImage, AvatarFallback, Card } from '@efficio/ui';
 import { Bell, ChevronLeft, ChevronRight, Plus, Settings, Users, Search, X, Trash2, LogOut } from 'lucide-react';
 import { Task } from './TaskCard';
 import { groupApi } from '../services/groupApi';
@@ -15,6 +15,7 @@ export interface GroupCollaborator {
   status: 'pending' | 'accepted' | 'declined';
   invitedAt: string;
   acceptedAt?: string;
+  picture?: string | null; // Profile picture (customPicture or picture from User)
 }
 
 export interface Group {
@@ -23,6 +24,7 @@ export interface Group {
   name: string;
   color: string;
   owner: string;
+  ownerPicture?: string | null; // Owner's profile picture
   collaborators: GroupCollaborator[];
   createdAt: string;
 }
@@ -36,10 +38,12 @@ interface LeftSidebarProps {
   accessibleGroups: Group[];
   groups: Group[];
   setGroups: (groups: Group[] | ((prev: Group[]) => Group[])) => void;
-  tasks: Task[];
+  tasks: Task[]; // All tasks for "All Tasks" count (personal + assigned only)
+  groupTasksMap?: Map<string, Task[]>; // Tasks per group for accurate group counts
   pendingInvitations: Group[];
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onRefreshActivities?: () => void; // Callback to refresh activities
 }
 
 export function LeftSidebar({
@@ -49,9 +53,11 @@ export function LeftSidebar({
   groups,
   setGroups,
   tasks,
+  groupTasksMap,
   pendingInvitations,
   collapsed = false,
   onToggleCollapse,
+  onRefreshActivities,
 }: LeftSidebarProps) {
   // Modal states
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -70,8 +76,8 @@ export function LeftSidebar({
   const [showAddMembers, setShowAddMembers] = useState(false);
   
   // User search states
-  const [searchResults, setSearchResults] = useState<Array<{ userId: string; name: string; email: string; picture?: string }>>([]);
-  const [newGroupSearchResults, setNewGroupSearchResults] = useState<Array<{ userId: string; name: string; email: string; picture?: string }>>([]);
+  const [searchResults, setSearchResults] = useState<Array<{ userId: string; name: string; email: string; picture?: string | null }>>([]);
+  const [newGroupSearchResults, setNewGroupSearchResults] = useState<Array<{ userId: string; name: string; email: string; picture?: string | null }>>([]);
   const [isSearching, setIsSearching] = useState(false);
   
   // Get current user from Auth0
@@ -299,6 +305,11 @@ export function LeftSidebar({
         }, 0);
       }
       
+      // Refresh activities to show the leave notification
+      if (onRefreshActivities) {
+        onRefreshActivities();
+      }
+      
       toast.success('You have left the group');
     } catch (error) {
       console.error('Failed to exit group:', error);
@@ -420,6 +431,11 @@ export function LeftSidebar({
         id: g.id || g._id || '',
       })));
       
+      // Refresh activities to show the join/rejoin notification
+      if (onRefreshActivities) {
+        onRefreshActivities();
+      }
+      
       toast.success('Invitation accepted!');
     } catch (error) {
       console.error('Failed to accept invitation:', error);
@@ -437,6 +453,9 @@ export function LeftSidebar({
         ...g,
         id: g.id || g._id || '',
       })));
+      
+      // Trigger notification refresh in navbar (invitation will be removed automatically)
+      window.dispatchEvent(new CustomEvent('refreshNotifications'));
       
       toast.success('Invitation declined');
     } catch (error) {
@@ -513,7 +532,9 @@ export function LeftSidebar({
           <ScrollArea className="flex-1 min-h-0 w-full overflow-hidden">
             <div className="space-y-2 flex flex-col items-center pb-4">
               {accessibleGroups.map((group: Group) => {
-                const taskCount = tasks.filter((t: Task) => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
+                // Use groupTasksMap for accurate group counts, fallback to tasks filter
+                const taskCount = groupTasksMap?.get(group.tag)?.length ?? 
+                  tasks.filter((t: Task) => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
                 const acceptedCount = group.collaborators.filter((c: GroupCollaborator) => c.status === 'accepted').length;
 
                 return (
@@ -640,7 +661,9 @@ export function LeftSidebar({
               <div className="space-y-1 pr-2 pb-4">
                 {accessibleGroups.map((group: Group) => {
                   const isPersonal = group.tag === '@personal';
-                  const taskCount = tasks.filter((t: Task) => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
+                  // Use groupTasksMap for accurate group counts, fallback to tasks filter
+                  const taskCount = groupTasksMap?.get(group.tag)?.length ?? 
+                    tasks.filter((t: Task) => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
                   const acceptedCount = group.collaborators.filter((c: GroupCollaborator) => c.status === 'accepted').length;
 
                   return (
@@ -665,13 +688,12 @@ export function LeftSidebar({
                                 .filter((c: GroupCollaborator) => c.status === 'accepted')
                                 .slice(0, 2)
                                 .map((c: GroupCollaborator, i: number) => (
-                                  <div
-                                    key={c.userId}
-                                    className="w-4 h-4 rounded-full border border-white dark:border-card flex items-center justify-center text-white text-[8px] font-medium"
-                                    style={{ backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981'][i % 3] }}
-                                  >
-                                    {c.name[0]}
-                                  </div>
+                                  <Avatar key={c.userId} className="w-4 h-4 border border-white dark:border-card">
+                                    {c.picture && <AvatarImage src={c.picture} alt={c.name} />}
+                                    <AvatarFallback className="text-white text-[8px] font-medium" style={{ backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981'][i % 3] }}>
+                                      {c.name[0]}
+                                    </AvatarFallback>
+                                  </Avatar>
                                 ))}
                             </div>
                           )}
@@ -857,6 +879,7 @@ export function LeftSidebar({
                           className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors"
                         >
                           <Avatar className="h-8 w-8">
+                            {user.picture && <AvatarImage src={user.picture} alt={user.name} />}
                             <AvatarFallback className="bg-purple-500 text-white text-[11px]">
                               {user.name.split(' ').map(n => n[0]).join('')}
                             </AvatarFallback>
@@ -882,6 +905,7 @@ export function LeftSidebar({
                     <div key={collab.userId} className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <Avatar className="h-8 w-8">
+                          {collab.picture && <AvatarImage src={collab.picture} alt={collab.name} />}
                           <AvatarFallback className="bg-blue-500 text-white text-[11px]">
                             {collab.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
@@ -940,12 +964,14 @@ export function LeftSidebar({
               // If owner is the current user, use current user info, else use collaborator info
               const ownerName = ownerUser?.name || (selectedGroupForManagement.owner === currentUserId ? (auth0User?.name || 'You') : 'Owner');
               const ownerEmail = ownerUser?.email || (selectedGroupForManagement.owner === currentUserId ? (auth0User?.email || '') : '');
+              const ownerPicture = selectedGroupForManagement.ownerPicture || ownerUser?.picture || (selectedGroupForManagement.owner === currentUserId ? (auth0User?.picture) : null);
               return (
                 <div className="space-y-3">
                   <Label>Owner</Label>
                   <div className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <Avatar className="h-8 w-8">
+                        {ownerPicture && <AvatarImage src={ownerPicture} alt={ownerName} />}
                         <AvatarFallback className="bg-purple-500 text-white text-[11px]">
                           {ownerName.split(' ').map(n => n[0]).join('')}
                         </AvatarFallback>
@@ -979,6 +1005,7 @@ export function LeftSidebar({
                     <div key={collab.userId} className="flex items-center justify-between p-3 border border-gray-200 dark:border-transparent rounded-[8px] bg-card">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <Avatar className="h-8 w-8">
+                          {collab.picture && <AvatarImage src={collab.picture} alt={collab.name} />}
                           <AvatarFallback className="bg-blue-500 text-white text-[11px]">
                             {collab.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
@@ -1051,6 +1078,7 @@ export function LeftSidebar({
                         className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors"
                       >
                         <Avatar className="h-8 w-8">
+                          {user.picture && <AvatarImage src={user.picture} alt={user.name} />}
                           <AvatarFallback className="bg-purple-500 text-white text-[11px]">
                             {user.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>

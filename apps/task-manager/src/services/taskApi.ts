@@ -63,7 +63,7 @@ export interface Task {
   isOverdue?: boolean;
   groupTag?: string; // Group/Workspace tag
   assignedTo?: string[]; // Array of user IDs assigned to this task
-  assignedUsers?: Array<{ userId: string; name: string; email?: string }>; // Assigned user info (for displaying exited users)
+  assignedUsers?: Array<{ userId: string; name: string; email?: string; picture?: string | null }>; // Assigned user info (for displaying exited users)
 }
 
 export interface CreateTaskData {

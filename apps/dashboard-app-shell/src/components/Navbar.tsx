@@ -89,7 +89,17 @@ export const Navbar = ({
       loadNotifications();
       // Refresh notifications every 30 seconds
       const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
+      
+      // Listen for manual refresh events (e.g., after accepting/declining invitations)
+      const handleRefresh = () => {
+        loadNotifications();
+      };
+      window.addEventListener('refreshNotifications', handleRefresh);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('refreshNotifications', handleRefresh);
+      };
     }
     // Reset when user logs out
     if (!isAuthenticated) {
@@ -355,8 +365,16 @@ export const Navbar = ({
                                           key={notification.id}
                                           className="p-0 m-0 cursor-pointer"
                                           asChild
-                                          onSelect={(e) => {
+                                          onSelect={async (e) => {
                                             e.preventDefault();
+                                            // Mark notification as read
+                                            try {
+                                              await notificationApi.markAsRead(notification.id);
+                                              // Refresh notifications to update count
+                                              loadNotifications();
+                                            } catch (error) {
+                                              console.error('Failed to mark notification as read:', error);
+                                            }
                                             setShowNotifications(false);
                                             window.dispatchEvent(new CustomEvent('openPendingInvitations'));
                                           }}
@@ -399,8 +417,16 @@ export const Navbar = ({
                                           key={notification.id}
                                           className="p-0 m-0 cursor-pointer"
                                           asChild
-                                          onSelect={(e) => {
+                                          onSelect={async (e) => {
                                             e.preventDefault();
+                                            // Mark notification as read
+                                            try {
+                                              await notificationApi.markAsRead(notification.id);
+                                              // Refresh notifications to update count
+                                              loadNotifications();
+                                            } catch (error) {
+                                              console.error('Failed to mark notification as read:', error);
+                                            }
                                             setShowNotifications(false);
                                             if (notification.groupTag) {
                                               window.dispatchEvent(new CustomEvent('navigateToGroup', { 

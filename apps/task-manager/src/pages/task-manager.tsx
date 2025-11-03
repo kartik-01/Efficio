@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { toast, Toaster } from 'sonner';
@@ -18,7 +18,7 @@ import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
 import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight, Menu, ChevronLeft, ChevronRight, Activity as ActivityIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Badge, ScrollArea, Separator, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@efficio/ui';
+import { Badge, ScrollArea, Separator, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
 import { activityApi } from '../services/activityApi';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -38,7 +38,9 @@ const getCategoryColor = (category: string) => {
 };
 
 export function TaskManager() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]); // Filtered tasks for current view
+  const [allTasks, setAllTasks] = useState<Task[]>([]); // All tasks for counting in sidebar (personal + assigned only, matching "All Tasks" view)
+  const [groupTasksMap, setGroupTasksMap] = useState<Map<string, Task[]>>(new Map()); // Tasks per group for accurate group counts
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -112,37 +114,39 @@ export function TaskManager() {
 
   const [activities, setActivities] = useState<Activity[]>([]);
   
+  // Function to load activities (can be called manually for refresh)
+  const loadActivities = useCallback(async (groupTag?: string | null) => {
+    try {
+      const fetchedActivities = await activityApi.getActivities({
+        groupTag: groupTag !== undefined ? (groupTag || undefined) : (selectedGroup || undefined),
+        limit: 50,
+      });
+      
+      // Map backend activities to frontend format
+      const mappedActivities: Activity[] = fetchedActivities.map(act => ({
+        id: act.id || act._id || '',
+        type: act.type,
+        taskTitle: act.taskTitle || '',
+        taskId: act.taskId || '',
+        userId: act.userId,
+        userName: act.userName,
+        userPicture: act.userPicture || null,
+        timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+        fromStatus: act.fromStatus,
+        toStatus: act.toStatus,
+        groupTag: act.groupTag,
+      }));
+      
+      setActivities(mappedActivities);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+    }
+  }, [selectedGroup]);
+
   // Fetch activities on mount and when selected group changes
   useEffect(() => {
-    const loadActivities = async () => {
-      try {
-        const fetchedActivities = await activityApi.getActivities({
-          groupTag: selectedGroup || undefined,
-          limit: 50,
-        });
-        
-        // Map backend activities to frontend format
-        const mappedActivities: Activity[] = fetchedActivities.map(act => ({
-          id: act.id || act._id || '',
-          type: act.type,
-          taskTitle: act.taskTitle || '',
-          taskId: act.taskId || '',
-          userId: act.userId,
-          userName: act.userName,
-          timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
-          fromStatus: act.fromStatus,
-          toStatus: act.toStatus,
-          groupTag: act.groupTag,
-        }));
-        
-        setActivities(mappedActivities);
-      } catch (error) {
-        console.error('Failed to load activities:', error);
-      }
-    };
-
     loadActivities();
-  }, [selectedGroup]);
+  }, [selectedGroup, loadActivities]);
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -234,14 +238,33 @@ export function TaskManager() {
       // Fetch tasks filtered by groupTag if provided
       const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
       // Ensure all tasks have id property and userId (map _id to id if needed)
-      setTasks(fetchedTasks.map(task => ({ 
+      const mappedTasks = fetchedTasks.map(task => ({ 
         ...task, 
         id: task.id || (task as any)._id || '',
         userId: (task.userId || (task as any).userId || '').toString().trim(), // Include userId from backend, ensure it's a string
         groupTag: task.groupTag || (task as any).groupTag || undefined,
         assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
         assignedUsers: task.assignedUsers || (task as any).assignedUsers || [], // Include assignedUsers from backend
-      })));
+      }));
+      setTasks(mappedTasks);
+      
+      // Update groupTasksMap for accurate group-specific counts
+      if (groupTag) {
+        // Store all tasks for this specific group (for accurate group count)
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          if (groupTag === '@personal') {
+            newMap.set('@personal', mappedTasks);
+          } else {
+            newMap.set(groupTag, mappedTasks);
+          }
+          return newMap;
+        });
+      } else {
+        // If no groupTag, this is "All Tasks" - update allTasks with fetched tasks
+        // These are already filtered by backend to show personal + assigned only
+        setAllTasks(mappedTasks);
+      }
     } catch (error) {
       toast.error('Failed to Fetch Tasks', {
         description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
@@ -251,6 +274,56 @@ export function TaskManager() {
       setLoading(false);
     }
   };
+
+  // Fetch all tasks for sidebar counting (on mount and when groups change)
+  // Apply same filtering logic as "All Tasks" view: personal tasks + assigned group tasks only
+  useEffect(() => {
+    const fetchAllTasks = async () => {
+      try {
+        // Fetch all tasks (no groupTag filter) for counting in sidebar
+        const fetchedAllTasks = await taskApi.getTasks(undefined);
+        const mappedAllTasks = fetchedAllTasks.map(task => ({ 
+          ...task, 
+          id: task.id || (task as any)._id || '',
+          userId: (task.userId || (task as any).userId || '').toString().trim(),
+          groupTag: task.groupTag || (task as any).groupTag || undefined,
+          assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
+          assignedUsers: task.assignedUsers || (task as any).assignedUsers || [],
+        }));
+        
+        // Apply same filtering as "All Tasks" view:
+        // - Personal tasks: always include
+        // - Group tasks: only include if user has accepted access AND is assigned
+        const filteredAllTasks = mappedAllTasks.filter(task => {
+          // Personal tasks always visible
+          if (!task.groupTag || task.groupTag === '@personal') {
+            return true;
+          }
+          // For group tasks:
+          // 1. User must have accepted access to the group (not just pending)
+          const group = groups.find(g => g.tag === task.groupTag);
+          if (!group) return false;
+          
+          const hasAcceptedAccess = group.owner === currentUserId || 
+            group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
+          
+          if (!hasAcceptedAccess) return false;
+          
+          // 2. User must be assigned to the task
+          const isAssigned = task.assignedTo && task.assignedTo.some((id: string) => id?.trim() === currentUserId?.trim());
+          return isAssigned;
+        });
+        
+        setAllTasks(filteredAllTasks);
+      } catch (error) {
+        console.error('Failed to fetch all tasks for counting:', error);
+      }
+    };
+    
+    if (groups.length > 0 && currentUserId) {
+      fetchAllTasks();
+    }
+  }, [groups, currentUserId]); // Reload when groups or currentUserId changes
 
   // Fetch tasks when selected group changes
   useEffect(() => {
@@ -268,6 +341,20 @@ export function TaskManager() {
             t.id === taskId ? { ...t, status: newStatus } : t
           )
         );
+      setAllTasks((prevTasks) =>
+        prevTasks.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus } : t
+        )
+      );
+      // Also update in groupTasksMap
+      setGroupTasksMap((prev) => {
+        const newMap = new Map(prev);
+        newMap.forEach((groupTasks, groupTag) => {
+          const updatedTasks = groupTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
+          newMap.set(groupTag, updatedTasks);
+        });
+        return newMap;
+      });
         
         // Activities are now fetched from API automatically
         // Refresh activities after status change
@@ -293,8 +380,8 @@ export function TaskManager() {
       await taskApi.updateTaskStatus(taskId, newStatus);
       }
     } catch (error) {
-      // Revert on error
-      fetchTasks();
+      // Revert on error - refetch both
+      await fetchTasks(selectedGroup);
     }
   };
 
@@ -306,12 +393,26 @@ export function TaskManager() {
           task.id === taskId ? { ...task, progress } : task
         )
       );
+      setAllTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId ? { ...task, progress } : task
+        )
+      );
+      // Also update in groupTasksMap
+      setGroupTasksMap((prev) => {
+        const newMap = new Map(prev);
+        newMap.forEach((groupTasks, groupTag) => {
+          const updatedTasks = groupTasks.map(t => t.id === taskId ? { ...t, progress } : t);
+          newMap.set(groupTag, updatedTasks);
+        });
+        return newMap;
+      });
       
       // Update via API
       await taskApi.updateTaskProgress(taskId, progress);
     } catch (error) {
-      // Revert on error
-      fetchTasks();
+      // Revert on error - refetch both
+      await fetchTasks(selectedGroup);
     }
   };
 
@@ -376,6 +477,19 @@ export function TaskManager() {
       const taskToDeleteObj = tasks.find(t => t.id === taskIdToDelete);
       await taskApi.deleteTask(taskIdToDelete);
       setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskIdToDelete));
+      setAllTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskIdToDelete));
+      // Also remove from groupTasksMap
+      if (taskToDeleteObj?.groupTag) {
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          const groupTag = taskToDeleteObj.groupTag === '@personal' || !taskToDeleteObj.groupTag 
+            ? '@personal' 
+            : taskToDeleteObj.groupTag;
+          const groupTasks = newMap.get(groupTag) || [];
+          newMap.set(groupTag, groupTasks.filter(t => t.id !== taskIdToDelete));
+          return newMap;
+        });
+      }
       
       // Activities are now fetched from API automatically
       // Refresh activities after deletion
@@ -390,6 +504,7 @@ export function TaskManager() {
         taskId: act.taskId || '',
         userId: act.userId,
         userName: act.userName,
+        userPicture: act.userPicture || null,
         timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
         fromStatus: act.fromStatus,
         toStatus: act.toStatus,
@@ -457,6 +572,19 @@ export function TaskManager() {
         setTasks((prevTasks) =>
           prevTasks.map((task) => (task.id === editingTask.id ? updatedTask : task))
         );
+        setAllTasks((prevTasks) =>
+          prevTasks.map((task) => (task.id === editingTask.id ? updatedTask : task))
+        );
+        // Also update in groupTasksMap
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          if (updatedTask.groupTag) {
+            const groupTag = updatedTask.groupTag === '@personal' ? '@personal' : updatedTask.groupTag;
+            const groupTasks = newMap.get(groupTag) || [];
+            newMap.set(groupTag, groupTasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+          }
+          return newMap;
+        });
         console.log('🍞 Toast: Task Updated');
         toast.success('Task Updated', {
           description: 'Your task has been successfully updated.',
@@ -471,6 +599,17 @@ export function TaskManager() {
         if (!modalContentRef.current || !pendingColumnRef.current) {
           const newTask: Task = { ...savedTask, id: savedTask.id || savedTask._id || '' };
           setTasks((prevTasks) => [...prevTasks, newTask]);
+          setAllTasks((prevTasks) => [...prevTasks, newTask]);
+          // Also add to groupTasksMap if it's a group task
+          if (newTask.groupTag) {
+            setGroupTasksMap((prev) => {
+              const newMap = new Map(prev);
+              const groupTag = newTask.groupTag === '@personal' ? '@personal' : newTask.groupTag!;
+              const groupTasks = newMap.get(groupTag) || [];
+              newMap.set(groupTag, [...groupTasks, newTask]);
+              return newMap;
+            });
+          }
           console.log('🍞 Toast: Task Added (fallback path)');
           toast.success('Task Added', {
             description: 'Your new task has been successfully added to the list.',
@@ -823,16 +962,17 @@ export function TaskManager() {
             }`}
           >
             <div className={`${leftSidebarCollapsed ? 'p-2' : 'p-4'} h-full flex flex-col overflow-hidden`}>
-              <LeftSidebar
+            <LeftSidebar
                 selectedGroup={selectedGroup}
                 setSelectedGroup={setSelectedGroup}
                 accessibleGroups={accessibleGroups}
                 groups={groups}
-                setGroups={setGroups}
-                tasks={tasks}
+              setGroups={setGroups}
+              tasks={allTasks}
                 pendingInvitations={pendingInvitations}
                 collapsed={leftSidebarCollapsed}
                 onToggleCollapse={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
+              onRefreshActivities={() => loadActivities()}
               />
             </div>
           </div>
@@ -863,6 +1003,7 @@ export function TaskManager() {
                     <div className="flex -space-x-2 cursor-help">
                       {acceptedCollaborators.slice(0, 5).map((collab, i) => (
                         <Avatar key={collab.userId} className="h-8 w-8 border-2 border-white dark:border-card">
+                          {collab.picture && <AvatarImage src={collab.picture} alt={collab.name} />}
                           <AvatarFallback className={`text-white text-[11px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][i % 5]}`}>
                             {collab.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
@@ -888,29 +1029,29 @@ export function TaskManager() {
               </TooltipProvider>
             )}
           {canCreateTask && (
-            <Button
-              onClick={() => {
-                setIsCollapsing(false); // Reset collapsing state when opening modal
-                setEditingTask(null);
-                setNewTask({
-                  title: '',
-                  description: '',
-                  category: '',
-                  priority: 'Medium',
-                  status: 'pending',
-                  dueDate: '',
-                  progress: 20,
+          <Button
+            onClick={() => {
+              setIsCollapsing(false); // Reset collapsing state when opening modal
+              setEditingTask(null);
+              setNewTask({
+                title: '',
+                description: '',
+                category: '',
+                priority: 'Medium',
+                status: 'pending',
+                dueDate: '',
+                progress: 20,
                   assignedTo: [],
-                });
-                setIncludeProgress(false);
-                setSkipModalAnimation(false); // Ensure animations are enabled for new task
-                setShowModal(true);
-              }}
+              });
+              setIncludeProgress(false);
+              setSkipModalAnimation(false); // Ensure animations are enabled for new task
+              setShowModal(true);
+            }}
               className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Task
-            </Button>
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Task
+          </Button>
           )}
         </div>
 
@@ -1033,6 +1174,7 @@ export function TaskManager() {
                 status="pending"
                 tasks={pendingTasks}
                 group={selectedGroupData || undefined}
+                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
                 currentUserId={currentUserId}
                 userRole={userRole}
                 onTaskDrop={handleTaskDrop}
@@ -1049,6 +1191,7 @@ export function TaskManager() {
                 status="in-progress"
                 tasks={inProgressTasks}
                 group={selectedGroupData || undefined}
+                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
                 currentUserId={currentUserId}
                 userRole={userRole}
                 onTaskDrop={handleTaskDrop}
@@ -1064,6 +1207,7 @@ export function TaskManager() {
                 status="completed"
                 tasks={completedTasks}
                 group={selectedGroupData || undefined}
+                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
                 currentUserId={currentUserId}
                 userRole={userRole}
                 onTaskDrop={handleTaskDrop}
@@ -1086,28 +1230,29 @@ export function TaskManager() {
           >
             {rightSidebarCollapsed ? (
               <div className="flex items-start justify-center pt-4 h-full">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() => setRightSidebarCollapsed(false)}
-                      variant="outline"
-                      size="sm"
-                      className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
-                    >
-                      <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="left">
-                    <p>Show Activity (Ctrl+I)</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => setRightSidebarCollapsed(false)}
+                    variant="outline"
+                    size="sm"
+                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                  >
+                    <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>Show Activity (Ctrl+I)</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             ) : (
               <div className="p-4 h-full flex flex-col overflow-hidden">
                 <RightSidebar 
                   activities={activities}
                   onToggleCollapse={() => setRightSidebarCollapsed(!rightSidebarCollapsed)}
                   formatTimestamp={formatTimestamp}
+                  groups={groups.map(g => ({ tag: g.tag, name: g.name }))}
                 />
               </div>
             )}

@@ -23,7 +23,8 @@ interface TaskColumnProps {
   title: string;
   status: 'pending' | 'in-progress' | 'completed';
   tasks: Task[];
-  group?: Group; // Group data to pass to TaskCard
+  group?: Group; // Group data to pass to TaskCard (for single group view)
+  groups?: Group[]; // All groups array (for "All Tasks" view to find group per task)
   currentUserId?: string; // Current user's auth0Id
   userRole?: 'viewer' | 'editor' | 'admin' | 'owner'; // Current user's role in the group
   onTaskDrop: (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => void;
@@ -40,7 +41,13 @@ const statusColors = {
   completed: 'bg-green-100 text-green-700',
 };
 
-export function TaskColumn({ title, status, tasks, group, currentUserId, userRole, onTaskDrop, onProgressChange, onEdit, onDelete, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
+export function TaskColumn({ title, status, tasks, group, groups, currentUserId, userRole, onTaskDrop, onProgressChange, onEdit, onDelete, newlyAddedTaskId, taskListRef }: TaskColumnProps) {
+  // Helper function to get group for a task (for "All Tasks" view)
+  const getTaskGroup = (task: Task): Group | undefined => {
+    if (group) return group; // If single group is provided, use it
+    if (!task.groupTag || task.groupTag === '@personal') return undefined; // Personal tasks have no group
+    return groups?.find(g => g.tag === task.groupTag);
+  };
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'TASK',
     drop: (item: { id: string; status: string }, monitor) => {
@@ -104,7 +111,7 @@ export function TaskColumn({ title, status, tasks, group, currentUserId, userRol
                 >
                   <TaskCard 
                     task={task}
-                    group={group}
+                    group={getTaskGroup(task)}
                     currentUserId={currentUserId}
                     userRole={userRole}
                     onProgressChange={onProgressChange}

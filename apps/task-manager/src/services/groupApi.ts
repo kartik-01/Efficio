@@ -55,6 +55,7 @@ export interface GroupCollaborator {
   status: 'pending' | 'accepted' | 'declined';
   invitedAt: string;
   acceptedAt?: string;
+  picture?: string | null; // Profile picture (customPicture or picture from User)
 }
 
 export interface Group {
@@ -64,6 +65,7 @@ export interface Group {
   name: string;
   color: string;
   owner: string;
+  ownerPicture?: string | null; // Owner's profile picture
   collaborators: GroupCollaborator[];
   createdAt: string;
   updatedAt?: string;
@@ -312,7 +314,7 @@ export const groupApi = {
   },
 
   // Search users by name or email
-  async searchUsers(query: string): Promise<Array<{ userId: string; name: string; email: string; picture?: string }>> {
+  async searchUsers(query: string): Promise<Array<{ userId: string; name: string; email: string; picture?: string | null }>> {
     const headers = await getHeaders();
     const response = await fetch(`${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`, {
       headers,

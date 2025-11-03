@@ -50,11 +50,12 @@ const getHeaders = async (): Promise<HeadersInit> => {
 export interface Activity {
   _id?: string;
   id?: string;
-  type: 'task_created' | 'task_moved' | 'task_deleted' | 'task_updated' | 'member_added' | 'member_removed' | 'member_role_changed';
+  type: 'task_created' | 'task_moved' | 'task_deleted' | 'task_updated' | 'member_added' | 'member_removed' | 'member_role_changed' | 'member_rejoined';
   taskId?: string;
   taskTitle?: string;
   userId: string;
   userName: string;
+  userPicture?: string | null; // Profile picture for the user who performed the activity
   groupTag?: string;
   fromStatus?: 'pending' | 'in-progress' | 'completed';
   toStatus?: 'pending' | 'in-progress' | 'completed';

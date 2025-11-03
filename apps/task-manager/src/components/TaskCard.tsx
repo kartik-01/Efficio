@@ -3,7 +3,7 @@ import { useDrag } from 'react-dnd';
 import { Calendar, Circle, MoreVertical, Edit, Trash2, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider, Avatar, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
+import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
 
 export interface Task {
   id: string;
@@ -18,7 +18,7 @@ export interface Task {
   isOverdue?: boolean;
   groupTag?: string; // Group tag (e.g., '@web-ui', '@personal')
   assignedTo?: string[]; // Array of user IDs assigned to this task
-  assignedUsers?: Array<{ userId: string; name: string; email?: string }>; // Assigned user info (for displaying exited users)
+  assignedUsers?: Array<{ userId: string; name: string; email?: string; picture?: string | null }>; // Assigned user info (for displaying exited users)
 }
 
 interface GroupCollaborator {
@@ -27,6 +27,7 @@ interface GroupCollaborator {
   email: string;
   role: 'viewer' | 'editor' | 'admin';
   status: 'pending' | 'accepted' | 'declined';
+  picture?: string | null; // Profile picture
 }
 
 interface Group {
@@ -176,11 +177,53 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
     ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-transparent' 
     : 'bg-background';
 
-  const isGroupTask = group && group.collaborators.length > 0 && task.groupTag && task.groupTag !== '@personal';
+  // Check if this is a group task (has groupTag and it's not personal)
+  const isGroupTask = task.groupTag && task.groupTag !== '@personal' && group && group.color;
+  
+  // Get the border color from group (matching the workspace color)
+  // For personal tasks or tasks without a group, no border color
+  const borderColorStyle = isGroupTask && group?.color 
+    ? { borderLeftColor: group.color } 
+    : undefined;
   
   // Get assigned users - filter by group members (active users)
+  // Include both collaborators and owner if they're assigned
   const assignedUsers = task.assignedTo && group 
-    ? group.collaborators.filter(c => c.status === 'accepted' && task.assignedTo?.includes(c.userId))
+    ? task.assignedTo
+        .filter(userId => {
+          // Check if user is an active collaborator
+          const isActiveCollaborator = group.collaborators.some(
+            c => c.userId === userId && c.status === 'accepted'
+          );
+          // Check if user is the owner
+          const isOwner = userId === group.owner;
+          return isActiveCollaborator || isOwner;
+        })
+        .map(userId => {
+          // First try to find in collaborators (includes picture from backend)
+          const collaborator = group.collaborators.find(c => c.userId === userId && c.status === 'accepted');
+          if (collaborator) {
+            return {
+              userId: collaborator.userId,
+              name: collaborator.name,
+              email: collaborator.email,
+              picture: collaborator.picture || null, // Use picture from collaborator
+            };
+          }
+          // If it's the owner, get owner info (need to check if we have ownerPicture in group)
+          if (userId === group.owner) {
+            // Try to get owner info from task.assignedUsers or use group ownerPicture
+            const storedInfo = task.assignedUsers?.find(u => u.userId === userId);
+            return {
+              userId: group.owner,
+              name: storedInfo?.name || 'Owner',
+              email: storedInfo?.email || '',
+              picture: storedInfo?.picture || (group as any).ownerPicture || null,
+            };
+          }
+          return null;
+        })
+        .filter((u): u is NonNullable<typeof u> => u !== null)
     : [];
   
   // Find assigned users who are no longer in the group (exited users)
@@ -193,12 +236,13 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
           return !isActive && !isOwner;
         })
         .map(userId => {
-          // Try to get name from task.assignedUsers (stored info), otherwise use generic
+          // Try to get name and picture from task.assignedUsers (stored info), otherwise use generic
           const storedInfo = task.assignedUsers?.find(u => u.userId === userId);
           return {
             userId,
             name: storedInfo?.name || 'User',
             email: storedInfo?.email,
+            picture: storedInfo?.picture || null, // Include picture from stored info
             isExited: true
           };
         })
@@ -270,11 +314,12 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
         <TooltipTrigger asChild>
           <div
             ref={dragRef as any}
-            className={`p-4 rounded-lg ${bgColor} ${isGroupTask ? 'border-l-4 border-l-emerald-500 dark:border-l-emerald-600' : ''} ${
+            className={`p-4 rounded-lg ${bgColor} ${isGroupTask ? 'border-l-4' : ''} ${
               isDraggable ? 'cursor-move' : 'cursor-not-allowed'
             } transition-all shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] ${
               isDragging ? 'opacity-50' : isDraggable ? 'opacity-100' : 'opacity-60'
             } ${!isDraggable ? 'hover:opacity-70 hover:bg-gray-100 dark:hover:bg-muted/50' : 'hover:shadow-md'}`}
+            style={borderColorStyle}
           >
       <div className="flex items-start justify-between gap-2 mb-3">
         <h4 className={`flex-1 ${task.status === 'completed' ? 'line-through text-gray-500 dark:text-muted-foreground' : 'text-gray-900 dark:text-foreground'}`}>
@@ -401,6 +446,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Avatar className={`h-5 w-5 border-2 border-white dark:border-card ${user.isExited ? 'opacity-50' : ''}`}>
+                              {user.picture && <AvatarImage src={user.picture} alt={user.name} />}
                               <AvatarFallback className={`text-white text-[9px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][allAssignedUsers.indexOf(user) % 5]}`}>
                                 {user.isExited ? '?' : user.name.split(' ').map((n: string) => n[0]).join('')}
                               </AvatarFallback>

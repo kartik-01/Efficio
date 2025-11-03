@@ -65,5 +65,33 @@ export const notificationApi = {
     
     return result.data;
   },
+
+  // Mark notification as read
+  async markAsRead(notificationId: string): Promise<void> {
+    const headers = await getHeaders();
+    const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
+      method: 'PUT',
+      headers,
+    });
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to mark notification as read');
+    }
+  },
+
+  // Mark all notifications as read
+  async markAllAsRead(): Promise<void> {
+    const headers = await getHeaders();
+    const response = await fetch(`${API_BASE_URL}/notifications/read-all`, {
+      method: 'PUT',
+      headers,
+    });
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to mark all notifications as read');
+    }
+  },
 };
 
