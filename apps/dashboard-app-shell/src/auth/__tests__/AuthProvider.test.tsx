@@ -70,5 +70,49 @@ describe('AuthProvider', () => {
     const props = JSON.parse(provider?.getAttribute('data-props') || '{}');
     expect(props.cacheLocation).toBe('localstorage');
   });
+
+  it('includes audience when AUTH0_AUDIENCE is set', () => {
+    // Mock process.env.REACT_APP_AUTH0_AUDIENCE
+    const originalEnv = process.env.REACT_APP_AUTH0_AUDIENCE;
+    process.env.REACT_APP_AUTH0_AUDIENCE = 'test-audience';
+    
+    // Reset module to pick up new env var
+    jest.resetModules();
+    const { AuthProvider: FreshAuthProvider } = require('../AuthProvider');
+    
+    const { container } = render(
+      <FreshAuthProvider>
+        <div>Test</div>
+      </FreshAuthProvider>
+    );
+
+    const provider = container.querySelector('[data-testid="auth0-provider"]');
+    const props = JSON.parse(provider?.getAttribute('data-props') || '{}');
+    expect(props.authorizationParams.audience).toBe('test-audience');
+    
+    process.env.REACT_APP_AUTH0_AUDIENCE = originalEnv;
+  });
+
+  it('does not include audience when AUTH0_AUDIENCE is not set', () => {
+    // Mock process.env.REACT_APP_AUTH0_AUDIENCE as undefined
+    const originalEnv = process.env.REACT_APP_AUTH0_AUDIENCE;
+    delete process.env.REACT_APP_AUTH0_AUDIENCE;
+    
+    // Reset module to pick up new env var
+    jest.resetModules();
+    const { AuthProvider: FreshAuthProvider } = require('../AuthProvider');
+    
+    const { container } = render(
+      <FreshAuthProvider>
+        <div>Test</div>
+      </FreshAuthProvider>
+    );
+
+    const provider = container.querySelector('[data-testid="auth0-provider"]');
+    const props = JSON.parse(provider?.getAttribute('data-props') || '{}');
+    expect(props.authorizationParams.audience).toBeUndefined();
+    
+    process.env.REACT_APP_AUTH0_AUDIENCE = originalEnv;
+  });
 });
 
