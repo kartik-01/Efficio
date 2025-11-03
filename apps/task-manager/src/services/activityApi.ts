@@ -68,6 +68,12 @@ export interface GetActivitiesParams {
   limit?: number;
 }
 
+// Helper function to map backend activity to frontend format
+const mapActivity = (activity: Activity): Activity => ({
+  ...activity,
+  id: activity._id || activity.id,
+});
+
 export const activityApi = {
   // Get activities
   async getActivities(params?: GetActivitiesParams): Promise<Activity[]> {
@@ -93,10 +99,7 @@ export const activityApi = {
     }
     
     // Map _id to id for frontend compatibility
-    return result.data.map((activity: Activity) => ({
-      ...activity,
-      id: activity._id || activity.id,
-    }));
+    return result.data.map((activity: Activity) => mapActivity(activity));
   },
 
   // Create activity (usually called internally)
@@ -113,10 +116,7 @@ export const activityApi = {
       throw new Error(result.message || 'Failed to create activity');
     }
     
-    return {
-      ...result.data,
-      id: result.data._id || result.data.id,
-    };
+    return mapActivity(result.data);
   },
 };
 
