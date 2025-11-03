@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Tailwind CSS v4 custom variant for dark mode */
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *)); /* NOSONAR */
 
 :root {
   --font-size: 16px;
