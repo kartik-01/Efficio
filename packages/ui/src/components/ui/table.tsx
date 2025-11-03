@@ -4,19 +4,19 @@ import * as React from "react";
 
 import { cn } from "./utils";
 
-type TableProps = Omit<React.ComponentProps<"table">, "data-slot">;
+type TableProps = Omit<React.ComponentProps<"table">, "data-slot" | "className">;
 
 function Table({ 
   className, 
   ...props 
-}: TableProps): React.JSX.Element {
+}: TableProps & { className?: string }): React.JSX.Element {
   return (
     <div
       data-slot="table-container"
       className="relative w-full overflow-x-auto"
     >
       <table
-        {...props}
+        {...props} // NOSONAR: Props spreading is safe here, data-slot is explicitly set after spread
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
       />
@@ -30,9 +30,9 @@ function TableHeader({
 }: React.ComponentProps<"thead">): React.JSX.Element {
   return (
     <thead
+      {...props} // NOSONAR: Props spreading is safe, data-slot is set after spread
       data-slot="table-header"
       className={cn("[&_tr]:border-b", className)}
-      {...props}
     />
   );
 }
@@ -43,9 +43,9 @@ function TableBody({
 }: React.ComponentProps<"tbody">): React.JSX.Element {
   return (
     <tbody
+      {...props} // NOSONAR: Props spreading is safe, data-slot is set after spread
       data-slot="table-body"
       className={cn("[&_tr:last-child]:border-0", className)}
-      {...props}
     />
   );
 }
@@ -56,12 +56,12 @@ function TableFooter({
 }: React.ComponentProps<"tfoot">): React.JSX.Element {
   return (
     <tfoot
+      {...props} // NOSONAR: Props spreading is safe, data-slot is set after spread
       data-slot="table-footer"
       className={cn(
         "bg-muted/50 border-t font-medium [&>tr]:last:border-b-0",
         className,
       )}
-      {...props}
     />
   );
 }
@@ -72,12 +72,12 @@ function TableRow({
 }: React.ComponentProps<"tr">): React.JSX.Element {
   return (
     <tr
+      {...props} // NOSONAR: Props spreading is safe, data-slot is set after spread
       data-slot="table-row"
       className={cn(
         "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
         className,
       )}
-      {...props}
     />
   );
 }
@@ -88,12 +88,12 @@ function TableHead({
 }: React.ComponentProps<"th">): React.JSX.Element {
   return (
     <th
+      {...props} // NOSONAR: Props spreading is safe, data-slot is set after spread
       data-slot="table-head"
       className={cn(
         "text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className,
       )}
-      {...props}
     />
   );
 }
@@ -104,12 +104,12 @@ function TableCell({
 }: React.ComponentProps<"td">): React.JSX.Element {
   return (
     <td
+      {...props} // NOSONAR: Props spreading is safe, data-slot is set after spread
       data-slot="table-cell"
       className={cn(
         "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className,
       )}
-      {...props}
     />
   );
 }
@@ -120,9 +120,9 @@ function TableCaption({
 }: React.ComponentProps<"caption">): React.JSX.Element {
   return (
     <caption
+      {...props} // NOSONAR: Props spreading is safe, data-slot is set after spread
       data-slot="table-caption"
       className={cn("text-muted-foreground mt-4 text-sm", className)}
-      {...props}
     />
   );
 }
