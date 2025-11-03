@@ -25,26 +25,14 @@ const renderWithRouter = (component: React.ReactElement) => {
 };
 
 describe('NotFound', () => {
-  it('renders page not found title', () => {
+  beforeEach(() => {
     renderWithRouter(<NotFound />);
-    
+  });
+
+  it('renders page content and navigation', () => {
     expect(screen.getByText('Page not found')).toBeInTheDocument();
-  });
-
-  it('renders description', () => {
-    renderWithRouter(<NotFound />);
-    
     expect(screen.getByText(/The view you were looking for cannot be reached/i)).toBeInTheDocument();
-  });
-
-  it('renders help text', () => {
-    renderWithRouter(<NotFound />);
-    
     expect(screen.getByText(/If you believe this is a mistake/i)).toBeInTheDocument();
-  });
-
-  it('renders Return home link', () => {
-    renderWithRouter(<NotFound />);
     
     const link = screen.getByRole('link', { name: /Return home/i });
     expect(link).toBeInTheDocument();

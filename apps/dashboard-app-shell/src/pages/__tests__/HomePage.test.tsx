@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { render } from '@testing-library/react';
 import HomePage from '../HomePage';
 
 // Mock @auth0/auth0-react
@@ -43,9 +44,11 @@ const renderWithRouter = (component: React.ReactElement) => {
 };
 
 describe('HomePage', () => {
-  it('renders all main sections', () => {
+  beforeEach(() => {
     renderWithRouter(<HomePage />);
-    
+  });
+
+  it('renders all main sections', () => {
     expect(screen.getByTestId('navbar')).toBeInTheDocument();
     expect(screen.getByTestId('hero')).toBeInTheDocument();
     expect(screen.getByTestId('features')).toBeInTheDocument();
@@ -53,18 +56,9 @@ describe('HomePage', () => {
     expect(screen.getByTestId('footer')).toBeInTheDocument();
   });
 
-  it('passes loginWithRedirect to Hero component', () => {
-    renderWithRouter(<HomePage />);
-    
-    const heroButton = screen.getByText('Get Started');
-    expect(heroButton).toBeInTheDocument();
-  });
-
-  it('passes loginWithRedirect to CTASection component', () => {
-    renderWithRouter(<HomePage />);
-    
-    const ctaButton = screen.getByText('CTA');
-    expect(ctaButton).toBeInTheDocument();
+  it('passes loginWithRedirect to Hero and CTASection components', () => {
+    expect(screen.getByText('Get Started')).toBeInTheDocument();
+    expect(screen.getByText('CTA')).toBeInTheDocument();
   });
 });
 
