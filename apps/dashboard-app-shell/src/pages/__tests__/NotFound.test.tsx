@@ -3,22 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { NotFound } from '../NotFound';
 
 // Mock @efficio/ui
-jest.mock('@efficio/ui', () => ({
-  Button: ({ children, asChild, ...props }: any) => {
-    if (asChild) {
-      return <div>{children}</div>;
-    }
-    return <button {...props}>{children}</button>;
-  },
-  Card: ({ children, className }: any) => (
-    <div data-testid="card" className={className}>{children}</div>
-  ),
-  CardHeader: ({ children }: any) => <div>{children}</div>,
-  CardTitle: ({ children }: any) => <h2>{children}</h2>,
-  CardDescription: ({ children }: any) => <p>{children}</p>,
-  CardContent: ({ children }: any) => <div>{children}</div>,
-  CardFooter: ({ children, className }: any) => <div className={className}>{children}</div>,
-}));
+jest.mock('@efficio/ui', () => require('../../components/__tests__/mocks.tsx').efficioUIMocks);
 
 const renderWithRouter = (component: React.ReactElement) => {
   return render(<BrowserRouter>{component}</BrowserRouter>);
@@ -39,6 +24,3 @@ describe('NotFound', () => {
     expect(link).toHaveAttribute('href', '/');
   });
 });
-
-
-

@@ -17,98 +17,10 @@ jest.mock('../../hooks/useTheme', () => ({
 }));
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
-}));
+jest.mock('framer-motion', () => require('./mocks.tsx').framerMotionMocks);
 
 // Mock @efficio/ui
-jest.mock('@efficio/ui', () => ({
-  Dialog: ({ children, open }: any) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children }: any) => <div>{children}</div>,
-  DialogHeader: ({ children }: any) => <div>{children}</div>,
-  DialogTitle: ({ children }: any) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: any) => <p>{children}</p>,
-  Button: ({ children, onClick, ...props }: any) => (
-    <button onClick={onClick} {...props}>{children}</button>
-  ),
-  Label: ({ children, htmlFor }: any) => <label htmlFor={htmlFor}>{children}</label>,
-  RadioGroup: ({ children, value, onValueChange }: any) => {
-    // Store handler globally so RadioGroupItem can access it
-    (global as any).__radioGroupHandler = onValueChange;
-    (global as any).__radioGroupValue = value;
-    
-    return (
-      <div 
-        data-testid="radio-group" 
-        data-value={value}
-        data-handler-present={onValueChange ? 'yes' : 'no'}
-      >
-        {React.Children.map(children, (child) => {
-          // Extract props that shouldn't go to DOM
-          const { onValueChange: _, currentValue: __, ...restProps } = child.props || {};
-          return React.cloneElement(child, { 
-            ...restProps,
-            'data-radio-value': value,
-            mockOnChangeHandler: onValueChange, // Pass handler as a non-DOM prop
-          });
-        })}
-      </div>
-    );
-  },
-  RadioGroupItem: (props: any) => {
-    // Extract our custom props first, before spreading
-    const { value, id, mockOnChangeHandler: onValueChange, 'data-radio-value': currentValue, ...restProps } = props;
-    
-    // Try multiple ways to get the handler
-    const handler = onValueChange || (global as any).__radioGroupHandler;
-    
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      // Call the handler directly when change event fires
-      if (typeof handler === 'function') {
-        handler(value);
-      }
-    };
-    const handleClick = (e: React.MouseEvent<HTMLInputElement>) => {
-      // Trigger handler on click - ensure it fires
-      e.preventDefault();
-      e.stopPropagation();
-      const finalHandler = handler || onValueChange || (global as any).__radioGroupHandler;
-      if (typeof finalHandler === 'function') {
-        const target = e.target as HTMLInputElement;
-        target.checked = true;
-        // Call handler immediately and synchronously
-        finalHandler(value);
-      }
-    };
-    return (
-      <input 
-        type="radio" 
-        id={id} 
-        value={value} 
-        checked={currentValue === value}
-        onClick={handleClick}
-        onChange={handleChange}
-        data-testid={`radio-${value}`}
-        {...restProps} 
-      />
-    );
-  },
-  AlertDialog: ({ children, open }: any) => (open ? <div>{children}</div> : null),
-  AlertDialogContent: ({ children }: any) => <div>{children}</div>,
-  AlertDialogHeader: ({ children }: any) => <div>{children}</div>,
-  AlertDialogTitle: ({ children }: any) => <h3>{children}</h3>,
-  AlertDialogDescription: ({ children }: any) => <p>{children}</p>,
-  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
-  AlertDialogAction: ({ children, onClick }: any) => (
-    <button onClick={onClick}>{children}</button>
-  ),
-  AlertDialogCancel: ({ children, onClick }: any) => (
-    <button onClick={onClick}>{children}</button>
-  ),
-}));
+jest.mock('@efficio/ui', () => require('./mocks.tsx').efficioUIMocks);
 
 // Mock userApi
 jest.mock('../../services/userApi', () => ({
