@@ -4,29 +4,10 @@ import { ProfileModal } from '../ProfileModal';
 import { userApi } from '../../services/userApi';
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
-}));
+jest.mock('framer-motion', () => require('./mocks.tsx').framerMotionMocks);
 
 // Mock @efficio/ui
-jest.mock('@efficio/ui', () => ({
-  Dialog: ({ children, open }: any) => (open ? <div data-testid="dialog">{children}</div> : null),
-  DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
-  DialogHeader: ({ children }: any) => <div data-testid="dialog-header">{children}</div>,
-  DialogTitle: ({ children }: any) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: any) => <p>{children}</p>,
-  Button: ({ children, onClick, ...props }: any) => (
-    <button onClick={onClick} {...props}>{children}</button>
-  ),
-  Input: (props: any) => <input {...props} />,
-  Label: ({ children, htmlFor }: any) => <label htmlFor={htmlFor}>{children}</label>,
-  Avatar: ({ children }: any) => <div>{children}</div>,
-  AvatarImage: ({ src, alt }: any) => <img src={src} alt={alt} />,
-  AvatarFallback: ({ children }: any) => <div>{children}</div>,
-}));
+jest.mock('@efficio/ui', () => require('./mocks.tsx').efficioUIMocks);
 
 // Mock userApi
 jest.mock('../../services/userApi', () => ({
