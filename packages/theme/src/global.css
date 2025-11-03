@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Tailwind CSS v4 custom variant for dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
@@ -26,6 +27,10 @@
   --switch-background: #cbced4;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
+  --text-2xl: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-lg: 1.125rem;
+  --text-base: 1rem;
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -66,6 +71,10 @@
   --ring: oklch(0.50 0 0);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
+  --text-2xl: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-lg: 1.125rem;
+  --text-base: 1rem;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -130,9 +139,10 @@
 
 /**
  * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ * Simplified selector for better browser compatibility.
  */
 @layer base {
-  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+  :where(:not(:has([class*="text-"]))) {
     h1 {
       font-size: var(--text-2xl);
       font-weight: var(--font-weight-medium);
