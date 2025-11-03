@@ -1,10 +1,11 @@
 import { notificationApi, initializeNotificationApi, isNotificationApiReady, NotificationsResponse } from '../notificationApi';
+import { setupApiTest } from './testHelpers';
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
 describe('notificationApi', () => {
-  const mockTokenGetter = jest.fn().mockResolvedValue('mock-token');
+  const mockTokenGetter = setupApiTest(initializeNotificationApi);
   const mockNotifications: NotificationsResponse = {
     notifications: [
       {
@@ -30,11 +31,6 @@ describe('notificationApi', () => {
     taskAssignmentsCount: 1,
     totalUnreadCount: 2,
   };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    initializeNotificationApi(mockTokenGetter);
-  });
 
   describe('initialization', () => {
     it('should initialize with token getter', () => {
