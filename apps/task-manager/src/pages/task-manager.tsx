@@ -37,6 +37,31 @@ const getCategoryColor = (category: string) => {
   return colors[category] || 'bg-gray-500';
 };
 
+// Helper function to map backend activity from API to frontend Activity format
+const mapApiActivityToFrontend = (act: any): Activity => ({
+  id: act.id || act._id || '',
+  type: act.type,
+  taskTitle: act.taskTitle || '',
+  taskId: act.taskId || '',
+  userId: act.userId,
+  userName: act.userName,
+  userPicture: act.userPicture || null,
+  timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
+  fromStatus: act.fromStatus,
+  toStatus: act.toStatus,
+  groupTag: act.groupTag,
+});
+
+// Helper function to map backend task from API to frontend Task format
+const mapApiTaskToFrontend = (task: any): Task => ({
+  ...task,
+  id: task.id || (task as any)._id || '',
+  userId: (task.userId || (task as any).userId || '').toString().trim(),
+  groupTag: task.groupTag || (task as any).groupTag || undefined,
+  assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
+  assignedUsers: task.assignedUsers || (task as any).assignedUsers || [],
+});
+
 export function TaskManager() {
   const [tasks, setTasks] = useState<Task[]>([]); // Filtered tasks for current view
   const [allTasks, setAllTasks] = useState<Task[]>([]); // All tasks for counting in sidebar (personal + assigned only, matching "All Tasks" view)
@@ -123,19 +148,7 @@ export function TaskManager() {
       });
       
       // Map backend activities to frontend format
-      const mappedActivities: Activity[] = fetchedActivities.map(act => ({
-        id: act.id || act._id || '',
-        type: act.type,
-        taskTitle: act.taskTitle || '',
-        taskId: act.taskId || '',
-        userId: act.userId,
-        userName: act.userName,
-        userPicture: act.userPicture || null,
-        timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
-        fromStatus: act.fromStatus,
-        toStatus: act.toStatus,
-        groupTag: act.groupTag,
-      }));
+      const mappedActivities: Activity[] = fetchedActivities.map(mapApiActivityToFrontend);
       
       setActivities(mappedActivities);
     } catch (error) {
@@ -238,14 +251,7 @@ export function TaskManager() {
       // Fetch tasks filtered by groupTag if provided
       const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
       // Ensure all tasks have id property and userId (map _id to id if needed)
-      const mappedTasks = fetchedTasks.map(task => ({ 
-        ...task, 
-        id: task.id || (task as any)._id || '',
-        userId: (task.userId || (task as any).userId || '').toString().trim(), // Include userId from backend, ensure it's a string
-        groupTag: task.groupTag || (task as any).groupTag || undefined,
-        assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
-        assignedUsers: task.assignedUsers || (task as any).assignedUsers || [], // Include assignedUsers from backend
-      }));
+      const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
       setTasks(mappedTasks);
       
       // Update groupTasksMap for accurate group-specific counts
@@ -282,14 +288,7 @@ export function TaskManager() {
       try {
         // Fetch all tasks (no groupTag filter) for counting in sidebar
         const fetchedAllTasks = await taskApi.getTasks(undefined);
-        const mappedAllTasks = fetchedAllTasks.map(task => ({ 
-          ...task, 
-          id: task.id || (task as any)._id || '',
-          userId: (task.userId || (task as any).userId || '').toString().trim(),
-          groupTag: task.groupTag || (task as any).groupTag || undefined,
-          assignedTo: (task.assignedTo || (task as any).assignedTo || []).map((id: string) => id?.toString().trim()).filter(Boolean),
-          assignedUsers: task.assignedUsers || (task as any).assignedUsers || [],
-        }));
+        const mappedAllTasks = fetchedAllTasks.map(mapApiTaskToFrontend);
         
         // Apply same filtering as "All Tasks" view:
         // - Personal tasks: always include
@@ -362,18 +361,7 @@ export function TaskManager() {
           groupTag: selectedGroup || undefined,
           limit: 50,
         });
-        const mappedActivities: Activity[] = refreshedActivities.map(act => ({
-          id: act.id || act._id || '',
-          type: act.type,
-          taskTitle: act.taskTitle || '',
-          taskId: act.taskId || '',
-          userId: act.userId,
-          userName: act.userName,
-          timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
-          fromStatus: act.fromStatus,
-          toStatus: act.toStatus,
-          groupTag: act.groupTag,
-        }));
+        const mappedActivities: Activity[] = refreshedActivities.map(mapApiActivityToFrontend);
         setActivities(mappedActivities);
       
       // Update via API
@@ -497,19 +485,7 @@ export function TaskManager() {
         groupTag: selectedGroup || undefined,
         limit: 50,
       });
-      const mappedActivities: Activity[] = refreshedActivities.map(act => ({
-        id: act.id || act._id || '',
-        type: act.type,
-        taskTitle: act.taskTitle || '',
-        taskId: act.taskId || '',
-        userId: act.userId,
-        userName: act.userName,
-        userPicture: act.userPicture || null,
-        timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
-        fromStatus: act.fromStatus,
-        toStatus: act.toStatus,
-        groupTag: act.groupTag,
-      }));
+      const mappedActivities: Activity[] = refreshedActivities.map(mapApiActivityToFrontend);
       setActivities(mappedActivities);
       
       console.log('🍞 Toast: Task Deleted');
@@ -706,18 +682,7 @@ export function TaskManager() {
             groupTag: selectedGroup || undefined,
             limit: 50,
           });
-          const mappedActivities: Activity[] = refreshedActivities.map(act => ({
-            id: act.id || act._id || '',
-            type: act.type,
-            taskTitle: act.taskTitle || '',
-            taskId: act.taskId || '',
-            userId: act.userId,
-            userName: act.userName,
-            timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
-            fromStatus: act.fromStatus,
-            toStatus: act.toStatus,
-            groupTag: act.groupTag,
-          }));
+          const mappedActivities: Activity[] = refreshedActivities.map(mapApiActivityToFrontend);
           setActivities(mappedActivities);
         }
       }
