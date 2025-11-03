@@ -1,16 +1,12 @@
 import { taskApi, initializeTaskApi, isTaskApiReady } from '../taskApi';
+import { setupApiTest } from './testHelpers';
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
-const mockTokenGetter = jest.fn().mockResolvedValue('mock-token');
+const mockTokenGetter = setupApiTest(initializeTaskApi);
 
 describe('taskApi', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    initializeTaskApi(mockTokenGetter);
-    (global.fetch as jest.Mock).mockClear();
-  });
 
   describe('initialization', () => {
     it('initializes with token getter', () => {

@@ -1,16 +1,12 @@
 import { activityApi, initializeActivityApi, isActivityApiReady } from '../activityApi';
+import { setupApiTest } from './testHelpers';
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
-const mockTokenGetter = jest.fn().mockResolvedValue('mock-token');
+const mockTokenGetter = setupApiTest(initializeActivityApi);
 
 describe('activityApi', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    initializeActivityApi(mockTokenGetter);
-    (global.fetch as jest.Mock).mockClear();
-  });
 
   describe('initialization', () => {
     it('initializes with token getter', () => {

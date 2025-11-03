@@ -1,16 +1,12 @@
 import { groupApi, initializeGroupApi, isGroupApiReady } from '../groupApi';
+import { setupApiTest } from './testHelpers';
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
-const mockTokenGetter = jest.fn().mockResolvedValue('mock-token');
+const mockTokenGetter = setupApiTest(initializeGroupApi);
 
 describe('groupApi', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    initializeGroupApi(mockTokenGetter);
-    (global.fetch as jest.Mock).mockClear();
-  });
 
   describe('initialization', () => {
     it('initializes with token getter', () => {

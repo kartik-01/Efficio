@@ -1,4 +1,5 @@
 import { userApi, initializeUserApi, isUserApiReady, UserProfile } from '../userApi';
+import { createErrorResponse, createSuccessResponse } from './testHelpers';
 
 // Mock fetch globally
 global.fetch = jest.fn();
@@ -72,38 +73,13 @@ describe('userApi', () => {
       expect(result.reactivated).toBe(true);
     });
 
-    it('should throw error on API failure with message', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({
-          message: 'Server error',
-        }),
-      });
-
-      await expect(userApi.getOrCreateUser()).rejects.toThrow('Server error');
-    });
-
-    it('should throw error on API failure with error field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({
-          error: 'Server error',
-        }),
-      });
-
-      await expect(userApi.getOrCreateUser()).rejects.toThrow('Server error');
-    });
-
-    it('should throw error on API failure with status code only', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      });
-
-      await expect(userApi.getOrCreateUser()).rejects.toThrow('Failed to get or create user: 500');
+    it.each([
+      ['message', { message: 'Server error' }, 'Server error'],
+      ['error field', { error: 'Server error' }, 'Server error'],
+      ['status code only', {}, 'Failed to get or create user: 500'],
+    ])('should throw error on API failure with %s', async (_, errorData, expectedError) => {
+      (fetch as jest.Mock).mockResolvedValueOnce(createErrorResponse(500, errorData));
+      await expect(userApi.getOrCreateUser()).rejects.toThrow(expectedError);
     });
 
     it('should handle reactivated as undefined', async () => {
@@ -144,38 +120,13 @@ describe('userApi', () => {
       );
     });
 
-    it('should throw error on API failure with error field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        json: async () => ({
-          error: 'Not found',
-        }),
-      });
-
-      await expect(userApi.getUserProfile()).rejects.toThrow('Not found');
-    });
-
-    it('should throw error on API failure with message field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        json: async () => ({
-          message: 'User not found',
-        }),
-      });
-
-      await expect(userApi.getUserProfile()).rejects.toThrow('User not found');
-    });
-
-    it('should throw error on API failure with status code only', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      });
-
-      await expect(userApi.getUserProfile()).rejects.toThrow('Failed to fetch user profile: 500');
+    it.each([
+      ['error field', { error: 'Not found' }, 'Not found'],
+      ['message field', { message: 'User not found' }, 'User not found'],
+      ['status code only', {}, 'Failed to fetch user profile: 500'],
+    ])('should throw error on API failure with %s', async (_, errorData, expectedError) => {
+      (fetch as jest.Mock).mockResolvedValueOnce(createErrorResponse(500, errorData));
+      await expect(userApi.getUserProfile()).rejects.toThrow(expectedError);
     });
   });
 
@@ -201,38 +152,13 @@ describe('userApi', () => {
       );
     });
 
-    it('should throw error on API failure with message', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          message: 'Invalid name',
-        }),
-      });
-
-      await expect(userApi.updateUserName('')).rejects.toThrow('Invalid name');
-    });
-
-    it('should throw error on API failure with error field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          error: 'Validation failed',
-        }),
-      });
-
-      await expect(userApi.updateUserName('')).rejects.toThrow('Validation failed');
-    });
-
-    it('should throw error on API failure with status code only', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      });
-
-      await expect(userApi.updateUserName('Name')).rejects.toThrow('Failed to update user name: 500');
+    it.each([
+      ['message', { message: 'Invalid name' }, 'Invalid name'],
+      ['error field', { error: 'Validation failed' }, 'Validation failed'],
+      ['status code only', {}, 'Failed to update user name: 500'],
+    ])('should throw error on API failure with %s', async (_, errorData, expectedError) => {
+      (fetch as jest.Mock).mockResolvedValueOnce(createErrorResponse(500, errorData));
+      await expect(userApi.updateUserName('')).rejects.toThrow(expectedError);
     });
   });
 
@@ -259,38 +185,13 @@ describe('userApi', () => {
       );
     });
 
-    it('should throw error on API failure with message', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          message: 'Invalid image format',
-        }),
-      });
-
-      await expect(userApi.uploadProfilePicture('invalid')).rejects.toThrow('Invalid image format');
-    });
-
-    it('should throw error on API failure with error field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          error: 'File too large',
-        }),
-      });
-
-      await expect(userApi.uploadProfilePicture('invalid')).rejects.toThrow('File too large');
-    });
-
-    it('should throw error on API failure with status code only', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      });
-
-      await expect(userApi.uploadProfilePicture('data')).rejects.toThrow('Failed to upload profile picture: 500');
+    it.each([
+      ['message', { message: 'Invalid image format' }, 'Invalid image format'],
+      ['error field', { error: 'File too large' }, 'File too large'],
+      ['status code only', {}, 'Failed to upload profile picture: 500'],
+    ])('should throw error on API failure with %s', async (_, errorData, expectedError) => {
+      (fetch as jest.Mock).mockResolvedValueOnce(createErrorResponse(500, errorData));
+      await expect(userApi.uploadProfilePicture('invalid')).rejects.toThrow(expectedError);
     });
   });
 
@@ -344,38 +245,13 @@ describe('userApi', () => {
       expect(result.preferences?.theme).toBe('auto');
     });
 
-    it('should throw error on API failure with message', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          message: 'Invalid theme',
-        }),
-      });
-
-      await expect(userApi.updateTheme('invalid' as any)).rejects.toThrow('Invalid theme');
-    });
-
-    it('should throw error on API failure with error field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          error: 'Theme update failed',
-        }),
-      });
-
-      await expect(userApi.updateTheme('dark')).rejects.toThrow('Theme update failed');
-    });
-
-    it('should throw error on API failure with status code only', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      });
-
-      await expect(userApi.updateTheme('dark')).rejects.toThrow('Failed to update theme: 500');
+    it.each([
+      ['message', { message: 'Invalid theme' }, 'Invalid theme'],
+      ['error field', { error: 'Theme update failed' }, 'Theme update failed'],
+      ['status code only', {}, 'Failed to update theme: 500'],
+    ])('should throw error on API failure with %s', async (_, errorData, expectedError) => {
+      (fetch as jest.Mock).mockResolvedValueOnce(createErrorResponse(500, errorData));
+      await expect(userApi.updateTheme('dark')).rejects.toThrow(expectedError);
     });
   });
 
@@ -396,38 +272,13 @@ describe('userApi', () => {
       );
     });
 
-    it('should throw error on API failure with message', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({
-          message: 'Deactivation failed',
-        }),
-      });
-
-      await expect(userApi.deactivateAccount()).rejects.toThrow('Deactivation failed');
-    });
-
-    it('should throw error on API failure with error field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({
-          error: 'Account deactivation error',
-        }),
-      });
-
-      await expect(userApi.deactivateAccount()).rejects.toThrow('Account deactivation error');
-    });
-
-    it('should throw error on API failure with status code only', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      });
-
-      await expect(userApi.deactivateAccount()).rejects.toThrow('Failed to deactivate account: 500');
+    it.each([
+      ['message', { message: 'Deactivation failed' }, 'Deactivation failed'],
+      ['error field', { error: 'Account deactivation error' }, 'Account deactivation error'],
+      ['status code only', {}, 'Failed to deactivate account: 500'],
+    ])('should throw error on API failure with %s', async (_, errorData, expectedError) => {
+      (fetch as jest.Mock).mockResolvedValueOnce(createErrorResponse(500, errorData));
+      await expect(userApi.deactivateAccount()).rejects.toThrow(expectedError);
     });
   });
 
@@ -448,38 +299,13 @@ describe('userApi', () => {
       );
     });
 
-    it('should throw error on API failure with error field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({
-          error: 'Deletion failed',
-        }),
-      });
-
-      await expect(userApi.deleteAccount()).rejects.toThrow('Deletion failed');
-    });
-
-    it('should throw error on API failure with message field', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({
-          message: 'Account deletion error',
-        }),
-      });
-
-      await expect(userApi.deleteAccount()).rejects.toThrow('Account deletion error');
-    });
-
-    it('should throw error on API failure with status code only', async () => {
-      (fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({}),
-      });
-
-      await expect(userApi.deleteAccount()).rejects.toThrow('Failed to delete account: 500');
+    it.each([
+      ['error field', { error: 'Deletion failed' }, 'Deletion failed'],
+      ['message field', { message: 'Account deletion error' }, 'Account deletion error'],
+      ['status code only', {}, 'Failed to delete account: 500'],
+    ])('should throw error on API failure with %s', async (_, errorData, expectedError) => {
+      (fetch as jest.Mock).mockResolvedValueOnce(createErrorResponse(500, errorData));
+      await expect(userApi.deleteAccount()).rejects.toThrow(expectedError);
     });
   });
 
