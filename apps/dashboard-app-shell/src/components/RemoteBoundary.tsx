@@ -2,7 +2,7 @@ import type { PropsWithChildren, ReactNode } from "react";
 import { Component, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
-import { Card } from "@efficio/ui";
+import { Card, CardHeader, CardTitle, CardDescription } from "@efficio/ui";
 
 interface RemoteBoundaryProps {
   title?: ReactNode;
@@ -39,13 +39,13 @@ class RemoteErrorBoundary extends Component<
 }
 
 const Skeleton = ({ title, description }: RemoteBoundaryProps) => (
-  <Card
-    title={title ?? "Loading remote module"}
-    description={
-      description ?? "Fetching the latest bundle from the remote container..."
-    }
-    className="flex min-h-[320px] flex-col items-center justify-center gap-4 text-center"
-  >
+  <Card className="flex min-h-[320px] flex-col items-center justify-center gap-4 text-center">
+    <CardHeader className="text-center">
+      <CardTitle>{title ?? "Loading remote module"}</CardTitle>
+      <CardDescription>
+        {description ?? "Fetching the latest bundle from the remote container..."}
+      </CardDescription>
+    </CardHeader>
     <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
     <p className="text-sm text-slate-500">
       This takes a moment the first time as we hydrate shared styles.
@@ -54,11 +54,11 @@ const Skeleton = ({ title, description }: RemoteBoundaryProps) => (
 );
 
 const Failure = ({ title, moduleName }: RemoteBoundaryProps) => (
-  <Card
-    title={title ?? "Unavailable"}
-    description="We couldn't connect to the remote manifest."
-    className="flex min-h-[320px] flex-col items-center justify-center gap-4 text-center"
-  >
+  <Card className="flex min-h-[320px] flex-col items-center justify-center gap-4 text-center">
+    <CardHeader className="text-center">
+      <CardTitle>{title ?? "Unavailable"}</CardTitle>
+      <CardDescription>We couldn't connect to the remote manifest.</CardDescription>
+    </CardHeader>
     <p className="text-sm text-slate-500">
       {moduleName
         ? `Check that the ${moduleName} container is running and accessible.`

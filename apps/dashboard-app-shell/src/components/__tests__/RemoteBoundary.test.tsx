@@ -1,15 +1,20 @@
 import { render, screen } from '@testing-library/react';
 import { RemoteBoundary } from '../RemoteBoundary';
 
-// Mock the Card component
+// Mock the Card components
 jest.mock('@efficio/ui', () => ({
-  Card: ({ children, title, description, className }: any) => (
+  Card: ({ children, className }: any) => (
     <div data-testid="card" className={className}>
-      {title && <h3>{title}</h3>}
-      {description && <p>{description}</p>}
       {children}
     </div>
   ),
+  CardHeader: ({ children, className }: any) => (
+    <div data-testid="card-header" className={className}>
+      {children}
+    </div>
+  ),
+  CardTitle: ({ children }: any) => <h3>{children}</h3>,
+  CardDescription: ({ children }: any) => <p>{children}</p>,
 }));
 
 // Mock lucide-react
