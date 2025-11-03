@@ -30,7 +30,7 @@ module.exports = {
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
-    '/__tests__/.*testHelpers\\.ts$',
+    '/__tests__/.*testHelpers\\.(ts|tsx)$',
   ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
