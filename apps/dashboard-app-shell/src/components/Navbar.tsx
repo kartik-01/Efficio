@@ -3,7 +3,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Settings, User, Menu, Bell, Activity } from "lucide-react";
+import { LogOut, Settings, User, Menu, Bell, History } from "lucide-react";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
@@ -281,7 +281,7 @@ export const Navbar = ({
                   window.dispatchEvent(new CustomEvent('toggleMobileActivity'));
                 }}
               >
-                <Activity className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                <History className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
               </button>
             )}
             

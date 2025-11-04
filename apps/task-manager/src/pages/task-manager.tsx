@@ -2026,7 +2026,7 @@ export function TaskManager() {
         <Sheet open={showMobileActivity} onOpenChange={setShowMobileActivity}>
           <SheetContent 
             side="right" 
-            className="w-[300px] p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=open]:duration-400 data-[state=closed]:duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+            className="w-[300px] p-0 !border-0 !shadow-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=open]:duration-400 data-[state=closed]:duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
           >
             <AnimatePresence mode="wait">
               {showMobileActivity && (

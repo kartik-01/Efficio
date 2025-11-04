@@ -3,8 +3,17 @@ import { userApi, UserProfile, isUserApiReady } from "../services/userApi";
 
 type Theme = "light" | "dark" | "auto";
 
+const THEME_STORAGE_KEY = "efficio-theme";
+
+// Get theme from localStorage synchronously (for initial render)
+const getStoredTheme = (): Theme => {
+  if (typeof window === "undefined") return "light";
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  return (stored as Theme) || "light";
+};
+
 export const useTheme = () => {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>(getStoredTheme);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const isLoadingRef = useRef(false);
 
@@ -20,6 +29,9 @@ export const useTheme = () => {
     } else {
       root.classList.toggle("dark", themeValue === "dark");
     }
+    
+    // Store theme in localStorage for immediate application on next load
+    localStorage.setItem(THEME_STORAGE_KEY, themeValue);
   }, []);
 
   // Load theme from user profile - memoized to prevent infinite loops
@@ -38,19 +50,27 @@ export const useTheme = () => {
       applyTheme(userTheme);
     } catch (error) {
       console.error("Failed to load theme:", error);
+      // On error, use stored theme if available
+      const storedTheme = getStoredTheme();
+      if (storedTheme !== theme) {
+        setTheme(storedTheme);
+        applyTheme(storedTheme);
+      }
     } finally {
       isLoadingRef.current = false;
     }
-  }, [applyTheme]);
+  }, [applyTheme, theme]);
 
   // Update theme preference
   const updateTheme = useCallback(async (newTheme: Theme) => {
     try {
+      // Apply theme immediately and store in localStorage
+      setTheme(newTheme);
+      applyTheme(newTheme);
+      
       if (isUserApiReady()) {
         const updated = await userApi.updateTheme(newTheme);
         setUserProfile(updated);
-        setTheme(newTheme);
-        applyTheme(newTheme);
       }
     } catch (error) {
       console.error("Failed to update theme:", error);

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Avatar, AvatarImage, AvatarFallback, Badge, ScrollArea } from '@efficio/ui';
+import { History } from 'lucide-react';
 
 import { useAuth0 } from '@auth0/auth0-react';
 
@@ -31,7 +32,10 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
   return (
     <div className="flex flex-col h-full space-y-4 overflow-hidden">
       <div className="flex items-center justify-between flex-shrink-0">
-        <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Recent Activity</h2>
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+          <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Recent Activity</h2>
+        </div>
       </div>
       
       <ScrollArea className="flex-1 min-h-0 overflow-hidden">
