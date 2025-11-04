@@ -211,10 +211,11 @@ export function TaskManager() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Fetch tasks on component mount
+  // Fetch tasks when selected group changes (this also handles initial load)
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    fetchTasks(selectedGroup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup]);
   
   // Persist sidebar states
   useEffect(() => {
@@ -287,9 +288,8 @@ export function TaskManager() {
       const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
       // Ensure all tasks have id property and userId (map _id to id if needed)
       const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
-      setTasks(mappedTasks);
       
-      // Update groupTasksMap for accurate group-specific counts
+      // Update groupTasksMap BEFORE updating tasks to ensure counts are accurate
       if (groupTag) {
         // Store all tasks for this specific group (for accurate group count)
         setGroupTasksMap((prev) => {
@@ -306,6 +306,9 @@ export function TaskManager() {
         // These are already filtered by backend to show personal + assigned only
         setAllTasks(mappedTasks);
       }
+      
+      // Update tasks state AFTER groupTasksMap to ensure consistency
+      setTasks(mappedTasks);
     } catch (error) {
       toast.error('Failed to Fetch Tasks', {
         description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
@@ -358,12 +361,6 @@ export function TaskManager() {
       fetchAllTasks();
     }
   }, [groups, currentUserId]); // Reload when groups or currentUserId changes
-
-  // Fetch tasks when selected group changes
-  useEffect(() => {
-    fetchTasks(selectedGroup);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroup]);
 
   const handleTaskDrop = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
     try {
@@ -936,8 +933,8 @@ export function TaskManager() {
   const inProgressTasks = filteredAndSortedTasks.filter((task) => task.status === 'in-progress');
   const completedTasks = filteredAndSortedTasks.filter((task) => task.status === 'completed');
 
-  const totalTasks = tasks.length;
-  const overdueTasks = tasks.filter((task) => task.isOverdue).length;
+  const totalTasks = filteredAndSortedTasks.length; // Use filtered tasks for accurate count
+  const overdueTasks = filteredAndSortedTasks.filter((task) => task.isOverdue).length;
   
   // Check if there are no tasks at all
   const hasNoTasks = pendingTasks.length === 0 && inProgressTasks.length === 0 && completedTasks.length === 0;
