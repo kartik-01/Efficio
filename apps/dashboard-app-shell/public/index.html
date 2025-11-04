@@ -4,6 +4,28 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Efficio App Shell</title>
+    <script>
+      // Apply theme synchronously before React renders to prevent flash
+      (function() {
+        try {
+          var theme = localStorage.getItem('efficio-theme') || 'light';
+          var root = document.documentElement;
+          
+          if (theme === 'auto') {
+            // Check time of day (6 AM - 8 PM = day/light, else night/dark)
+            var hour = new Date().getHours();
+            var isDayTime = hour >= 6 && hour < 20;
+            if (!isDayTime) {
+              root.classList.add('dark');
+            }
+          } else if (theme === 'dark') {
+            root.classList.add('dark');
+          }
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

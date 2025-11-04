@@ -16,7 +16,7 @@ import { Label } from '@efficio/ui';
 import { Textarea } from '@efficio/ui';
 import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
-import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight, Menu, ChevronLeft, ChevronRight, Activity as ActivityIcon } from 'lucide-react';
+import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight, Menu, ChevronLeft, ChevronRight, Activity as ActivityIcon, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge, ScrollArea, Separator, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger, Tabs, TabsList, TabsTrigger, TabsContent } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
@@ -1219,7 +1219,7 @@ export function TaskManager() {
                   setSkipModalAnimation(false); // Ensure animations are enabled for new task
                   setShowModal(true);
                 }}
-                className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4 ml-auto"
+                className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4 ml-auto cursor-pointer"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 New Task
@@ -1230,8 +1230,19 @@ export function TaskManager() {
 
         {/* Kanban Board or Empty State */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-gray-600 dark:text-muted-foreground">Loading tasks...</p>
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+              className="mb-4"
+            >
+              <Loader2 className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
+            </motion.div>
+            <p className="text-gray-600 dark:text-muted-foreground text-sm font-medium">Loading tasks...</p>
           </div>
         ) : hasNoTasks ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
@@ -1486,7 +1497,7 @@ export function TaskManager() {
                     onClick={() => setRightSidebarCollapsed(false)}
                     variant="outline"
                     size="sm"
-                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
                   >
                     <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
                   </Button>
@@ -2026,7 +2037,7 @@ export function TaskManager() {
         <Sheet open={showMobileActivity} onOpenChange={setShowMobileActivity}>
           <SheetContent 
             side="right" 
-            className="w-[300px] p-0 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=open]:duration-400 data-[state=closed]:duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+            className="w-[300px] p-0 !border-0 !shadow-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=open]:duration-400 data-[state=closed]:duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
           >
             <AnimatePresence mode="wait">
               {showMobileActivity && (
@@ -2041,12 +2052,13 @@ export function TaskManager() {
                   }}
                   className="p-4 h-full flex flex-col overflow-hidden"
                 >
-                  <RightSidebar 
-                    activities={activities}
-                    onToggleCollapse={() => setShowMobileActivity(false)}
-                    formatTimestamp={formatTimestamp}
-                    groups={groups.map(g => ({ tag: g.tag, name: g.name }))}
-                  />
+                <RightSidebar 
+                  activities={activities}
+                  onToggleCollapse={() => setShowMobileActivity(false)}
+                  formatTimestamp={formatTimestamp}
+                  groups={groups.map(g => ({ tag: g.tag, name: g.name }))}
+                  isMobile={true}
+                />
                 </motion.div>
               )}
             </AnimatePresence>

@@ -3,7 +3,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Settings, User, Menu, Bell, Activity } from "lucide-react";
+import { LogOut, Settings, User, Menu, Bell, History } from "lucide-react";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
@@ -212,7 +212,7 @@ export const Navbar = ({
           {/* Mobile Menu Button - Only show in task manager on mobile */}
           {isAuthenticated && location.pathname.includes('task-manager') && (
             <button 
-              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('toggleMobileSidebar'));
               }}
@@ -276,12 +276,12 @@ export const Navbar = ({
             {/* Mobile Activity Button - Only show in task manager on mobile */}
             {location.pathname.includes('task-manager') && (
               <button 
-                className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+                className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('toggleMobileActivity'));
                 }}
               >
-                <Activity className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+                <History className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
               </button>
             )}
             
@@ -290,7 +290,7 @@ export const Navbar = ({
               <DropdownMenu.Root open={showNotifications} onOpenChange={setShowNotifications}>
                 <DropdownMenu.Trigger asChild>
                   <motion.button
-                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ duration: 0.15 }}

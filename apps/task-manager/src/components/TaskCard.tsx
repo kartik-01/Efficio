@@ -340,7 +340,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
                     e.stopPropagation();
                     setIsMenuOpen(true);
                   }}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-muted rounded transition-colors"
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-muted rounded transition-colors cursor-pointer"
                   aria-label="Task options"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
@@ -368,7 +368,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
                     {userCanEdit && (
                       <motion.button
                         onClick={handleEdit}
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-popover-foreground hover:bg-gray-100 dark:hover:bg-accent rounded transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-popover-foreground hover:bg-gray-100 dark:hover:bg-accent rounded transition-colors cursor-pointer"
                         whileHover={{ x: 2 }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.1 }}
@@ -380,7 +380,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
                     {userCanDelete && (
                       <motion.button
                         onClick={handleDelete}
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-destructive hover:bg-red-50 dark:hover:bg-destructive/10 rounded transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-destructive hover:bg-red-50 dark:hover:bg-destructive/10 rounded transition-colors cursor-pointer"
                         whileHover={{ x: 2 }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.1 }}
@@ -504,7 +504,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
                 e.stopPropagation();
                 onMove(task);
               }}
-              className="md:hidden px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-muted-foreground bg-gray-100 dark:bg-muted hover:bg-gray-200 dark:hover:bg-accent rounded-[6px] transition-colors flex items-center gap-1.5"
+              className="md:hidden px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-muted-foreground bg-gray-100 dark:bg-muted hover:bg-gray-200 dark:hover:bg-accent rounded-[6px] transition-colors flex items-center gap-1.5 cursor-pointer"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               transition={{ duration: 0.1 }}
