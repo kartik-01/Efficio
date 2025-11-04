@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDrag } from 'react-dnd';
-import { Calendar, Circle, MoreVertical, Edit, Trash2, Users } from 'lucide-react';
+import { Calendar, Circle, MoreVertical, Edit, Trash2, Users, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
@@ -47,6 +47,8 @@ interface TaskCardProps {
   onProgressChange?: (taskId: string, progress: number) => void;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
+  onMove?: (task: Task) => void; // Mobile: Open status change sheet
+  disableDrag?: boolean; // Disable dragging (e.g., on mobile)
 }
 
 const getCategoryColor = (category: string) => {
@@ -64,7 +66,7 @@ const priorityColors = {
   Low: 'bg-green-100 text-green-800',
 };
 
-export function TaskCard({ task, group, currentUserId, userRole, onProgressChange, onEdit, onDelete }: TaskCardProps) {
+export function TaskCard({ task, group, currentUserId, userRole, onProgressChange, onEdit, onDelete, onMove, disableDrag = false }: TaskCardProps) {
   const [localProgress, setLocalProgress] = useState(task.progress || 0);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -147,16 +149,17 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
     return true; // Default allow
   };
 
-  const isDraggable = canDrag();
+  const canDragNormally = canDrag();
+  const isDraggable = canDragNormally && !disableDrag;
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'TASK',
     item: { id: task.id, status: task.status },
-    canDrag: isDraggable,
+    canDrag: () => isDraggable,
     collect: (monitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
-  }), [task.id, task.status, isDraggable]);
+  }), [task.id, task.status, isDraggable, disableDrag]);
 
   // Close popover when dragging starts
   if (isDragging && isPopoverOpen) {
@@ -315,10 +318,10 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
           <div
             ref={dragRef as any}
             className={`p-4 rounded-lg ${bgColor} ${isGroupTask ? 'border-l-4' : ''} ${
-              isDraggable ? 'cursor-move' : 'cursor-not-allowed'
+              disableDrag ? 'cursor-default' : isDraggable ? 'cursor-move' : 'cursor-not-allowed'
             } transition-all shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] ${
-              isDragging ? 'opacity-50' : isDraggable ? 'opacity-100' : 'opacity-60'
-            } ${!isDraggable ? 'hover:opacity-70 hover:bg-gray-100 dark:hover:bg-muted/50' : 'hover:shadow-md'}`}
+              isDragging ? 'opacity-50' : disableDrag ? 'opacity-100' : isDraggable ? 'opacity-100' : 'opacity-60'
+            } ${disableDrag ? 'hover:shadow-md' : !isDraggable ? 'hover:opacity-70 hover:bg-gray-100 dark:hover:bg-muted/50' : 'hover:shadow-md'}`}
             style={borderColorStyle}
           >
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -487,16 +490,34 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
           )}
         </div>
 
-        {task.dueDate && (
-          <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-600 dark:text-destructive' : task.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-muted-foreground'} ${!task.category && assignedUsers.length === 0 ? 'ml-auto' : ''}`}>
-            <Calendar className="h-3.5 w-3.5" />
-            <span>{task.dueDate}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 ml-auto">
+          {task.dueDate && (
+            <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-600 dark:text-destructive' : task.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-muted-foreground'}`}>
+              <Calendar className="h-3.5 w-3.5" />
+              <span>{task.dueDate}</span>
+            </div>
+          )}
+          {/* Mobile: Move button (only show on mobile, hidden on desktop) */}
+          {onMove && canDragNormally && (
+            <motion.button
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove(task);
+              }}
+              className="md:hidden px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-muted-foreground bg-gray-100 dark:bg-muted hover:bg-gray-200 dark:hover:bg-accent rounded-[6px] transition-colors flex items-center gap-1.5"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.1 }}
+            >
+              <ArrowRight className="h-3 w-3" />
+              Move
+            </motion.button>
+          )}
+        </div>
       </div>
           </div>
         </TooltipTrigger>
-        {!isDraggable && userRole === 'viewer' && (
+        {!isDraggable && !disableDrag && userRole === 'viewer' && (
           <TooltipContent>
             <p className="text-xs">You can only move your own tasks</p>
           </TooltipContent>

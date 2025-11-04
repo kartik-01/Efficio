@@ -9,32 +9,10 @@ jest.mock('@auth0/auth0-react', () => ({
 }));
 
 // Mock @efficio/ui
-jest.mock('@efficio/ui', () => ({
-  Button: ({ children, onClick, className, ...props }: any) => (
-    <button onClick={onClick} className={className} {...props}>{children}</button>
-  ),
-  Avatar: ({ children, className }: any) => (
-    <div className={className} data-testid="avatar">{children}</div>
-  ),
-  AvatarImage: ({ src, alt }: any) => <img src={src} alt={alt} data-testid="avatar-image" />,
-  AvatarFallback: ({ children, className }: any) => (
-    <div className={className} data-testid="avatar-fallback">{children}</div>
-  ),
-  Badge: ({ children, className }: any) => (
-    <span className={className}>{children}</span>
-  ),
-  ScrollArea: ({ children }: any) => <div data-testid="scroll-area">{children}</div>,
-  Tooltip: ({ children }: any) => <div>{children}</div>,
-  TooltipContent: ({ children }: any) => <div>{children}</div>,
-  TooltipTrigger: ({ children, asChild }: any) => <div>{children}</div>,
-}));
+jest.mock('@efficio/ui', () => require('./mocks.tsx').efficioUIMocks);
 
 // Mock framer-motion
-jest.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  },
-}));
+jest.mock('framer-motion', () => require('./mocks.tsx').framerMotionMocks);
 
 const mockFormatTimestamp = (timestamp: string) => {
   const date = new Date(timestamp);

@@ -1,7 +1,5 @@
 import { motion } from 'framer-motion';
-import { Button } from '@efficio/ui';
-import { Avatar, AvatarImage, AvatarFallback, Badge, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@efficio/ui';
-import { ChevronRight } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback, Badge, ScrollArea } from '@efficio/ui';
 
 import { useAuth0 } from '@auth0/auth0-react';
 
@@ -34,23 +32,6 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
     <div className="flex flex-col h-full space-y-4 overflow-hidden">
       <div className="flex items-center justify-between flex-shrink-0">
         <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Recent Activity</h2>
-        {onToggleCollapse && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={onToggleCollapse}
-                variant="outline"
-                size="sm"
-                className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
-              >
-                <ChevronRight className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Hide Activity (Ctrl+I)</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
       </div>
       
       <ScrollArea className="flex-1 min-h-0 overflow-hidden">
