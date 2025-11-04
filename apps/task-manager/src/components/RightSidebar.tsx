@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
-import { Button } from '@efficio/ui';
-import { Avatar, AvatarImage, AvatarFallback, Badge, ScrollArea, Tooltip, TooltipContent, TooltipTrigger } from '@efficio/ui';
-import { ChevronRight } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback, Badge, ScrollArea, Button, Tooltip, TooltipContent, TooltipTrigger } from '@efficio/ui';
+import { History, ChevronRight } from 'lucide-react';
 
 import { useAuth0 } from '@auth0/auth0-react';
 
@@ -24,24 +23,28 @@ interface RightSidebarProps {
   onToggleCollapse?: () => void;
   formatTimestamp: (timestamp: string) => string;
   groups?: Array<{ tag: string; name: string }>; // For getting group names
+  isMobile?: boolean; // Indicates if sidebar is in mobile Sheet
 }
 
-export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, groups = [] }: RightSidebarProps) {
+export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, groups = [], isMobile = false }: RightSidebarProps) {
   const { user: auth0User } = useAuth0();
   const currentUserId = auth0User?.sub || '';
 
   return (
     <div className="flex flex-col h-full space-y-4 overflow-hidden">
       <div className="flex items-center justify-between flex-shrink-0">
-        <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Recent Activity</h2>
-        {onToggleCollapse && (
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+          <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Recent Activity</h2>
+        </div>
+        {!isMobile && onToggleCollapse && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 onClick={onToggleCollapse}
                 variant="outline"
                 size="sm"
-                className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
               </Button>

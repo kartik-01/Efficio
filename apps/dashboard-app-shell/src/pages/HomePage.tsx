@@ -5,7 +5,6 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { Navbar } from "../components/Navbar";
 import { Hero } from "../components/Hero";
 import { Features } from "../components/Features";
-import { CTASection } from "../components/CTASection";
 import { Footer } from "../components/Footer";
 
 export default function HomePage() {
@@ -16,7 +15,6 @@ export default function HomePage() {
       <Navbar />
       <Hero onGetStarted={loginWithRedirect} />
       <Features />
-      <CTASection onGetStarted={loginWithRedirect} />
       <Footer />
     </div>
   );

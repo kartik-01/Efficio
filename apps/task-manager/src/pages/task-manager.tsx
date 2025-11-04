@@ -3,7 +3,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { toast, Toaster } from 'sonner';
 import { TaskColumn } from '../components/TaskColumn';
-import { Task } from '../components/TaskCard';
+import { TaskCard, Task } from '../components/TaskCard';
 import { LeftSidebar, Group, GroupCollaborator } from '../components/LeftSidebar';
 import { RightSidebar, Activity } from '../components/RightSidebar';
 import { Card } from '@efficio/ui';
@@ -16,9 +16,9 @@ import { Label } from '@efficio/ui';
 import { Textarea } from '@efficio/ui';
 import { Checkbox } from '@efficio/ui';
 import { Slider } from '@efficio/ui';
-import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight, Menu, ChevronLeft, ChevronRight, Activity as ActivityIcon } from 'lucide-react';
+import { ListTodo, Clock, TrendingUp, AlertCircle, Search, Plus, Calendar, Circle, Users, Settings, Bell, X, CheckCircle2, History, User as UserIcon, ArrowRight, Menu, ChevronLeft, ChevronRight, Activity as ActivityIcon, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Badge, ScrollArea, Separator, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@efficio/ui';
+import { Badge, ScrollArea, Separator, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger, Tabs, TabsList, TabsTrigger, TabsContent } from '@efficio/ui';
 import { taskApi } from '../services/taskApi';
 import { activityApi } from '../services/activityApi';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -113,7 +113,21 @@ export function TaskManager() {
       createdAt: '2025-01-15T10:00:00.000Z',
     },
   ]);
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  // Selected group state (persisted in localStorage)
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taskManagerSelectedGroup');
+      return saved !== null ? (saved === 'null' ? null : saved) : null;
+    }
+    return null;
+  });
+  
+  // Save selectedGroup to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('taskManagerSelectedGroup', selectedGroup === null ? 'null' : selectedGroup);
+    }
+  }, [selectedGroup]);
   
   // Sidebar collapse states (persisted in localStorage)
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => {
@@ -134,6 +148,27 @@ export function TaskManager() {
   
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showMobileActivity, setShowMobileActivity] = useState(false);
+  const [mobileActiveTab, setMobileActiveTab] = useState<'pending' | 'in-progress' | 'completed'>('pending');
+  const [showStatusSheet, setShowStatusSheet] = useState(false);
+  const [taskForStatusChange, setTaskForStatusChange] = useState<Task | null>(null);
+
+  // Listen for events from Navbar to toggle mobile sidebars
+  useEffect(() => {
+    const handleToggleSidebar = () => {
+      setShowMobileSidebar(prev => !prev);
+    };
+    const handleToggleActivity = () => {
+      setShowMobileActivity(prev => !prev);
+    };
+
+    window.addEventListener('toggleMobileSidebar', handleToggleSidebar);
+    window.addEventListener('toggleMobileActivity', handleToggleActivity);
+
+    return () => {
+      window.removeEventListener('toggleMobileSidebar', handleToggleSidebar);
+      window.removeEventListener('toggleMobileActivity', handleToggleActivity);
+    };
+  }, []);
 
   // Activity type is now imported from RightSidebar component
 
@@ -176,10 +211,11 @@ export function TaskManager() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Fetch tasks on component mount
+  // Fetch tasks when selected group changes (this also handles initial load)
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    fetchTasks(selectedGroup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup]);
   
   // Persist sidebar states
   useEffect(() => {
@@ -252,9 +288,8 @@ export function TaskManager() {
       const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
       // Ensure all tasks have id property and userId (map _id to id if needed)
       const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
-      setTasks(mappedTasks);
       
-      // Update groupTasksMap for accurate group-specific counts
+      // Update groupTasksMap BEFORE updating tasks to ensure counts are accurate
       if (groupTag) {
         // Store all tasks for this specific group (for accurate group count)
         setGroupTasksMap((prev) => {
@@ -271,6 +306,9 @@ export function TaskManager() {
         // These are already filtered by backend to show personal + assigned only
         setAllTasks(mappedTasks);
       }
+      
+      // Update tasks state AFTER groupTasksMap to ensure consistency
+      setTasks(mappedTasks);
     } catch (error) {
       toast.error('Failed to Fetch Tasks', {
         description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
@@ -323,12 +361,6 @@ export function TaskManager() {
       fetchAllTasks();
     }
   }, [groups, currentUserId]); // Reload when groups or currentUserId changes
-
-  // Fetch tasks when selected group changes
-  useEffect(() => {
-    fetchTasks(selectedGroup);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroup]);
 
   const handleTaskDrop = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
     try {
@@ -402,6 +434,17 @@ export function TaskManager() {
       // Revert on error - refetch both
       await fetchTasks(selectedGroup);
     }
+  };
+
+  const handleMobileStatusChange = (task: Task, newStatus: 'pending' | 'in-progress' | 'completed') => {
+    setTaskForStatusChange(null);
+    setShowStatusSheet(false);
+    handleTaskDrop(task.id, newStatus);
+  };
+
+  const handleOpenStatusSheet = (task: Task) => {
+    setTaskForStatusChange(task);
+    setShowStatusSheet(true);
   };
 
   const handleEdit = (task: Task) => {
@@ -571,8 +614,11 @@ export function TaskManager() {
         // Create new task
         savedTask = await taskApi.createTask(taskData);
         
-        // Fallback: if refs aren't available, add task without animation
-        if (!modalContentRef.current || !pendingColumnRef.current) {
+        // Check if this is the first task (when there are no tasks, kanban board isn't rendered)
+        const isFirstTask = pendingTasks.length === 0 && inProgressTasks.length === 0 && completedTasks.length === 0;
+        
+        // Fallback: if refs aren't available OR if it's the first task, add task without flying animation
+        if (isFirstTask || !modalContentRef.current || !pendingColumnRef.current) {
           const newTask: Task = { ...savedTask, id: savedTask.id || savedTask._id || '' };
           setTasks((prevTasks) => [...prevTasks, newTask]);
           setAllTasks((prevTasks) => [...prevTasks, newTask]);
@@ -586,12 +632,44 @@ export function TaskManager() {
               return newMap;
             });
           }
+          
+          // For first task, ensure we don't skip modal animation
+          // Close modal with normal animation after task is added to state
+          setSkipModalAnimation(false); // Ensure animation is enabled
+          setTimeout(() => {
+            setShowModal(false);
+          }, 100); // Small delay to ensure task is added to state first
+          
+          // Reset form after modal closing animation completes
+          setTimeout(() => {
+            setNewTask({
+              title: '',
+              description: '',
+              category: '',
+              priority: 'Medium',
+              status: 'pending',
+              dueDate: '',
+              progress: 20,
+              assignedTo: [],
+            });
+            setIncludeProgress(false);
+            setEditingTask(null);
+          }, 400); // After modal closing animation completes (0.2s animation + buffer)
+          
           console.log('🍞 Toast: Task Added (fallback path)');
           toast.success('Task Added', {
             description: 'Your new task has been successfully added to the list.',
             duration: 2000,
           });
           console.log('🍞 Toast called for Task Added (fallback path)');
+          
+          // Refresh activities after task creation
+          const refreshedActivities = await activityApi.getActivities({
+            groupTag: selectedGroup || undefined,
+            limit: 50,
+          });
+          const mappedActivities: Activity[] = refreshedActivities.map(mapApiActivityToFrontend);
+          setActivities(mappedActivities);
         } else {
           // Get positions BEFORE starting animation
           const fromRect = modalContentRef.current.getBoundingClientRect();
@@ -773,7 +851,7 @@ export function TaskManager() {
     
     return undefined;
   }, [selectedGroupData, currentUserId, selectedGroup]);
-  const canCreateTask = !selectedGroupData || selectedGroup === '@personal' || userRole === 'admin' || userRole === 'owner';
+  const canCreateTask = !selectedGroupData || selectedGroup === '@personal' || userRole === 'admin' || userRole === 'owner' || userRole === 'editor';
   const canSeeAssignTo = selectedGroupData && selectedGroup !== '@personal' && (userRole === 'admin' || userRole === 'owner' || userRole === 'editor') && acceptedCollaborators.length > 0;
 
   // Group handlers are now in LeftSidebar component
@@ -855,8 +933,14 @@ export function TaskManager() {
   const inProgressTasks = filteredAndSortedTasks.filter((task) => task.status === 'in-progress');
   const completedTasks = filteredAndSortedTasks.filter((task) => task.status === 'completed');
 
-  const totalTasks = tasks.length;
-  const overdueTasks = tasks.filter((task) => task.isOverdue).length;
+  const totalTasks = filteredAndSortedTasks.length; // Use filtered tasks for accurate count
+  const overdueTasks = filteredAndSortedTasks.filter((task) => task.isOverdue).length;
+  
+  // Check if there are no tasks at all
+  const hasNoTasks = pendingTasks.length === 0 && inProgressTasks.length === 0 && completedTasks.length === 0;
+  
+  // Determine if user is a viewer (can't create tasks)
+  const isViewer = selectedGroupData && selectedGroup !== '@personal' && userRole === 'viewer';
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -921,12 +1005,28 @@ export function TaskManager() {
       <TooltipProvider>
         <div className="flex">
           {/* Left Sidebar - Desktop Only */}
-          <div 
-            className={`hidden md:block bg-white dark:bg-card border-r border-gray-200 dark:border-transparent sticky top-[64px] h-[calc(100vh-64px)] transition-all duration-300 ${
-              leftSidebarCollapsed ? 'w-[60px]' : 'w-[280px]'
-            }`}
+          <motion.div 
+            initial={false}
+            animate={{
+              width: leftSidebarCollapsed ? 60 : 280,
+            }}
+            transition={{
+              duration: 0.3,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className={`hidden md:block bg-white dark:bg-card border-r border-gray-200 dark:border-transparent sticky top-[64px] h-[calc(100vh-64px)] overflow-hidden`}
           >
-            <div className={`${leftSidebarCollapsed ? 'p-2' : 'p-4'} h-full flex flex-col overflow-hidden`}>
+            <motion.div 
+              initial={false}
+              animate={{
+                opacity: 1,
+              }}
+              transition={{
+                duration: 0.2,
+                delay: leftSidebarCollapsed ? 0 : 0.1,
+              }}
+              className={`${leftSidebarCollapsed ? 'p-2' : 'p-4'} h-full flex flex-col overflow-hidden`}
+            >
             <LeftSidebar
                 selectedGroup={selectedGroup}
                 setSelectedGroup={setSelectedGroup}
@@ -939,21 +1039,21 @@ export function TaskManager() {
                 onToggleCollapse={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
               onRefreshActivities={() => loadActivities()}
               />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           {/* Center Content */}
           <div className="flex-1 p-3 md:p-6">
-            <div className="max-w-[1280px] mx-auto px-8 w-full">
+            <div className="max-w-[1280px] mx-auto px-4 md:px-8 w-full">
         {/* Page Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-4 md:mb-8 flex items-center justify-between">
           <div>
-              <h1 className="text-[#101828] dark:text-foreground text-[24px] leading-[32px] tracking-[0.0703px]">
+              <h1 className="text-[#101828] dark:text-foreground text-[20px] md:text-[24px] leading-[28px] md:leading-[32px] tracking-[0.0703px]">
                 {selectedGroup
                   ? accessibleGroups.find(g => g.tag === selectedGroup)?.name || 'Tasks'
                   : 'All Tasks'}
               </h1>
-              <p className="text-[#4a5565] dark:text-muted-foreground text-[14px] leading-[20px] mt-1">
+              <p className="text-[#4a5565] dark:text-muted-foreground text-[12px] md:text-[14px] leading-[18px] md:leading-[20px] mt-1">
                 {selectedGroupData && acceptedCollaborators.length > 0
                   ? `Shared with ${acceptedCollaborators.length} member${acceptedCollaborators.length !== 1 ? 's' : ''}`
                   : selectedGroup
@@ -993,87 +1093,62 @@ export function TaskManager() {
                 </Tooltip>
               </TooltipProvider>
             )}
-          {canCreateTask && (
-          <Button
-            onClick={() => {
-              setIsCollapsing(false); // Reset collapsing state when opening modal
-              setEditingTask(null);
-              setNewTask({
-                title: '',
-                description: '',
-                category: '',
-                priority: 'Medium',
-                status: 'pending',
-                dueDate: '',
-                progress: 20,
-                  assignedTo: [],
-              });
-              setIncludeProgress(false);
-              setSkipModalAnimation(false); // Ensure animations are enabled for new task
-              setShowModal(true);
-            }}
-              className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Task
-          </Button>
-          )}
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-4 md:mb-6">
+          <Card className="p-4 md:p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-muted-foreground">Total Tasks</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-2">{totalTasks}</p>
+                <p className="text-xs md:text-sm text-gray-600 dark:text-muted-foreground">Total Tasks</p>
+                <p className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-1 md:mt-2">{totalTasks}</p>
               </div>
-              <div className="bg-blue-100 rounded-lg p-3">
-                <ListTodo className="h-6 w-6 text-blue-600" />
+              <div className="bg-blue-100 rounded-lg p-2 md:p-3">
+                <ListTodo className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
+          <Card className="p-4 md:p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-muted-foreground">In Progress</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-2">{inProgressTasks.length}</p>
+                <p className="text-xs md:text-sm text-gray-600 dark:text-muted-foreground">In Progress</p>
+                <p className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-1 md:mt-2">{inProgressTasks.length}</p>
               </div>
-              <div className="bg-yellow-100 rounded-lg p-3">
-                <Clock className="h-6 w-6 text-yellow-600" />
+              <div className="bg-yellow-100 rounded-lg p-2 md:p-3">
+                <Clock className="h-5 w-5 md:h-6 md:w-6 text-yellow-600" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
+          <Card className="p-4 md:p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-muted-foreground">Completed</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-2">{completedTasks.length}</p>
+                <p className="text-xs md:text-sm text-gray-600 dark:text-muted-foreground">Completed</p>
+                <p className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-card-foreground mt-1 md:mt-2">{completedTasks.length}</p>
               </div>
-              <div className="bg-green-100 rounded-lg p-3">
-                <TrendingUp className="h-6 w-6 text-green-600" />
+              <div className="bg-green-100 rounded-lg p-2 md:p-3">
+                <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
+          <Card className="p-4 md:p-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-muted-foreground">Overdue</p>
-                <p className="text-2xl font-semibold text-red-600 mt-2">{overdueTasks}</p>
+                <p className="text-xs md:text-sm text-gray-600 dark:text-muted-foreground">Overdue</p>
+                <p className="text-xl md:text-2xl font-semibold text-red-600 mt-1 md:mt-2">{overdueTasks}</p>
               </div>
-              <div className="bg-red-100 rounded-lg p-3">
-                <AlertCircle className="h-6 w-6 text-red-600" />
+              <div className="bg-red-100 rounded-lg p-2 md:p-3">
+                <AlertCircle className="h-5 w-5 md:h-6 md:w-6 text-red-600" />
               </div>
             </div>
           </Card>
         </div>
 
         {/* Filter and Search Bar */}
-          <Card className="p-4 mb-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
-          <div className="flex flex-col md:flex-row gap-4 items-center">
+          <Card className="p-3 md:p-4 mb-4 md:mb-6 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)]">
+          <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-center">
             {/* Search Box */}
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
@@ -1123,66 +1198,287 @@ export function TaskManager() {
                 <SelectItem value="title">Sort by Title</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* New Task Button */}
+            {canCreateTask && (
+              <Button
+                onClick={() => {
+                  setIsCollapsing(false); // Reset collapsing state when opening modal
+                  setEditingTask(null);
+                  setNewTask({
+                    title: '',
+                    description: '',
+                    category: '',
+                    priority: 'Medium',
+                    status: 'pending',
+                    dueDate: '',
+                    progress: 20,
+                    assignedTo: [],
+                  });
+                  setIncludeProgress(false);
+                  setSkipModalAnimation(false); // Ensure animations are enabled for new task
+                  setShowModal(true);
+                }}
+                className="bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white rounded-[8px] h-[40px] px-4 ml-auto cursor-pointer"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Task
+              </Button>
+            )}
           </div>
         </Card>
 
-        {/* Kanban Board */}
+        {/* Kanban Board or Empty State */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-gray-600 dark:text-muted-foreground">Loading tasks...</p>
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+              className="mb-4"
+            >
+              <Loader2 className="w-8 h-8 text-indigo-500 dark:text-indigo-400" />
+            </motion.div>
+            <p className="text-gray-600 dark:text-muted-foreground text-sm font-medium">Loading tasks...</p>
+          </div>
+        ) : hasNoTasks ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="max-w-md w-full text-center">
+              <div className="mb-6 flex justify-center">
+                <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-muted flex items-center justify-center">
+                  <ListTodo className="w-12 h-12 text-gray-400 dark:text-muted-foreground" />
+                </div>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-foreground mb-2">
+                {isViewer 
+                  ? "No tasks assigned to you yet!" 
+                  : "No tasks added yet"}
+              </h3>
+              <p className="text-gray-600 dark:text-muted-foreground">
+                {isViewer 
+                  ? "Tasks assigned to you will appear here once they're created by the workspace owner or admins."
+                  : "Get started by creating your first task. Use the +New Task button above to add tasks to your workspace."}
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-            <div ref={pendingColumnRef} className="flex flex-col">
-              <TaskColumn
-                title="Pending"
-                status="pending"
-                tasks={pendingTasks}
-                group={selectedGroupData || undefined}
-                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
-                currentUserId={currentUserId}
-                userRole={userRole}
-                onTaskDrop={handleTaskDrop}
-                onProgressChange={handleProgressChange}
-                onEdit={handleEdit}
-                onDelete={handleDeleteClick}
-                newlyAddedTaskId={newlyAddedTaskId}
-                taskListRef={pendingTaskListRef as React.RefObject<HTMLDivElement>}
-            />
+          <>
+            {/* Mobile: Tab-based View */}
+            <div className="md:hidden">
+              <Tabs value={mobileActiveTab} onValueChange={(v) => setMobileActiveTab(v as 'pending' | 'in-progress' | 'completed')}>
+                <TabsList className="grid w-full grid-cols-3 bg-white dark:bg-card border border-gray-200 dark:border-transparent h-[44px] rounded-[8px] mb-4">
+                  <TabsTrigger 
+                    value="pending" 
+                    className="data-[state=active]:bg-gray-100 dark:data-[state=active]:bg-accent text-[13px] rounded-[8px] transition-all duration-300"
+                  >
+                    Pending
+                    <Badge variant="secondary" className="ml-1.5 text-[11px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground">
+                      {pendingTasks.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="in-progress" 
+                    className="data-[state=active]:bg-yellow-50 dark:data-[state=active]:bg-yellow-950/30 text-[13px] rounded-[8px] transition-all duration-300"
+                  >
+                    Progress
+                    <Badge variant="secondary" className="ml-1.5 text-[11px] bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-200">
+                      {inProgressTasks.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="completed" 
+                    className="data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/30 text-[13px] rounded-[8px] transition-all duration-300"
+                  >
+                    Done
+                    <Badge variant="secondary" className="ml-1.5 text-[11px] bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-200">
+                      {completedTasks.length}
+                    </Badge>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="pending" className="mt-0">
+                  <motion.div
+                    key={`pending-${mobileActiveTab}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={mobileActiveTab === 'pending' ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] p-4 min-h-[400px]"
+                  >
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-transparent">
+                      <h2 className="text-gray-900 dark:text-card-foreground font-semibold text-[14px]">Pending</h2>
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-200 rounded-full text-[11px]">
+                        {pendingTasks.length}
+                      </Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {pendingTasks.length === 0 ? (
+                        <div className="flex items-center justify-center h-[200px] border-2 border-dashed border-gray-200 dark:border-transparent rounded-[10px] bg-gray-50 dark:bg-muted/50">
+                          <p className="text-center text-gray-600 dark:text-muted-foreground text-[13px]">No pending tasks</p>
+                        </div>
+                      ) : (
+                        pendingTasks.map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            group={selectedGroupData || (selectedGroup ? undefined : groups.find(g => g.tag === task.groupTag))}
+                            currentUserId={currentUserId}
+                            userRole={userRole}
+                            onProgressChange={handleProgressChange}
+                            onEdit={handleEdit}
+                            onDelete={handleDeleteClick}
+                            onMove={handleOpenStatusSheet}
+                            disableDrag={true}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                </TabsContent>
+
+                <TabsContent value="in-progress" className="mt-0">
+                  <motion.div
+                    key={`in-progress-${mobileActiveTab}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={mobileActiveTab === 'in-progress' ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] p-4 min-h-[400px]"
+                  >
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-transparent">
+                      <h2 className="text-gray-900 dark:text-card-foreground font-semibold text-[14px]">In Progress</h2>
+                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-200 rounded-full text-[11px]">
+                        {inProgressTasks.length}
+                      </Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {inProgressTasks.length === 0 ? (
+                        <div className="flex items-center justify-center h-[200px] border-2 border-dashed border-gray-200 dark:border-transparent rounded-[10px] bg-gray-50 dark:bg-muted/50">
+                          <p className="text-center text-gray-600 dark:text-muted-foreground text-[13px]">No tasks in progress</p>
+                        </div>
+                      ) : (
+                        inProgressTasks.map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            group={selectedGroupData || (selectedGroup ? undefined : groups.find(g => g.tag === task.groupTag))}
+                            currentUserId={currentUserId}
+                            userRole={userRole}
+                            onProgressChange={handleProgressChange}
+                            onEdit={handleEdit}
+                            onDelete={handleDeleteClick}
+                            onMove={handleOpenStatusSheet}
+                            disableDrag={true}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                </TabsContent>
+
+                <TabsContent value="completed" className="mt-0">
+                  <motion.div
+                    key={`completed-${mobileActiveTab}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={mobileActiveTab === 'completed' ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-transparent shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] p-4 min-h-[400px]"
+                  >
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-transparent">
+                      <h2 className="text-gray-900 dark:text-card-foreground font-semibold text-[14px]">Completed</h2>
+                      <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-200 rounded-full text-[11px]">
+                        {completedTasks.length}
+                      </Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {completedTasks.length === 0 ? (
+                        <div className="flex items-center justify-center h-[200px] border-2 border-dashed border-gray-200 dark:border-transparent rounded-[10px] bg-gray-50 dark:bg-muted/50">
+                          <p className="text-center text-gray-600 dark:text-muted-foreground text-[13px]">No completed tasks</p>
+                        </div>
+                      ) : (
+                        completedTasks.map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            group={selectedGroupData || (selectedGroup ? undefined : groups.find(g => g.tag === task.groupTag))}
+                            currentUserId={currentUserId}
+                            userRole={userRole}
+                            onProgressChange={handleProgressChange}
+                            onEdit={handleEdit}
+                            onDelete={handleDeleteClick}
+                            onMove={handleOpenStatusSheet}
+                            disableDrag={true}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                </TabsContent>
+              </Tabs>
             </div>
-            <div className="flex flex-col">
-              <TaskColumn
-                title="In Progress"
-                status="in-progress"
-                tasks={inProgressTasks}
-                group={selectedGroupData || undefined}
-                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
-                currentUserId={currentUserId}
-                userRole={userRole}
-                onTaskDrop={handleTaskDrop}
-                onProgressChange={handleProgressChange}
-                onEdit={handleEdit}
-                onDelete={handleDeleteClick}
-                newlyAddedTaskId={newlyAddedTaskId}
+
+            {/* Desktop: Kanban Board with Drag & Drop */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.7,
+                ease: [0.16, 1, 0.3, 1]
+              }}
+              className="hidden md:grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
+            >
+              <div ref={pendingColumnRef} className="flex flex-col">
+                <TaskColumn
+                  title="Pending"
+                  status="pending"
+                  tasks={pendingTasks}
+                  group={selectedGroupData || undefined}
+                  groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
+                  currentUserId={currentUserId}
+                  userRole={userRole}
+                  onTaskDrop={handleTaskDrop}
+                  onProgressChange={handleProgressChange}
+                  onEdit={handleEdit}
+                  onDelete={handleDeleteClick}
+                  newlyAddedTaskId={newlyAddedTaskId}
+                  taskListRef={pendingTaskListRef as React.RefObject<HTMLDivElement>}
               />
-            </div>
-            <div className="flex flex-col">
-              <TaskColumn
-                title="Completed"
-                status="completed"
-                tasks={completedTasks}
-                group={selectedGroupData || undefined}
-                groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
-                currentUserId={currentUserId}
-                userRole={userRole}
-                onTaskDrop={handleTaskDrop}
-                onProgressChange={handleProgressChange}
-                onEdit={handleEdit}
-                onDelete={handleDeleteClick}
-                newlyAddedTaskId={newlyAddedTaskId}
-              />
-            </div>
-          </div>
+              </div>
+              <div className="flex flex-col">
+                <TaskColumn
+                  title="In Progress"
+                  status="in-progress"
+                  tasks={inProgressTasks}
+                  group={selectedGroupData || undefined}
+                  groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
+                  currentUserId={currentUserId}
+                  userRole={userRole}
+                  onTaskDrop={handleTaskDrop}
+                  onProgressChange={handleProgressChange}
+                  onEdit={handleEdit}
+                  onDelete={handleDeleteClick}
+                  newlyAddedTaskId={newlyAddedTaskId}
+                />
+              </div>
+              <div className="flex flex-col">
+                <TaskColumn
+                  title="Completed"
+                  status="completed"
+                  tasks={completedTasks}
+                  group={selectedGroupData || undefined}
+                  groups={selectedGroup ? undefined : groups} // Pass groups array in "All Tasks" view
+                  currentUserId={currentUserId}
+                  userRole={userRole}
+                  onTaskDrop={handleTaskDrop}
+                  onProgressChange={handleProgressChange}
+                  onEdit={handleEdit}
+                  onDelete={handleDeleteClick}
+                  newlyAddedTaskId={newlyAddedTaskId}
+                />
+              </div>
+            </motion.div>
+          </>
         )}
             </div>
           </div>
@@ -1201,7 +1497,7 @@ export function TaskManager() {
                     onClick={() => setRightSidebarCollapsed(false)}
                     variant="outline"
                     size="sm"
-                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
                   >
                     <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
                   </Button>
@@ -1615,6 +1911,159 @@ export function TaskManager() {
         </AlertDialog>
 
         {/* Workspace modals are now in LeftSidebar component */}
+
+        {/* Mobile: Status Change Sheet */}
+        <Sheet open={showStatusSheet} onOpenChange={setShowStatusSheet}>
+          <SheetContent side="bottom" className="h-auto rounded-t-[16px] pb-safe border-t-0">
+            <AnimatePresence>
+              {showStatusSheet && taskForStatusChange && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <SheetHeader>
+                    <SheetTitle>Change Status</SheetTitle>
+                    <SheetDescription>Select the new status for this task</SheetDescription>
+                  </SheetHeader>
+                  <div className="grid gap-3 py-6">
+                    <motion.div
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.05, duration: 0.2 }}
+                    >
+                      <Button
+                        onClick={() => handleMobileStatusChange(taskForStatusChange, 'pending')}
+                        variant="outline"
+                        className="w-full justify-start gap-3 h-[48px] rounded-[10px] transition-all duration-200"
+                        disabled={taskForStatusChange.status === 'pending'}
+                      >
+                        <Circle className="h-4 w-4 fill-gray-400 text-gray-400" />
+                        <span>Pending</span>
+                        {taskForStatusChange.status === 'pending' && (
+                          <Badge className="ml-auto text-[10px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground">
+                            Current
+                          </Badge>
+                        )}
+                      </Button>
+                    </motion.div>
+                    <motion.div
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1, duration: 0.2 }}
+                    >
+                      <Button
+                        onClick={() => handleMobileStatusChange(taskForStatusChange, 'in-progress')}
+                        variant="outline"
+                        className="w-full justify-start gap-3 h-[48px] rounded-[10px] transition-all duration-200"
+                        disabled={taskForStatusChange.status === 'in-progress'}
+                      >
+                        <Clock className="h-4 w-4 text-yellow-500" />
+                        <span>In Progress</span>
+                        {taskForStatusChange.status === 'in-progress' && (
+                          <Badge className="ml-auto text-[10px] bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-200">
+                            Current
+                          </Badge>
+                        )}
+                      </Button>
+                    </motion.div>
+                    <motion.div
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.15, duration: 0.2 }}
+                    >
+                      <Button
+                        onClick={() => handleMobileStatusChange(taskForStatusChange, 'completed')}
+                        variant="outline"
+                        className="w-full justify-start gap-3 h-[48px] rounded-[10px] transition-all duration-200"
+                        disabled={taskForStatusChange.status === 'completed'}
+                      >
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <span>Completed</span>
+                        {taskForStatusChange.status === 'completed' && (
+                          <Badge className="ml-auto text-[10px] bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-200">
+                            Current
+                          </Badge>
+                        )}
+                      </Button>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </SheetContent>
+        </Sheet>
+
+        {/* Mobile: Left Sidebar (Workspaces) */}
+        <Sheet open={showMobileSidebar} onOpenChange={setShowMobileSidebar}>
+          <SheetContent 
+            side="left" 
+            className="w-[280px] p-0 !border-0 !shadow-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left data-[state=open]:duration-400 data-[state=closed]:duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          >
+            <AnimatePresence mode="wait">
+              {showMobileSidebar && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{
+                    duration: 0.3,
+                    ease: [0.16, 1, 0.3, 1],
+                    delay: 0.1,
+                  }}
+                  className="h-full flex flex-col overflow-hidden"
+                >
+                  <LeftSidebar
+                    selectedGroup={selectedGroup}
+                    setSelectedGroup={setSelectedGroup}
+                    accessibleGroups={accessibleGroups}
+                    groups={groups}
+                    setGroups={setGroups}
+                    tasks={allTasks}
+                    pendingInvitations={pendingInvitations}
+                    collapsed={false}
+                    onToggleCollapse={() => setShowMobileSidebar(false)}
+                    onRefreshActivities={() => loadActivities()}
+                    isMobile={true}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </SheetContent>
+        </Sheet>
+
+        {/* Mobile: Right Sidebar (Activity) */}
+        <Sheet open={showMobileActivity} onOpenChange={setShowMobileActivity}>
+          <SheetContent 
+            side="right" 
+            className="w-[300px] p-0 !border-0 !shadow-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=open]:duration-400 data-[state=closed]:duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          >
+            <AnimatePresence mode="wait">
+              {showMobileActivity && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{
+                    duration: 0.3,
+                    ease: [0.16, 1, 0.3, 1],
+                    delay: 0.1,
+                  }}
+                  className="p-4 h-full flex flex-col overflow-hidden"
+                >
+                <RightSidebar 
+                  activities={activities}
+                  onToggleCollapse={() => setShowMobileActivity(false)}
+                  formatTimestamp={formatTimestamp}
+                  groups={groups.map(g => ({ tag: g.tag, name: g.name }))}
+                  isMobile={true}
+                />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </SheetContent>
+        </Sheet>
     </DndProvider>
   );
 }

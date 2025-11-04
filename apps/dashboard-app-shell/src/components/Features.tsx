@@ -90,12 +90,11 @@ export const Features = () => {
       <div className="max-w-[1280px] mx-auto px-8">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-gray-900 mb-3 leading-10">
-            Three Powerful Modules, One Unified Experience
+            Everything You Need to Stay Productive
           </h2>
           <p className="text-lg text-gray-600 max-w-[672px] mx-auto leading-7">
-            Each micro-frontend is designed to work independently while
-            seamlessly integrating with others for a complete productivity
-            solution.
+            Three powerful modules working together seamlessly to help you accomplish more,
+             track your time, and understand your productivity patterns.
           </p>
         </div>
 

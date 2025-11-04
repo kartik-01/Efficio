@@ -3,12 +3,12 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Settings, User, Menu, Bell, Activity } from "lucide-react";
+import { LogOut, Settings, User, Menu, Bell, History } from "lucide-react";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
 import { notificationApi, initializeNotificationApi, isNotificationApiReady, NotificationsResponse } from "../services/notificationApi";
-import { Badge, ScrollArea, Sheet, SheetContent, SheetTrigger } from "@efficio/ui";
+import { Badge, ScrollArea } from "@efficio/ui";
 
 // API base URL - injected by webpack DefinePlugin at build time
 declare const process: {
@@ -32,8 +32,6 @@ export const Navbar = ({
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [showMobileActivity, setShowMobileActivity] = useState(false);
   const [notifications, setNotifications] = useState<NotificationsResponse | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   
@@ -213,19 +211,14 @@ export const Navbar = ({
         <div className="flex items-center gap-4 md:gap-8">
           {/* Mobile Menu Button - Only show in task manager on mobile */}
           {isAuthenticated && location.pathname.includes('task-manager') && (
-            <Sheet open={showMobileSidebar} onOpenChange={setShowMobileSidebar}>
-              <SheetTrigger asChild>
-                <button className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors">
-                  <Menu className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
-                </button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[280px] p-0">
-                {/* Mobile sidebar content will be passed from task manager */}
-                <div className="p-4 text-sm text-gray-600 dark:text-muted-foreground">
-                  Sidebar content will be shown here
-                </div>
-              </SheetContent>
-            </Sheet>
+            <button 
+              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('toggleMobileSidebar'));
+              }}
+            >
+              <Menu className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+            </button>
           )}
           
           {/* Logo */}
@@ -282,19 +275,14 @@ export const Navbar = ({
           <div className="flex items-center gap-1">
             {/* Mobile Activity Button - Only show in task manager on mobile */}
             {location.pathname.includes('task-manager') && (
-              <Sheet open={showMobileActivity} onOpenChange={setShowMobileActivity}>
-                <SheetTrigger asChild>
-                  <button className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors">
-                    <Activity className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
-                  </button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[300px] p-0">
-                  {/* Mobile activity content will be passed from task manager */}
-                  <div className="p-4 text-sm text-gray-600 dark:text-muted-foreground">
-                    Activity content will be shown here
-                  </div>
-                </SheetContent>
-              </Sheet>
+              <button 
+                className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('toggleMobileActivity'));
+                }}
+              >
+                <History className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
+              </button>
             )}
             
             {/* Notifications - Only show in task manager, always visible */}
@@ -302,7 +290,7 @@ export const Navbar = ({
               <DropdownMenu.Root open={showNotifications} onOpenChange={setShowNotifications}>
                 <DropdownMenu.Trigger asChild>
                   <motion.button
-                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ duration: 0.15 }}
