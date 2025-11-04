@@ -44,6 +44,7 @@ interface LeftSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onRefreshActivities?: () => void; // Callback to refresh activities
+  isMobile?: boolean; // Indicates if sidebar is in mobile Sheet
 }
 
 export function LeftSidebar({
@@ -58,6 +59,7 @@ export function LeftSidebar({
   collapsed = false,
   onToggleCollapse,
   onRefreshActivities,
+  isMobile = false,
 }: LeftSidebarProps) {
   // Modal states
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
@@ -231,6 +233,13 @@ export function LeftSidebar({
       setNewGroupMemberSearch('');
       setShowAddMembers(false);
       toast.success(`Workspace "${newGroup.name}" created!`);
+      
+      // Close sidebar on mobile after workspace is created
+      if (isMobile && onToggleCollapse) {
+        setTimeout(() => {
+          onToggleCollapse();
+        }, 200);
+      }
     } catch (error) {
       console.error('Failed to create group:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to create workspace');
@@ -468,7 +477,7 @@ export function LeftSidebar({
     <>
       {collapsed ? (
         // Collapsed view - Icon only
-        <div className="space-y-3 flex flex-col items-center h-full overflow-hidden">
+        <div className={`${isMobile ? 'p-4' : ''} space-y-3 flex flex-col items-center h-full overflow-hidden`}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -489,8 +498,10 @@ export function LeftSidebar({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                onClick={() => setShowCreateGroupModal(true)}
+                <Button
+                onClick={() => {
+                  setShowCreateGroupModal(true);
+                }}
                 variant="outline"
                 size="sm"
                 className="w-[44px] h-[44px] p-0 rounded-[10px] border-gray-200 dark:border-transparent"
@@ -508,7 +519,12 @@ export function LeftSidebar({
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={() => setSelectedGroup(null)}
+                onClick={() => {
+                  setSelectedGroup(null);
+                  if (isMobile && onToggleCollapse) {
+                    onToggleCollapse();
+                  }
+                }}
                 className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors ${
                   selectedGroup === null
                     ? 'bg-gray-100 dark:bg-accent'
@@ -541,7 +557,12 @@ export function LeftSidebar({
                   <Tooltip key={group.id}>
                     <TooltipTrigger asChild>
                       <button
-                        onClick={() => setSelectedGroup(group.tag)}
+                        onClick={() => {
+                          setSelectedGroup(group.tag);
+                          if (isMobile && onToggleCollapse) {
+                            onToggleCollapse();
+                          }
+                        }}
                         className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors ${
                           selectedGroup === group.tag
                             ? 'bg-gray-100 dark:bg-accent'
@@ -561,8 +582,8 @@ export function LeftSidebar({
                           </Badge>
                         )}
                         {acceptedCount > 0 && (
-                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border border-white dark:border-card flex items-center justify-center">
-                            <Users className="w-2 h-2 text-white" />
+                          <div className={`absolute -bottom-1 -right-1 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'} bg-emerald-500 rounded-full border border-white dark:border-card flex items-center justify-center`}>
+                            <Users className={`${isMobile ? 'w-3 h-3' : 'w-2 h-2'} text-white`} />
                           </div>
                         )}
                       </button>
@@ -584,46 +605,60 @@ export function LeftSidebar({
         </div>
       ) : (
         // Expanded view - Full layout
-        <div className="flex flex-col h-full space-y-4 overflow-hidden">
+        <div className={`flex flex-col h-full ${isMobile ? 'p-4' : 'space-y-4'} overflow-hidden`}>
           <div className="flex items-center justify-between flex-shrink-0">
             <h2 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">Task Manager</h2>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={onToggleCollapse}
-                  variant="outline"
-                  size="sm"
-                  className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
-                >
-                  <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Collapse Sidebar (Ctrl+B)</p>
-              </TooltipContent>
-            </Tooltip>
+            {!isMobile && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={onToggleCollapse}
+                    variant="outline"
+                    size="sm"
+                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                  >
+                    <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Collapse Sidebar (Ctrl+B)</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
           <Button
-            onClick={() => setShowCreateGroupModal(true)}
+            onClick={() => {
+              setShowCreateGroupModal(true);
+            }}
             variant="outline"
-            className="w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent justify-start flex-shrink-0"
+            className={`w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent justify-start flex-shrink-0 ${isMobile ? 'mt-4' : ''}`}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'}`} />
             New Workspace
           </Button>
 
-          <Separator className="bg-gray-200 dark:bg-muted flex-shrink-0" />
+          <Separator className={`bg-gray-200 dark:bg-muted flex-shrink-0 ${isMobile ? 'mb-6' : ''}`} />
 
           {pendingInvitations.length > 0 && (
             <>
               <div className="space-y-2 flex-shrink-0">
                 <button
-                  onClick={() => setShowPendingInvitations(true)}
+                  onClick={() => {
+                    if (isMobile && onToggleCollapse) {
+                      // Open modal first, then close sidebar after a brief delay
+                      setShowPendingInvitations(true);
+                      setTimeout(() => {
+                        onToggleCollapse();
+                      }, 100);
+                    } else {
+                      setShowPendingInvitations(true);
+                    }
+                  }}
                   className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                    <Bell className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'} text-yellow-600 dark:text-yellow-400`} />
                     <span className="text-[14px] text-yellow-800 dark:text-yellow-200 font-medium">Pending Invites</span>
                   </div>
                   <Badge className="bg-yellow-500 dark:bg-yellow-600 text-white text-[11px]">
@@ -631,7 +666,7 @@ export function LeftSidebar({
                   </Badge>
                 </button>
               </div>
-              <Separator className="bg-gray-200 dark:bg-muted flex-shrink-0" />
+              <Separator className={`bg-gray-200 dark:bg-muted flex-shrink-0 ${isMobile ? 'mb-6' : ''}`} />
             </>
           )}
 
@@ -641,7 +676,12 @@ export function LeftSidebar({
             </p>
             
             <button
-              onClick={() => setSelectedGroup(null)}
+              onClick={() => {
+                setSelectedGroup(null);
+                if (isMobile && onToggleCollapse) {
+                  onToggleCollapse();
+                }
+              }}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors flex-shrink-0 ${
                 selectedGroup === null
                   ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
@@ -664,135 +704,221 @@ export function LeftSidebar({
                   // Use groupTasksMap for accurate group counts, fallback to tasks filter
                   const taskCount = groupTasksMap?.get(group.tag)?.length ?? 
                     tasks.filter((t: Task) => t.groupTag === group.tag || (!t.groupTag && group.tag === '@personal')).length;
-                  const acceptedCount = group.collaborators.filter((c: GroupCollaborator) => c.status === 'accepted').length;
+                  const acceptedCollaborators = group.collaborators.filter((c: GroupCollaborator) => c.status === 'accepted');
+                  const acceptedCount = acceptedCollaborators.length;
+                  // Check if owner is already in accepted collaborators to avoid double-counting
+                  const ownerInCollaborators = group.owner && acceptedCollaborators.some((c: GroupCollaborator) => c.userId === group.owner);
+                  const totalCollaborators = acceptedCount + (group.owner && !ownerInCollaborators ? 1 : 0);
+                  const pendingCollaborators = group.collaborators.filter((c: GroupCollaborator) => c.status === 'pending');
+                  const pendingCount = pendingCollaborators.length;
 
+                  // Personal button: Match "All Tasks" button style (single row)
+                  if (isPersonal) {
+                    return (
+                      <div key={group.id} className="group relative">
+                        <button
+                          onClick={() => {
+                            setSelectedGroup(group.tag);
+                            if (isMobile && onToggleCollapse) {
+                              onToggleCollapse();
+                            }
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
+                            selectedGroup === group.tag
+                              ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
+                              : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: group.color }}
+                            />
+                            <span className="text-[13px]">{group.name}</span>
+                          </div>
+                          <Badge variant="secondary" className="text-[11px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground">
+                            {taskCount}
+                          </Badge>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // Regular group button: Two-row layout
                   return (
                     <div key={group.id} className="group relative">
                       <button
-                        onClick={() => setSelectedGroup(group.tag)}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-[8px] transition-colors ${
+                        onClick={() => {
+                          setSelectedGroup(group.tag);
+                          if (isMobile && onToggleCollapse) {
+                            onToggleCollapse();
+                          }
+                        }}
+                        className={`w-full flex flex-col gap-2 px-3 py-3 rounded-[8px] transition-colors ${
                           selectedGroup === group.tag
                             ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
                             : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
                         }`}
                       >
-                        <div
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: group.color }}
-                        />
-                        <span className="text-[13px] truncate flex-1 text-left min-w-0">{group.name}</span>
-                        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                          {!isPersonal && acceptedCount > 0 && (
-                            <div className="flex -space-x-1">
-                              {group.collaborators
-                                .filter((c: GroupCollaborator) => c.status === 'accepted')
-                                .slice(0, 2)
-                                .map((c: GroupCollaborator, i: number) => (
-                                  <Avatar key={c.userId} className="w-4 h-4 border border-white dark:border-card">
-                                    {c.picture && <AvatarImage src={c.picture} alt={c.name} />}
-                                    <AvatarFallback className="text-white text-[8px] font-medium" style={{ backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981'][i % 3] }}>
-                                      {c.name[0]}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                ))}
-                            </div>
-                          )}
-                          <Badge variant="secondary" className="text-[10px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground px-1.5 h-5">
-                            {taskCount}
-                          </Badge>
-                          {!isPersonal && (() => {
-                            const userRole = getUserRoleInGroup(group);
-                            const isOwner = userRole === 'owner';
-                            const isAdmin = userRole === 'admin';
-                            const canManage = isOwner || isAdmin;
-                            const canExit = userRole === 'editor' || userRole === 'viewer';
+                        {/* Top Row: Project Name + Task Count + Manage/Delete Icons */}
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: group.color }}
+                            />
+                            <span className="text-[13px] truncate">{group.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Badge variant="secondary" className="text-[10px] bg-gray-100 dark:bg-muted text-gray-700 dark:text-muted-foreground px-1.5 h-5">
+                              {taskCount}
+                            </Badge>
+                            {(() => {
+                              const userRole = getUserRoleInGroup(group);
+                              const isOwner = userRole === 'owner';
+                              const isAdmin = userRole === 'admin';
+                              const canManage = isOwner || isAdmin;
+                              const canExit = userRole === 'editor' || userRole === 'viewer';
 
-                            return (
-                              <div className="flex items-center gap-1">
-                                {canManage && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenManageGroup(group);
-                                        }}
-                                        className="text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground p-0.5 transition-colors cursor-pointer"
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
+                              return (
+                                <div className="flex items-center gap-1">
+                                  {canManage && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          onClick={(e) => {
                                             e.stopPropagation();
                                             handleOpenManageGroup(group);
-                                          }
-                                        }}
-                                      >
-                                        <Settings className="h-3.5 w-3.5" />
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p className="text-xs">Manage Group</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                                {isOwner && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDeleteGroup(group);
-                                        }}
-                                        className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive p-0.5 transition-colors cursor-pointer"
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
+                                          }}
+                                          className={`text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground ${isMobile ? 'p-1' : 'p-0.5'} transition-colors cursor-pointer`}
+                                          role="button"
+                                          tabIndex={0}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleOpenManageGroup(group);
+                                            }
+                                          }}
+                                        >
+                                          <Settings className={`${isMobile ? 'h-5 w-5' : 'h-3.5 w-3.5'}`} />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">Manage Group</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {isOwner && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          onClick={(e) => {
                                             e.stopPropagation();
                                             handleDeleteGroup(group);
-                                          }
-                                        }}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p className="text-xs">Delete Group</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                                {canExit && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleExitGroup(group);
-                                        }}
-                                        className="text-gray-400 dark:text-muted-foreground hover:text-orange-500 dark:hover:text-orange-400 p-0.5 transition-colors cursor-pointer"
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
+                                          }}
+                                          className={`text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive ${isMobile ? 'p-1' : 'p-0.5'} transition-colors cursor-pointer`}
+                                          role="button"
+                                          tabIndex={0}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleDeleteGroup(group);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className={`${isMobile ? 'h-5 w-5' : 'h-3.5 w-3.5'}`} />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">Delete Group</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {canExit && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div
+                                          onClick={(e) => {
                                             e.stopPropagation();
                                             handleExitGroup(group);
-                                          }
-                                        }}
-                                      >
-                                        <LogOut className="h-3.5 w-3.5" />
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p className="text-xs">Exit Group</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </div>
-                            );
-                          })()}
+                                          }}
+                                          className={`text-gray-400 dark:text-muted-foreground hover:text-orange-500 dark:hover:text-orange-400 ${isMobile ? 'p-1' : 'p-0.5'} transition-colors cursor-pointer`}
+                                          role="button"
+                                          tabIndex={0}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleExitGroup(group);
+                                            }
+                                          }}
+                                        >
+                                          <LogOut className={`${isMobile ? 'h-5 w-5' : 'h-3.5 w-3.5'}`} />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">Exit Group</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Bottom Row: Collaborators (left) + Pending Requests (right) */}
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          {/* Left: Collaborator Avatars with Tooltip */}
+                          {acceptedCount > 0 ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center -space-x-1">
+                                  {acceptedCollaborators.slice(0, 5).map((c: GroupCollaborator, i: number) => (
+                                    <Avatar key={c.userId} className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} border border-white dark:border-card shrink-0`}>
+                                      {c.picture && <AvatarImage src={c.picture} alt={c.name} />}
+                                      <AvatarFallback className={`text-white ${isMobile ? 'text-[11px]' : 'text-[9px]'} font-medium`} style={{ backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899'][i % 5] }}>
+                                        {c.name[0]}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  ))}
+                                  {acceptedCount > 5 && (
+                                    <div className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} rounded-full border border-white dark:border-card bg-gray-200 dark:bg-muted flex items-center justify-center shrink-0`}>
+                                      <span className={`${isMobile ? 'text-[11px]' : 'text-[9px]'} text-gray-600 dark:text-muted-foreground font-medium`}>...</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs">Total collaborators: {totalCollaborators}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : null}
+
+                          {/* Right: Pending Requests */}
+                          {pendingCount > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Badge variant="secondary" className="text-[10px] bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-200 px-1.5 h-5 border-yellow-200 dark:border-yellow-800/30">
+                                    {pendingCount} {pendingCount === 1 ? 'pending' : 'pending'}
+                                  </Badge>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="space-y-1">
+                                  <p className="text-xs font-semibold mb-1">Pending Requests:</p>
+                                  {pendingCollaborators.map((c: GroupCollaborator) => (
+                                    <p key={c.userId} className="text-xs">
+                                      {c.name}
+                                    </p>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </div>
                       </button>
                     </div>
