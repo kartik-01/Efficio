@@ -903,7 +903,7 @@ export function LeftSidebar({
                               <TooltipTrigger asChild>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <Badge variant="secondary" className="text-[10px] bg-yellow-100 dark:bg-yellow-950/30 text-yellow-800 dark:text-yellow-200 px-1.5 h-5 border-yellow-200 dark:border-yellow-800/30">
-                                    {pendingCount} {pendingCount === 1 ? 'pending' : 'pending'}
+                                    {pendingCount} pending
                                   </Badge>
                                 </div>
                               </TooltipTrigger>
