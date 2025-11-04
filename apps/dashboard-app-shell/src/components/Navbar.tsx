@@ -212,7 +212,7 @@ export const Navbar = ({
           {/* Mobile Menu Button - Only show in task manager on mobile */}
           {isAuthenticated && location.pathname.includes('task-manager') && (
             <button 
-              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('toggleMobileSidebar'));
               }}
@@ -276,7 +276,7 @@ export const Navbar = ({
             {/* Mobile Activity Button - Only show in task manager on mobile */}
             {location.pathname.includes('task-manager') && (
               <button 
-                className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+                className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('toggleMobileActivity'));
                 }}
@@ -290,7 +290,7 @@ export const Navbar = ({
               <DropdownMenu.Root open={showNotifications} onOpenChange={setShowNotifications}>
                 <DropdownMenu.Trigger asChild>
                   <motion.button
-                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors"
+                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-accent rounded-md transition-colors cursor-pointer"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ duration: 0.15 }}

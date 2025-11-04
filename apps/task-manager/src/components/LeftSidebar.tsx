@@ -480,11 +480,11 @@ export function LeftSidebar({
         <div className={`${isMobile ? 'p-4' : ''} space-y-3 flex flex-col items-center h-full overflow-hidden`}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
+                <Button
                 onClick={onToggleCollapse}
                 variant="outline"
                 size="sm"
-                className="w-[44px] h-[36px] p-0 rounded-[8px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                className="w-[44px] h-[36px] p-0 rounded-[8px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
               </Button>
@@ -504,7 +504,7 @@ export function LeftSidebar({
                 }}
                 variant="outline"
                 size="sm"
-                className="w-[44px] h-[44px] p-0 rounded-[10px] border-gray-200 dark:border-transparent"
+                className="w-[44px] h-[44px] p-0 rounded-[10px] border-gray-200 dark:border-transparent cursor-pointer"
               >
                 <Plus className="h-5 w-5" />
               </Button>
@@ -525,7 +525,7 @@ export function LeftSidebar({
                     onToggleCollapse();
                   }
                 }}
-                className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors ${
+                className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors cursor-pointer ${
                   selectedGroup === null
                     ? 'bg-gray-100 dark:bg-accent'
                     : 'hover:bg-gray-50 dark:hover:bg-accent/50'
@@ -563,7 +563,7 @@ export function LeftSidebar({
                             onToggleCollapse();
                           }
                         }}
-                        className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors ${
+                        className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors cursor-pointer ${
                           selectedGroup === group.tag
                             ? 'bg-gray-100 dark:bg-accent'
                             : 'hover:bg-gray-50 dark:hover:bg-accent/50'
@@ -615,7 +615,7 @@ export function LeftSidebar({
                     onClick={onToggleCollapse}
                     variant="outline"
                     size="sm"
-                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent"
+                    className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
                   >
                     <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
                   </Button>
@@ -632,7 +632,7 @@ export function LeftSidebar({
               setShowCreateGroupModal(true);
             }}
             variant="outline"
-            className={`w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent justify-start flex-shrink-0 ${isMobile ? 'mt-4' : ''}`}
+            className={`w-full gap-2 h-[36px] rounded-[8px] border-gray-200 dark:border-transparent justify-start flex-shrink-0 cursor-pointer ${isMobile ? 'mt-4' : ''}`}
           >
             <Plus className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'}`} />
             New Workspace
@@ -655,7 +655,7 @@ export function LeftSidebar({
                       setShowPendingInvitations(true);
                     }
                   }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
                     <Bell className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'} text-yellow-600 dark:text-yellow-400`} />
@@ -682,7 +682,7 @@ export function LeftSidebar({
                   onToggleCollapse();
                 }
               }}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors flex-shrink-0 ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors flex-shrink-0 cursor-pointer ${
                 selectedGroup === null
                   ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
                   : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
@@ -723,7 +723,7 @@ export function LeftSidebar({
                               onToggleCollapse();
                             }
                           }}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors ${
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-[8px] transition-colors cursor-pointer ${
                             selectedGroup === group.tag
                               ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
                               : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
@@ -754,7 +754,7 @@ export function LeftSidebar({
                             onToggleCollapse();
                           }
                         }}
-                        className={`w-full flex flex-col gap-2 px-3 py-3 rounded-[8px] transition-colors ${
+                        className={`w-full flex flex-col gap-2 px-3 py-3 rounded-[8px] transition-colors cursor-pointer ${
                           selectedGroup === group.tag
                             ? 'bg-gray-100 dark:bg-accent text-[#101828] dark:text-foreground'
                             : 'text-[#4a5565] dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-accent/50'
@@ -1002,7 +1002,7 @@ export function LeftSidebar({
                         <button
                           key={user.userId}
                           onClick={() => handleAddNewGroupMember(user)}
-                          className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors"
+                          className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors cursor-pointer"
                         >
                           <Avatar className="h-8 w-8">
                             {user.picture && <AvatarImage src={user.picture} alt={user.name} />}
@@ -1052,7 +1052,7 @@ export function LeftSidebar({
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
-                        <button onClick={() => handleRemoveNewGroupMember(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive">
+                        <button onClick={() => handleRemoveNewGroupMember(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive cursor-pointer">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
@@ -1165,7 +1165,7 @@ export function LeftSidebar({
                                 <SelectItem value="admin">Admin</SelectItem>
                               </SelectContent>
                             </Select>
-                            <button onClick={() => handleRemoveCollaborator(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive">
+                            <button onClick={() => handleRemoveCollaborator(collab.userId)} className="text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive cursor-pointer">
                               <X className="h-4 w-4" />
                             </button>
                           </>
@@ -1201,7 +1201,7 @@ export function LeftSidebar({
                       <button
                         key={user.userId}
                         onClick={() => handleAddCollaborator(user)}
-                        className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors"
+                        className="w-full flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-accent rounded-[6px] transition-colors cursor-pointer"
                       >
                         <Avatar className="h-8 w-8">
                           {user.picture && <AvatarImage src={user.picture} alt={user.name} />}
