@@ -209,7 +209,7 @@ export default function DashboardApp() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.2 }}
           >
-            <div className={activeApp === "task" ? "w-full" : "max-w-[1280px] mx-auto px-8 w-full"}>
+            <div className={activeApp === "task" ? "w-full" : "mx-auto w-full"}>
               <RemoteBoundary
                 title={
                   activeApp === "task"
