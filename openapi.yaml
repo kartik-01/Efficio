@@ -1,0 +1,187 @@
+openapi: 3.0.3
+info:
+  title: Efficio Backend API (draft)
+  version: 1.0.0
+  description: Draft OpenAPI specification generated from existing Express routes.
+servers:
+  - url: http://localhost:4000
+paths:
+  /api/sessions:
+    get:
+      summary: Get sessions summary
+      responses:
+        '200':
+          description: Sessions summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionsSummary'
+  /api/tasks:
+    get:
+      summary: Get tasks summary
+      responses:
+        '200':
+          description: Tasks summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TasksSummary'
+  /api/team:
+    get:
+      summary: Get team data
+      responses:
+        '200':
+          description: Team list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamMember'
+  /api/productivity:
+    get:
+      summary: Productivity placeholder
+      responses:
+        '200':
+          description: placeholder
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /api/sprints:
+    get:
+      summary: Get sprint burndown
+      responses:
+        '200':
+          description: Burndown data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BurndownPoint'
+  /api/projects:
+    get:
+      summary: Get projects
+      responses:
+        '200':
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+  /api/activity:
+    get:
+      summary: Activity placeholder
+      responses:
+        '200':
+          description: placeholder
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /api/users:
+    get:
+      summary: Users placeholder
+      responses:
+        '200':
+          description: placeholder
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /api/trends:
+    get:
+      summary: Get trends
+      responses:
+        '200':
+          description: Trends list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trend'
+components:
+  schemas:
+    SessionsSummary:
+      type: object
+      properties:
+        totalFocusTime:
+          type: string
+          example: "12.50"
+        sessionsTodayCount:
+          type: integer
+          example: 3
+    TasksSummary:
+      type: object
+      properties:
+        completed:
+          type: integer
+          example: 5
+        inProgress:
+          type: integer
+          example: 2
+        overdue:
+          type: integer
+          example: 1
+        focusTime:
+          type: number
+          format: float
+          example: 6.5
+        productivity:
+          type: integer
+          example: 83
+    TeamMember:
+      type: object
+      properties:
+        user_id:
+          type: string
+        user_name:
+          type: string
+        hours_logged:
+          type: integer
+        tasks_completed:
+          type: integer
+    BurndownPoint:
+      type: object
+      properties:
+        day:
+          type: string
+        ideal:
+          type: integer
+        actual:
+          type: integer
+    Project:
+      type: object
+      properties:
+        project_id:
+          type: string
+        project_name:
+          type: string
+        project_progress:
+          type: integer
+        project_status:
+          type: string
+    Trend:
+      type: object
+      properties:
+        week:
+          type: string
+        productivity:
+          type: integer
+        quality:
+          type: integer
+        speed:
+          type: integer
