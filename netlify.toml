@@ -1,0 +1,25 @@
+[build]
+  functions = "netlify/functions"
+  
+[build.environment]
+  NODE_VERSION = "18"
+
+[[redirects]]
+  from = "/api/tasks"
+  to = "/.netlify/functions/tasks"
+  status = 200
+
+[[redirects]]
+  from = "/api/users"
+  to = "/.netlify/functions/users"
+  status = 200
+
+[[redirects]]
+  from = "/api/sessions"
+  to = "/.netlify/functions/sessions"
+  status = 200
+
+[[redirects]]
+  from = "/api/projects"
+  to = "/.netlify/functions/projects"
+  status = 200
