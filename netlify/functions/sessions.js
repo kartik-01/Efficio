@@ -11,7 +11,14 @@ const connectToDatabase = async () => {
   isConnected = true;
 };
 
-const Session = require('../../models/Session');
+// Define Session schema directly in the function
+const SessionSchema = new mongoose.Schema({
+  duration: Number,
+  date: Date,
+  // Add other session fields as needed
+});
+
+const Session = mongoose.models.Session || mongoose.model('Session', SessionSchema);
 
 exports.handler = async (event, context) => {
   const headers = {
@@ -56,7 +63,7 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Failed to fetch sessions' }),
+      body: JSON.stringify({ error: 'Failed to fetch sessions', details: error.message }),
     };
   }
 };

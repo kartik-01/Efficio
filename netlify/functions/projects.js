@@ -11,7 +11,15 @@ const connectToDatabase = async () => {
   isConnected = true;
 };
 
-const Project = require('../../models/Project');
+// Define Project schema directly in the function
+const ProjectSchema = new mongoose.Schema({
+  name: String,
+  description: String,
+  status: String,
+  // Add other project fields as needed
+});
+
+const Project = mongoose.models.Project || mongoose.model('Project', ProjectSchema);
 
 exports.handler = async (event, context) => {
   const headers = {
@@ -45,7 +53,7 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Failed to fetch projects' }),
+      body: JSON.stringify({ error: 'Failed to fetch projects', details: error.message }),
     };
   }
 };
