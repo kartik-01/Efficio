@@ -10,9 +10,9 @@ module.exports = createWebpackConfig({
     name: "app_shell",
     remotes: isProduction
       ? {
-          task_manager: "task_manager@https://test-effici0-task.netlify.app/remoteEntry.js",
-          time_tracker: "time_tracker@https://test-effici0-time.netlify.app/remoteEntry.js",
-          analytics: "analytics@https://test-effici0-analytics.netlify.app/remoteEntry.js"
+          task_manager: "task_manager@https://go-efficio-task.netlify.app/remoteEntry.js",
+          time_tracker: "time_tracker@https://go-efficio-time.netlify.app/remoteEntry.js",
+          analytics: "analytics@https://go-efficio-analytics.netlify.app/remoteEntry.js"
         }
       : {
           task_manager: "task_manager@http://localhost:3001/remoteEntry.js",
