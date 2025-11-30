@@ -338,6 +338,33 @@ export function TaskManager() {
     return () => window.removeEventListener('sse:task_updated', handleSseTaskUpdated as EventListener);
   }, []);
 
+  // Listen for task deletions from SSE and remove from local state
+  useEffect(() => {
+    const handleSseTaskDeleted = (ev: Event) => {
+      try {
+        const custom = ev as CustomEvent<any>;
+        const payload = custom.detail || {};
+        const taskId = payload.taskId || payload.id || payload._id;
+        if (!taskId) return;
+
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+        setAllTasks(prev => prev.filter(t => t.id !== taskId));
+        setGroupTasksMap(prev => {
+          const newMap = new Map(prev);
+          for (const [k, arr] of newMap.entries()) {
+            newMap.set(k, arr.filter(t => t.id !== taskId));
+          }
+          return newMap;
+        });
+      } catch (err) {
+        console.error('Failed to handle sse:task_deleted', err);
+      }
+    };
+
+    window.addEventListener('sse:task_deleted', handleSseTaskDeleted as EventListener);
+    return () => window.removeEventListener('sse:task_deleted', handleSseTaskDeleted as EventListener);
+  }, []);
+
   const fetchTasks = async (groupTag?: string | null) => {
     try {
       setLoading(true);
