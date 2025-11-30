@@ -387,17 +387,28 @@ export function TaskManager() {
         return newMap;
       });
         
-        // Activities are now fetched from API automatically
-        // Refresh activities after status change
-        const refreshedActivities = await activityApi.getActivities({
-          groupTag: selectedGroup || undefined,
-          limit: 50,
-        });
-        const mappedActivities: Activity[] = refreshedActivities.map(mapApiActivityToFrontend);
-        setActivities(mappedActivities);
-      
-      // Update via API
-      await taskApi.updateTaskStatus(taskId, newStatus);
+        // Update via API and get the created activity back so we can update sidebar immediately
+        const result: any = await taskApi.updateTaskStatus(taskId, newStatus);
+        if (result && result.activity) {
+          try {
+            const mapped = mapApiActivityToFrontend(result.activity);
+            // If the returned activity lacks a userPicture (backend may not populate it
+            // for immediate responses), use the current Auth0 user's picture as a fallback
+            // to avoid showing the "You" text fallback. This mirrors the server-side
+            // behavior used when listing activities.
+            if (!mapped.userPicture && mapped.userId === currentUserId) {
+              mapped.userPicture = auth0User?.picture || null;
+            }
+            setActivities(prev => [mapped, ...prev].slice(0, 50));
+          } catch (err) {
+            console.error('Failed to map returned activity:', err);
+            // Fallback: reload activities if mapping fails
+            loadActivities(selectedGroup || undefined);
+          }
+        } else {
+          // Fallback: reload activities if API didn't return an activity
+          loadActivities(selectedGroup || undefined);
+        }
       }
     } catch (error) {
       // Revert on error - refetch both
