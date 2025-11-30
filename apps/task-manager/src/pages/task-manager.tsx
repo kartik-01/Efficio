@@ -28,14 +28,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 // Mock groups data (temporarily hardcoded)
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
 
-const getCategoryColor = (category: string) => {
-  const colors: { [key: string]: string } = {
-    Work: 'bg-blue-500',
-    Personal: 'bg-green-500',
-    Shopping: 'bg-purple-500',
-  };
-  return colors[category] || 'bg-gray-500';
-};
+import { SYSTEM_CATEGORIES, getCategoryColor } from '../utils/categories';
 
 // Helper function to map backend activity from API to frontend Activity format
 const mapApiActivityToFrontend = (act: any): Activity => ({
@@ -82,6 +75,8 @@ export function TaskManager() {
     dueDate: '',
     progress: 20,
   });
+  // Modal category selection state (system categories + 'Other')
+  const [categorySelection, setCategorySelection] = useState<string>('');
   const [includeProgress, setIncludeProgress] = useState(false);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [isCollapsing, setIsCollapsing] = useState(false);
@@ -494,6 +489,15 @@ export function TaskManager() {
       progress: task.progress || 20,
       assignedTo: task.assignedTo || [],
     });
+    // Initialize category selection state for the modal
+    if (task.category && SYSTEM_CATEGORIES.includes(task.category)) {
+      setCategorySelection(task.category);
+    } else if (task.category) {
+      // Any non-system category is represented as 'Other'
+      setCategorySelection('Other');
+    } else {
+      setCategorySelection('');
+    }
     setIncludeProgress(task.progress !== undefined);
     setSkipModalAnimation(false); // Ensure animations are enabled for edit mode
     setShowModal(true);
@@ -580,10 +584,17 @@ export function TaskManager() {
   const handleAddTask = async () => {
     if (!newTask.title?.trim()) return;
 
+    const computeCategory = () => {
+      if (categorySelection) return capitalizeWords(categorySelection);
+      return '';
+    };
+
+    const finalCategory = computeCategory();
+
     const taskData = {
       title: newTask.title,
       description: newTask.description || '',
-      category: newTask.category?.trim() ? capitalizeWords(newTask.category) : '',
+      category: finalCategory,
       priority: (newTask.priority || 'Medium') as 'High' | 'Medium' | 'Low',
       status: editingTask ? (newTask.status || 'pending') : 'pending',
       dueDate: newTask.dueDate || '',
@@ -797,6 +808,7 @@ export function TaskManager() {
         dueDate: '',
         progress: 20,
       });
+      setCategorySelection('');
       setIncludeProgress(false);
     } catch (error) {
       console.log('🍞 Toast ERROR:', editingTask ? 'Failed to Update Task' : 'Failed to Add Task');
@@ -921,7 +933,12 @@ export function TaskManager() {
 
     // Category filter
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter((task) => task.category === categoryFilter);
+      if (categoryFilter === 'Other') {
+        // Show tasks with a category set that is not in the system-defined list
+        filtered = filtered.filter((task) => task.category && !SYSTEM_CATEGORIES.includes(task.category));
+      } else {
+        filtered = filtered.filter((task) => task.category === categoryFilter);
+      }
     }
 
     // Sort
@@ -1192,9 +1209,10 @@ export function TaskManager() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Work">Work</SelectItem>
-                <SelectItem value="Personal">Personal</SelectItem>
-                <SelectItem value="Shopping">Shopping</SelectItem>
+                {SYSTEM_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1554,6 +1572,7 @@ export function TaskManager() {
                 progress: 20,
                 assignedTo: [],
               });
+                  setCategorySelection('');
               setIncludeProgress(false);
               setSkipModalAnimation(false);
             }
@@ -1606,13 +1625,24 @@ export function TaskManager() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="category">Category</Label>
-                  <Input
-                    id="category"
-                    placeholder="e.g., Work, Personal"
-                    value={newTask.category || ''}
-                    onChange={(e) => setNewTask({ ...newTask, category: e.target.value })}
-                    className=""
-                  />
+                  <Select
+                    value={categorySelection}
+                    onValueChange={(value) => {
+                      setCategorySelection(value);
+                      // Always store the selected value; 'Other' is stored as the literal 'Other'
+                      setNewTask({ ...newTask, category: value });
+                    }}
+                  >
+                    <SelectTrigger id="category" className="">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SYSTEM_CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="priority">Priority</Label>

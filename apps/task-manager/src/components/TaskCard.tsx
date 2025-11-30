@@ -51,14 +51,7 @@ interface TaskCardProps {
   disableDrag?: boolean; // Disable dragging (e.g., on mobile)
 }
 
-const getCategoryColor = (category: string) => {
-  const colors: { [key: string]: string } = {
-    Work: 'bg-blue-500',
-    Personal: 'bg-green-500',
-    Shopping: 'bg-purple-500',
-  };
-  return colors[category] || 'bg-gray-500';
-};
+import { getCategoryColor } from '../utils/categories';
 
 const priorityColors = {
   High: 'bg-red-100 text-red-800',
