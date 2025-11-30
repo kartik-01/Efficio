@@ -28,14 +28,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 // Mock groups data (temporarily hardcoded)
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
 
-const getCategoryColor = (category: string) => {
-  const colors: { [key: string]: string } = {
-    Work: 'bg-blue-500',
-    Personal: 'bg-green-500',
-    Shopping: 'bg-purple-500',
-  };
-  return colors[category] || 'bg-gray-500';
-};
+import { SYSTEM_CATEGORIES, getCategoryColor } from '../utils/categories';
 
 // Helper function to map backend activity from API to frontend Activity format
 const mapApiActivityToFrontend = (act: any): Activity => ({
@@ -82,7 +75,10 @@ export function TaskManager() {
     dueDate: '',
     progress: 20,
   });
+  // Modal category selection state (system categories + 'Other')
+  const [categorySelection, setCategorySelection] = useState<string>('');
   const [includeProgress, setIncludeProgress] = useState(false);
+  const [allowBackdate, setAllowBackdate] = useState(false);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [isCollapsing, setIsCollapsing] = useState(false);
   const [skipModalAnimation, setSkipModalAnimation] = useState(false); // Flag to skip animation during task creation
@@ -91,6 +87,15 @@ export function TaskManager() {
   const [flyingTask, setFlyingTask] = useState<{ task: Partial<Task>; fromRect: DOMRect; toRect: DOMRect } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  // Localized today's date string for date `min` attribute (YYYY-MM-DD)
+  const todayString = (() => {
+    const d = new Date();
+    // normalize to start of day local
+    d.setHours(0, 0, 0, 0);
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    const local = new Date(d.getTime() - tzOffset);
+    return local.toISOString().split('T')[0];
+  })();
   const modalContentRef = useRef<HTMLDivElement>(null);
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
@@ -387,17 +392,43 @@ export function TaskManager() {
         return newMap;
       });
         
-        // Activities are now fetched from API automatically
-        // Refresh activities after status change
-        const refreshedActivities = await activityApi.getActivities({
-          groupTag: selectedGroup || undefined,
-          limit: 50,
-        });
-        const mappedActivities: Activity[] = refreshedActivities.map(mapApiActivityToFrontend);
-        setActivities(mappedActivities);
-      
-      // Update via API
-      await taskApi.updateTaskStatus(taskId, newStatus);
+        // Update via API and get the created activity back so we can update sidebar immediately
+        const result: any = await taskApi.updateTaskStatus(taskId, newStatus);
+        // If API returned an updated task, merge server values (like isOverdue) into state
+        if (result && result.task) {
+          const returnedTask: Task = result.task;
+          setTasks((prevTasks) => prevTasks.map(t => t.id === returnedTask.id ? returnedTask : t));
+          setAllTasks((prevTasks) => prevTasks.map(t => t.id === returnedTask.id ? returnedTask : t));
+          setGroupTasksMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.forEach((groupTasks, groupTag) => {
+              const updated = groupTasks.map(t => t.id === returnedTask.id ? returnedTask : t);
+              newMap.set(groupTag, updated);
+            });
+            return newMap;
+          });
+        }
+
+        if (result && result.activity) {
+          try {
+            const mapped = mapApiActivityToFrontend(result.activity);
+            // If the returned activity lacks a userPicture (backend may not populate it
+            // for immediate responses), use the current Auth0 user's picture as a fallback
+            // to avoid showing the "You" text fallback. This mirrors the server-side
+            // behavior used when listing activities.
+            if (!mapped.userPicture && mapped.userId === currentUserId) {
+              mapped.userPicture = auth0User?.picture || null;
+            }
+            setActivities(prev => [mapped, ...prev].slice(0, 50));
+          } catch (err) {
+            console.error('Failed to map returned activity:', err);
+            // Fallback: reload activities if mapping fails
+            loadActivities(selectedGroup || undefined);
+          }
+        } else {
+          // Fallback: reload activities if API didn't return an activity
+          loadActivities(selectedGroup || undefined);
+        }
       }
     } catch (error) {
       // Revert on error - refetch both
@@ -483,6 +514,35 @@ export function TaskManager() {
       progress: task.progress || 20,
       assignedTo: task.assignedTo || [],
     });
+    // If the task has a past due date, default to allowing backdate so edits don't get rejected
+    const parseLocalDate = (s: string) => {
+      try {
+        return new Date(s);
+      } catch (e) {
+        return null;
+      }
+    };
+    if (task.dueDate) {
+      const due = parseLocalDate(task.dueDate);
+      if (due) {
+        const todayLocal = new Date();
+        todayLocal.setHours(0, 0, 0, 0);
+        setAllowBackdate(due < todayLocal);
+      } else {
+        setAllowBackdate(false);
+      }
+    } else {
+      setAllowBackdate(false);
+    }
+    // Initialize category selection state for the modal
+    if (task.category && SYSTEM_CATEGORIES.includes(task.category)) {
+      setCategorySelection(task.category);
+    } else if (task.category) {
+      // Any non-system category is represented as 'Other'
+      setCategorySelection('Other');
+    } else {
+      setCategorySelection('');
+    }
     setIncludeProgress(task.progress !== undefined);
     setSkipModalAnimation(false); // Ensure animations are enabled for edit mode
     setShowModal(true);
@@ -569,13 +629,21 @@ export function TaskManager() {
   const handleAddTask = async () => {
     if (!newTask.title?.trim()) return;
 
+    const computeCategory = () => {
+      if (categorySelection) return capitalizeWords(categorySelection);
+      return '';
+    };
+
+    const finalCategory = computeCategory();
+
     const taskData = {
       title: newTask.title,
       description: newTask.description || '',
-      category: newTask.category?.trim() ? capitalizeWords(newTask.category) : '',
+      category: finalCategory,
       priority: (newTask.priority || 'Medium') as 'High' | 'Medium' | 'Low',
       status: editingTask ? (newTask.status || 'pending') : 'pending',
       dueDate: newTask.dueDate || '',
+      allowBackdate: allowBackdate,
       progress: includeProgress ? (newTask.progress || 0) : undefined,
       groupTag: selectedGroup || '@personal', // Add groupTag to task
       assignedTo: newTask.assignedTo || [], // Add assignedTo array
@@ -653,6 +721,7 @@ export function TaskManager() {
               assignedTo: [],
             });
             setIncludeProgress(false);
+            setAllowBackdate(false);
             setEditingTask(null);
           }, 400); // After modal closing animation completes (0.2s animation + buffer)
           
@@ -786,6 +855,8 @@ export function TaskManager() {
         dueDate: '',
         progress: 20,
       });
+      setAllowBackdate(false);
+      setCategorySelection('');
       setIncludeProgress(false);
     } catch (error) {
       console.log('🍞 Toast ERROR:', editingTask ? 'Failed to Update Task' : 'Failed to Add Task');
@@ -910,7 +981,12 @@ export function TaskManager() {
 
     // Category filter
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter((task) => task.category === categoryFilter);
+      if (categoryFilter === 'Other') {
+        // Show tasks with a category set that is not in the system-defined list
+        filtered = filtered.filter((task) => task.category && !SYSTEM_CATEGORIES.includes(task.category));
+      } else {
+        filtered = filtered.filter((task) => task.category === categoryFilter);
+      }
     }
 
     // Sort
@@ -1181,9 +1257,10 @@ export function TaskManager() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="Work">Work</SelectItem>
-                <SelectItem value="Personal">Personal</SelectItem>
-                <SelectItem value="Shopping">Shopping</SelectItem>
+                {SYSTEM_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1216,6 +1293,7 @@ export function TaskManager() {
                     assignedTo: [],
                   });
                   setIncludeProgress(false);
+                  setAllowBackdate(false);
                   setSkipModalAnimation(false); // Ensure animations are enabled for new task
                   setShowModal(true);
                 }}
@@ -1331,6 +1409,7 @@ export function TaskManager() {
                             onDelete={handleDeleteClick}
                             onMove={handleOpenStatusSheet}
                             disableDrag={true}
+                            showGroupLabel={!selectedGroup}
                           />
                         ))
                       )}
@@ -1370,6 +1449,7 @@ export function TaskManager() {
                             onDelete={handleDeleteClick}
                             onMove={handleOpenStatusSheet}
                             disableDrag={true}
+                            showGroupLabel={!selectedGroup}
                           />
                         ))
                       )}
@@ -1409,6 +1489,7 @@ export function TaskManager() {
                             onDelete={handleDeleteClick}
                             onMove={handleOpenStatusSheet}
                             disableDrag={true}
+                            showGroupLabel={!selectedGroup}
                           />
                         ))
                       )}
@@ -1543,6 +1624,7 @@ export function TaskManager() {
                 progress: 20,
                 assignedTo: [],
               });
+                  setCategorySelection('');
               setIncludeProgress(false);
               setSkipModalAnimation(false);
             }
@@ -1579,7 +1661,7 @@ export function TaskManager() {
                   placeholder="Enter task title"
                   value={newTask.title || ''}
                   onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                  className=""
+                    className="h-[36px] rounded-[8px] border border-gray-200"
                 />
               </div>
               <div className="grid gap-2">
@@ -1589,19 +1671,30 @@ export function TaskManager() {
                   placeholder="Enter task description"
                   value={newTask.description || ''}
                   onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                  className="h-32"
+                  className="h-32 rounded-[8px] border border-gray-200 p-2"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="category">Category</Label>
-                  <Input
-                    id="category"
-                    placeholder="e.g., Work, Personal"
-                    value={newTask.category || ''}
-                    onChange={(e) => setNewTask({ ...newTask, category: e.target.value })}
-                    className=""
-                  />
+                  <Select
+                    value={categorySelection}
+                    onValueChange={(value) => {
+                      setCategorySelection(value);
+                      // Always store the selected value; 'Other' is stored as the literal 'Other'
+                      setNewTask({ ...newTask, category: value });
+                    }}
+                  >
+                    <SelectTrigger id="category" className="h-[36px] rounded-[8px] border border-gray-200">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SYSTEM_CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="priority">Priority</Label>
@@ -1609,7 +1702,7 @@ export function TaskManager() {
                     value={newTask.priority || 'Medium'}
                     onValueChange={(value) => setNewTask({ ...newTask, priority: value as Task['priority'] })}
                   >
-                    <SelectTrigger id="priority" className="">
+                    <SelectTrigger id="priority" className="h-[36px] rounded-[8px] border border-gray-200">
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1628,8 +1721,19 @@ export function TaskManager() {
                   placeholder="mm/dd/yyyy"
                   value={newTask.dueDate || ''}
                   onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-                  className=""
+                  min={allowBackdate ? undefined : todayString}
+                  className="h-[36px] rounded-[8px] border border-gray-200"
                 />
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="allowBackdate"
+                    checked={allowBackdate}
+                    onCheckedChange={(checked) => setAllowBackdate(checked as boolean)}
+                  />
+                  <Label htmlFor="allowBackdate" className="text-sm cursor-pointer">
+                    Allow past due date
+                  </Label>
+                </div>
               </div>
 
               {/* Status field for editing */}
@@ -1640,7 +1744,7 @@ export function TaskManager() {
                     value={newTask.status || 'pending'}
                     onValueChange={(value) => setNewTask({ ...newTask, status: value as Task['status'] })}
                   >
-                    <SelectTrigger id="status" className="">
+                      <SelectTrigger id="status" className="h-[36px] rounded-[8px] border border-gray-200">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1688,7 +1792,7 @@ export function TaskManager() {
               )}
 
               {/* Assign To field - only for collaborated groups, visible to admin/editor/owner */}
-              {canSeeAssignTo && !editingTask && (
+              {canSeeAssignTo && (
                 <div className="grid gap-2">
                   <Label htmlFor="assignTo">Assign To</Label>
                   <Select
@@ -1700,7 +1804,7 @@ export function TaskManager() {
                       });
                     }}
                   >
-                    <SelectTrigger id="assignTo">
+                    <SelectTrigger id="assignTo" className="h-[36px] rounded-[8px] border border-gray-200">
                       <SelectValue placeholder="Select a team member (optional)" />
                     </SelectTrigger>
                     <SelectContent>

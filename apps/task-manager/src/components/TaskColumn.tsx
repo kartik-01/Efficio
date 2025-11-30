@@ -117,6 +117,7 @@ export function TaskColumn({ title, status, tasks, group, groups, currentUserId,
                     onProgressChange={onProgressChange}
                     onEdit={onEdit}
                     onDelete={onDelete}
+                    showGroupLabel={!group}
                   />
                 </motion.div>
               );

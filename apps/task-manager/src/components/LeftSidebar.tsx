@@ -72,7 +72,7 @@ export function LeftSidebar({
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   
   // New group form states
-  const [newGroup, setNewGroup] = useState({ name: '', tag: '' });
+  const [newGroup, setNewGroup] = useState({ name: '' });
   const [newGroupCollaborators, setNewGroupCollaborators] = useState<GroupCollaborator[]>([]);
   const [newGroupMemberSearch, setNewGroupMemberSearch] = useState('');
   const [showAddMembers, setShowAddMembers] = useState(false);
@@ -197,12 +197,25 @@ export function LeftSidebar({
 
   // Group handlers
   const handleCreateGroup = async () => {
-    if (!newGroup.name || !newGroup.tag) {
-      toast.error('Please enter group name and tag');
+    if (!newGroup.name) {
+      toast.error('Please enter a workspace name');
       return;
     }
 
-    const tag = newGroup.tag.startsWith('@') ? newGroup.tag : `@${newGroup.tag}`;
+    // Generate tag from name: slugify and prefix with '@'
+    const slug = newGroup.name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+
+    if (!slug) {
+      toast.error('Unable to generate a workspace tag from the name');
+      return;
+    }
+
+    const tag = slug.startsWith('@') ? slug : `@${slug}`;
 
     try {
       // Prepare collaborators data
@@ -227,12 +240,15 @@ export function LeftSidebar({
         color: GROUP_COLORS[groups.length % GROUP_COLORS.length],
       }]);
       
+      // Preserve the created name for toast before clearing form
+      const createdName = newGroup.name;
+
       setShowCreateGroupModal(false);
-      setNewGroup({ name: '', tag: '' });
+      setNewGroup({ name: '' });
       setNewGroupCollaborators([]);
       setNewGroupMemberSearch('');
       setShowAddMembers(false);
-      toast.success(`Workspace "${newGroup.name}" created!`);
+      toast.success(`Workspace "${createdName}" created!`);
       
       // Close sidebar on mobile after workspace is created
       if (isMobile && onToggleCollapse) {
@@ -937,7 +953,7 @@ export function LeftSidebar({
           setShowCreateGroupModal(open);
           if (!open) {
             // Reset form when modal closes
-            setNewGroup({ name: '', tag: '' });
+            setNewGroup({ name: '' });
             setNewGroupCollaborators([]);
             setNewGroupMemberSearch('');
             setShowAddMembers(false);
@@ -962,13 +978,7 @@ export function LeftSidebar({
               />
             </div>
             <div className="space-y-2">
-              <Label>Workspace Tag</Label>
-              <Input
-                placeholder="e.g., web-ui or @web-ui"
-                value={newGroup.tag}
-                onChange={(e) => setNewGroup({ ...newGroup, tag: e.target.value })}
-                className="h-[36px] rounded-[8px]"
-              />
+              {/* Workspace tag is generated from the Workspace Name; no manual tag input */}
             </div>
 
             {/* Add Members Toggle */}
@@ -1245,6 +1255,19 @@ export function LeftSidebar({
               const myInvite = group.collaborators.find(
                 c => c.userId === currentUserId && c.status === 'pending'
               );
+              // Determine inviter label: prefer explicit invitedBy if present
+              let inviterLabel = 'someone';
+              if (group.owner === currentUserId) {
+                inviterLabel = 'You';
+              } else if ((myInvite as any)?.invitedBy && (myInvite as any).invitedBy.name) {
+                inviterLabel = (myInvite as any).invitedBy.name;
+              } else {
+                // Fallback: try to find owner name among accepted collaborators
+                const ownerInCollab = group.collaborators.find((c: any) => c.userId === group.owner && c.status === 'accepted');
+                if (ownerInCollab && ownerInCollab.name) {
+                  inviterLabel = ownerInCollab.name;
+                }
+              }
               return (
                 <Card key={group.id} className="p-4 border-gray-200 dark:border-transparent">
                   <div className="flex items-start justify-between gap-3">
@@ -1257,7 +1280,7 @@ export function LeftSidebar({
                         <h4 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">{group.name}</h4>
                       </div>
                       <p className="text-[#4a5565] dark:text-muted-foreground text-[12px] mb-2">
-                        Invited by {group.owner === currentUserId ? 'You' : 'someone'}
+                        Invited by {inviterLabel}
                       </p>
                       <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px]">
                         Role: {myInvite?.role}

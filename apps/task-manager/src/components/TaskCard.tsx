@@ -44,6 +44,7 @@ interface TaskCardProps {
   group?: Group; // Optional group data if task belongs to a group
   currentUserId?: string; // Current user's auth0Id
   userRole?: 'viewer' | 'editor' | 'admin' | 'owner'; // Current user's role in the group
+  showGroupLabel?: boolean; // Whether to render the bottom group pill (used to hide in single-group views)
   onProgressChange?: (taskId: string, progress: number) => void;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => void;
@@ -51,14 +52,7 @@ interface TaskCardProps {
   disableDrag?: boolean; // Disable dragging (e.g., on mobile)
 }
 
-const getCategoryColor = (category: string) => {
-  const colors: { [key: string]: string } = {
-    Work: 'bg-blue-500',
-    Personal: 'bg-green-500',
-    Shopping: 'bg-purple-500',
-  };
-  return colors[category] || 'bg-gray-500';
-};
+import { getCategoryColor } from '../utils/categories';
 
 const priorityColors = {
   High: 'bg-red-100 text-red-800',
@@ -66,7 +60,7 @@ const priorityColors = {
   Low: 'bg-green-100 text-green-800',
 };
 
-export function TaskCard({ task, group, currentUserId, userRole, onProgressChange, onEdit, onDelete, onMove, disableDrag = false }: TaskCardProps) {
+export function TaskCard({ task, group, currentUserId, userRole, onProgressChange, onEdit, onDelete, onMove, disableDrag = false, showGroupLabel = true }: TaskCardProps) {
   const [localProgress, setLocalProgress] = useState(task.progress || 0);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -317,7 +311,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
         <TooltipTrigger asChild>
           <div
             ref={dragRef as any}
-            className={`p-4 rounded-lg ${bgColor} ${isGroupTask ? 'border-l-4' : ''} ${
+            className={`pt-4 pb-2 px-4 rounded-lg ${bgColor} ${isGroupTask ? 'border-l-4' : ''} ${
               disableDrag ? 'cursor-default' : isDraggable ? 'cursor-move' : 'cursor-not-allowed'
             } transition-all shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3)] ${
               isDragging ? 'opacity-50' : disableDrag ? 'opacity-100' : isDraggable ? 'opacity-100' : 'opacity-60'
@@ -396,6 +390,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
           )}
         </div>
       </div>
+      {/* group label removed from here to keep card compact; shown at bottom instead */}
 
       <p className={`text-sm text-gray-600 dark:text-muted-foreground mb-4 ${task.status === 'completed' ? 'line-through' : ''}`}>
         {task.description}
@@ -515,6 +510,23 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
           )}
         </div>
       </div>
+      {/* Bottom pill: show group name as rounded chip using group's accent color */}
+      {isGroupTask && group && showGroupLabel && (
+        <div className="mt-1 pt-0.5 border-t border-gray-100 dark:border-muted/30">
+          <div>
+            <span
+              className="inline-block text-[11px] px-2 py-0.5 rounded-full font-medium"
+              style={{
+                color: group.color || undefined,
+                border: `1px solid ${group.color || 'transparent'}`,
+                backgroundColor: group.color ? `${group.color}20` : undefined,
+              }}
+            >
+              {group.name || group.tag}
+            </span>
+          </div>
+        </div>
+      )}
           </div>
         </TooltipTrigger>
         {!isDraggable && !disableDrag && userRole === 'viewer' && (

@@ -73,6 +73,7 @@ export interface CreateTaskData {
   priority?: 'High' | 'Medium' | 'Low';
   status?: 'pending' | 'in-progress' | 'completed';
   dueDate?: string;
+  allowBackdate?: boolean;
   progress?: number;
   isOverdue?: boolean;
   groupTag?: string; // Group/Workspace tag (e.g., "@personal", "@web-ui")
@@ -86,6 +87,7 @@ export interface UpdateTaskData {
   priority?: 'High' | 'Medium' | 'Low';
   status?: 'pending' | 'in-progress' | 'completed';
   dueDate?: string;
+  allowBackdate?: boolean;
   progress?: number;
   isOverdue?: boolean;
 }
@@ -189,7 +191,7 @@ export const taskApi = {
   },
 
   // Update task status
-  async updateTaskStatus(id: string, status: 'pending' | 'in-progress' | 'completed'): Promise<Task> {
+  async updateTaskStatus(id: string, status: 'pending' | 'in-progress' | 'completed'): Promise<{ task: Task; activity?: any }> {
     const headers = await getHeaders();
     console.log('Making PATCH request to:', `${API_BASE_URL}/tasks/${id}/status`);
     const headersObj = headers as Record<string, string>;
@@ -209,10 +211,11 @@ export const taskApi = {
       });
       throw new Error(result.message || result.error || 'Failed to update task status');
     }
-    return {
+    const mappedTask: Task = {
       ...result.data,
       id: result.data._id || result.data.id,
     };
+    return { task: mappedTask, activity: result.activity };
   },
 
   // Update task progress
