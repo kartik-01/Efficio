@@ -73,6 +73,7 @@ export interface CreateTaskData {
   priority?: 'High' | 'Medium' | 'Low';
   status?: 'pending' | 'in-progress' | 'completed';
   dueDate?: string;
+  allowBackdate?: boolean;
   progress?: number;
   isOverdue?: boolean;
   groupTag?: string; // Group/Workspace tag (e.g., "@personal", "@web-ui")
@@ -86,6 +87,7 @@ export interface UpdateTaskData {
   priority?: 'High' | 'Medium' | 'Low';
   status?: 'pending' | 'in-progress' | 'completed';
   dueDate?: string;
+  allowBackdate?: boolean;
   progress?: number;
   isOverdue?: boolean;
 }

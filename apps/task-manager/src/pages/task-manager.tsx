@@ -78,6 +78,7 @@ export function TaskManager() {
   // Modal category selection state (system categories + 'Other')
   const [categorySelection, setCategorySelection] = useState<string>('');
   const [includeProgress, setIncludeProgress] = useState(false);
+  const [allowBackdate, setAllowBackdate] = useState(false);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [isCollapsing, setIsCollapsing] = useState(false);
   const [skipModalAnimation, setSkipModalAnimation] = useState(false); // Flag to skip animation during task creation
@@ -86,6 +87,15 @@ export function TaskManager() {
   const [flyingTask, setFlyingTask] = useState<{ task: Partial<Task>; fromRect: DOMRect; toRect: DOMRect } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  // Localized today's date string for date `min` attribute (YYYY-MM-DD)
+  const todayString = (() => {
+    const d = new Date();
+    // normalize to start of day local
+    d.setHours(0, 0, 0, 0);
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    const local = new Date(d.getTime() - tzOffset);
+    return local.toISOString().split('T')[0];
+  })();
   const modalContentRef = useRef<HTMLDivElement>(null);
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
@@ -384,6 +394,21 @@ export function TaskManager() {
         
         // Update via API and get the created activity back so we can update sidebar immediately
         const result: any = await taskApi.updateTaskStatus(taskId, newStatus);
+        // If API returned an updated task, merge server values (like isOverdue) into state
+        if (result && result.task) {
+          const returnedTask: Task = result.task;
+          setTasks((prevTasks) => prevTasks.map(t => t.id === returnedTask.id ? returnedTask : t));
+          setAllTasks((prevTasks) => prevTasks.map(t => t.id === returnedTask.id ? returnedTask : t));
+          setGroupTasksMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.forEach((groupTasks, groupTag) => {
+              const updated = groupTasks.map(t => t.id === returnedTask.id ? returnedTask : t);
+              newMap.set(groupTag, updated);
+            });
+            return newMap;
+          });
+        }
+
         if (result && result.activity) {
           try {
             const mapped = mapApiActivityToFrontend(result.activity);
@@ -489,6 +514,26 @@ export function TaskManager() {
       progress: task.progress || 20,
       assignedTo: task.assignedTo || [],
     });
+    // If the task has a past due date, default to allowing backdate so edits don't get rejected
+    const parseLocalDate = (s: string) => {
+      try {
+        return new Date(s);
+      } catch (e) {
+        return null;
+      }
+    };
+    if (task.dueDate) {
+      const due = parseLocalDate(task.dueDate);
+      if (due) {
+        const todayLocal = new Date();
+        todayLocal.setHours(0, 0, 0, 0);
+        setAllowBackdate(due < todayLocal);
+      } else {
+        setAllowBackdate(false);
+      }
+    } else {
+      setAllowBackdate(false);
+    }
     // Initialize category selection state for the modal
     if (task.category && SYSTEM_CATEGORIES.includes(task.category)) {
       setCategorySelection(task.category);
@@ -598,6 +643,7 @@ export function TaskManager() {
       priority: (newTask.priority || 'Medium') as 'High' | 'Medium' | 'Low',
       status: editingTask ? (newTask.status || 'pending') : 'pending',
       dueDate: newTask.dueDate || '',
+      allowBackdate: allowBackdate,
       progress: includeProgress ? (newTask.progress || 0) : undefined,
       groupTag: selectedGroup || '@personal', // Add groupTag to task
       assignedTo: newTask.assignedTo || [], // Add assignedTo array
@@ -675,6 +721,7 @@ export function TaskManager() {
               assignedTo: [],
             });
             setIncludeProgress(false);
+            setAllowBackdate(false);
             setEditingTask(null);
           }, 400); // After modal closing animation completes (0.2s animation + buffer)
           
@@ -808,6 +855,7 @@ export function TaskManager() {
         dueDate: '',
         progress: 20,
       });
+      setAllowBackdate(false);
       setCategorySelection('');
       setIncludeProgress(false);
     } catch (error) {
@@ -1245,6 +1293,7 @@ export function TaskManager() {
                     assignedTo: [],
                   });
                   setIncludeProgress(false);
+                  setAllowBackdate(false);
                   setSkipModalAnimation(false); // Ensure animations are enabled for new task
                   setShowModal(true);
                 }}
@@ -1360,6 +1409,7 @@ export function TaskManager() {
                             onDelete={handleDeleteClick}
                             onMove={handleOpenStatusSheet}
                             disableDrag={true}
+                            showGroupLabel={!selectedGroup}
                           />
                         ))
                       )}
@@ -1399,6 +1449,7 @@ export function TaskManager() {
                             onDelete={handleDeleteClick}
                             onMove={handleOpenStatusSheet}
                             disableDrag={true}
+                            showGroupLabel={!selectedGroup}
                           />
                         ))
                       )}
@@ -1438,6 +1489,7 @@ export function TaskManager() {
                             onDelete={handleDeleteClick}
                             onMove={handleOpenStatusSheet}
                             disableDrag={true}
+                            showGroupLabel={!selectedGroup}
                           />
                         ))
                       )}
@@ -1669,8 +1721,19 @@ export function TaskManager() {
                   placeholder="mm/dd/yyyy"
                   value={newTask.dueDate || ''}
                   onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                  min={allowBackdate ? undefined : todayString}
                   className="h-[36px] rounded-[8px] border border-gray-200"
                 />
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="allowBackdate"
+                    checked={allowBackdate}
+                    onCheckedChange={(checked) => setAllowBackdate(checked as boolean)}
+                  />
+                  <Label htmlFor="allowBackdate" className="text-sm cursor-pointer">
+                    Allow past due date
+                  </Label>
+                </div>
               </div>
 
               {/* Status field for editing */}
