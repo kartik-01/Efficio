@@ -1255,6 +1255,19 @@ export function LeftSidebar({
               const myInvite = group.collaborators.find(
                 c => c.userId === currentUserId && c.status === 'pending'
               );
+              // Determine inviter label: prefer explicit invitedBy if present
+              let inviterLabel = 'someone';
+              if (group.owner === currentUserId) {
+                inviterLabel = 'You';
+              } else if ((myInvite as any)?.invitedBy && (myInvite as any).invitedBy.name) {
+                inviterLabel = (myInvite as any).invitedBy.name;
+              } else {
+                // Fallback: try to find owner name among accepted collaborators
+                const ownerInCollab = group.collaborators.find((c: any) => c.userId === group.owner && c.status === 'accepted');
+                if (ownerInCollab && ownerInCollab.name) {
+                  inviterLabel = ownerInCollab.name;
+                }
+              }
               return (
                 <Card key={group.id} className="p-4 border-gray-200 dark:border-transparent">
                   <div className="flex items-start justify-between gap-3">
@@ -1267,7 +1280,7 @@ export function LeftSidebar({
                         <h4 className="text-[#101828] dark:text-foreground text-[15px] font-semibold">{group.name}</h4>
                       </div>
                       <p className="text-[#4a5565] dark:text-muted-foreground text-[12px] mb-2">
-                        Invited by {group.owner === currentUserId ? 'You' : 'someone'}
+                        Invited by {inviterLabel}
                       </p>
                       <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px]">
                         Role: {myInvite?.role}
