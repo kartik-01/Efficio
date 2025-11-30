@@ -8,6 +8,7 @@ import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
 import { notificationApi, initializeNotificationApi, isNotificationApiReady, NotificationsResponse } from "../services/notificationApi";
+import eventsApi from "../services/eventsApi";
 import { Badge, ScrollArea } from "@efficio/ui";
 
 // API base URL - injected by webpack DefinePlugin at build time
@@ -43,6 +44,21 @@ export const Navbar = ({
           return await getAccessTokenSilently();
         } catch (error) {
           console.error("Failed to get access token:", error);
+          return undefined;
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  // Initialize eventsApi (SSE) with token getter (only once)
+  useEffect(() => {
+    if (isAuthenticated) {
+      eventsApi.initialize(async () => {
+        try {
+          return await getAccessTokenSilently();
+        } catch (error) {
+          console.error('eventsApi: failed to get access token', error);
           return undefined;
         }
       });
@@ -103,6 +119,21 @@ export const Navbar = ({
     if (!isAuthenticated) {
       setNotifications(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  // Connect to SSE stream when authenticated; disconnect on logout
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Attempt to connect — eventsApi will skip if not initialized or token missing
+      eventsApi.connect();
+      // No-op cleanup will disconnect when component unmounts or when user logs out
+      return () => {
+        eventsApi.disconnect();
+      };
+    }
+    // Ensure disconnected when not authenticated
+    eventsApi.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 

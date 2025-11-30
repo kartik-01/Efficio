@@ -286,6 +286,58 @@ export function TaskManager() {
     };
   }, [setSelectedGroup]);
 
+  // Listen for SSE task updates forwarded by the dashboard shell
+  useEffect(() => {
+    const handleSseTaskUpdated = (ev: Event) => {
+      try {
+        const custom = ev as CustomEvent<any>;
+        const payload = custom.detail || {};
+        // Backend may send either a full `task` object or a flattened payload
+        const incoming = payload.task || payload;
+        const incomingId = (incoming && (incoming.id || incoming._id || incoming.taskId)) || null;
+        if (!incomingId) return;
+
+        const normalized: Task = mapApiTaskToFrontend(incoming);
+
+        // Merge into `tasks`
+        setTasks(prev => {
+          const found = prev.some(t => t.id === normalized.id);
+          if (found) {
+            return prev.map(t => t.id === normalized.id ? { ...t, ...normalized } : t);
+          }
+          return [...prev, normalized];
+        });
+
+        // Merge into `allTasks`
+        setAllTasks(prev => {
+          const found = prev.some(t => t.id === normalized.id);
+          if (found) {
+            return prev.map(t => t.id === normalized.id ? { ...t, ...normalized } : t);
+          }
+          return [...prev, normalized];
+        });
+
+        // Merge into `groupTasksMap`
+        setGroupTasksMap(prev => {
+          const newMap = new Map(prev);
+          for (const [groupTag, groupTasks] of newMap.entries()) {
+            const found = groupTasks.some(t => t.id === normalized.id);
+            if (found) {
+              newMap.set(groupTag, groupTasks.map(t => t.id === normalized.id ? { ...t, ...normalized } : t));
+            }
+          }
+          return newMap;
+        });
+
+      } catch (err) {
+        console.error('Failed to handle sse:task_updated', err);
+      }
+    };
+
+    window.addEventListener('sse:task_updated', handleSseTaskUpdated as EventListener);
+    return () => window.removeEventListener('sse:task_updated', handleSseTaskUpdated as EventListener);
+  }, []);
+
   const fetchTasks = async (groupTag?: string | null) => {
     try {
       setLoading(true);
