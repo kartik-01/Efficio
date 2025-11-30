@@ -37,8 +37,10 @@ const mapApiActivityToFrontend = (act: any): Activity => ({
   taskTitle: act.taskTitle || '',
   taskId: act.taskId || '',
   userId: act.userId,
-  userName: act.userName,
+  userName: act.userName || null,
+  userInitials: act.userInitials || null,
   userPicture: act.userPicture || null,
+  userEmail: act.userEmail || null,
   timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
   fromStatus: act.fromStatus,
   toStatus: act.toStatus,
@@ -364,6 +366,32 @@ export function TaskManager() {
     window.addEventListener('sse:task_deleted', handleSseTaskDeleted as EventListener);
     return () => window.removeEventListener('sse:task_deleted', handleSseTaskDeleted as EventListener);
   }, []);
+
+  // Listen for activity SSEs and prepend them into the Recent Activity sidebar
+  useEffect(() => {
+    const handleSseActivity = (ev: Event) => {
+      try {
+        const custom = ev as CustomEvent<any>;
+        const payload = custom.detail || {};
+        const mapped = mapApiActivityToFrontend(payload);
+
+        // If a specific group is selected, ignore activities that don't belong to it
+        if (selectedGroup && selectedGroup !== mapped.groupTag) return;
+
+        // Ensure we show the current user's picture when available as a fallback
+        if (!mapped.userPicture && mapped.userId === currentUserId) {
+          mapped.userPicture = auth0User?.picture || null;
+        }
+
+        setActivities(prev => [mapped, ...prev].slice(0, 50));
+      } catch (err) {
+        console.error('Failed to handle sse:activity', err);
+      }
+    };
+
+    window.addEventListener('sse:activity', handleSseActivity as EventListener);
+    return () => window.removeEventListener('sse:activity', handleSseActivity as EventListener);
+  }, [selectedGroup, currentUserId, auth0User]);
 
   const fetchTasks = async (groupTag?: string | null) => {
     try {

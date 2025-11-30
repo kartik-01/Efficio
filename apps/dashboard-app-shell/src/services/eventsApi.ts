@@ -79,6 +79,7 @@ export async function connectEvents() {
     forward('notification_removed');
     forward('task_updated');
     forward('task_deleted');
+    forward('activity');
 
     // Fallback plain messages
     es.onmessage = (ev) => {

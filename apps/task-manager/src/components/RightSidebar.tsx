@@ -10,7 +10,9 @@ export interface Activity {
   taskTitle?: string;
   taskId?: string;
   userId: string;
-  userName: string;
+  userName?: string | null;
+  userEmail?: string | null;
+  userInitials?: string | null;
   userPicture?: string | null; // Profile picture for the user who performed the activity
   timestamp: string;
   fromStatus?: 'pending' | 'in-progress' | 'completed';
@@ -65,10 +67,21 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
           ) : (
             activities.map((activity, index) => {
               const isCurrentUser = activity.userId === currentUserId;
-              const userAvatarColor = isCurrentUser 
-                ? 'bg-indigo-500 dark:bg-indigo-600' 
-                : ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][index % 5];
+              const palette = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'];
+              // Use a neutral gray for email-only users to match reload UI; keep indigo for current user
+              const userAvatarColor = isCurrentUser
+                ? 'bg-indigo-500 dark:bg-indigo-600'
+                : (!activity.userPicture && activity.userEmail ? 'bg-gray-300 dark:bg-gray-600' : palette[index % palette.length]);
               
+              // Compute a user-facing display name that avoids repeating initials
+              const displayName = (() => {
+                if (isCurrentUser) return 'You';
+                if (activity.userName) return activity.userName;
+                if (activity.userEmail) return activity.userEmail;
+                if (activity.userInitials) return `Someone (${activity.userInitials})`;
+                return 'Someone';
+              })();
+
               return (
                 <motion.div
                   key={activity.id}
@@ -78,15 +91,23 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
                   transition={{ duration: 0.2 }}
                   className="flex gap-3 p-3 bg-gray-50 dark:bg-muted/30 rounded-[8px] border border-gray-100 dark:border-transparent"
                 >
-                  <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                    {activity.userPicture && <AvatarImage src={activity.userPicture} alt={activity.userName} />}
-                    <AvatarFallback className={`${userAvatarColor} text-white text-[11px]`}>
-                      {isCurrentUser ? 'You' : activity.userName.split(' ').map((n: string) => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
+                      <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                        {activity.userPicture && <AvatarImage src={activity.userPicture} alt={displayName} />}
+                        <AvatarFallback className={`${userAvatarColor} text-white text-[11px]`}>
+                          {(() => {
+                            if (isCurrentUser) return 'You';
+                            if (activity.userInitials) return activity.userInitials;
+                            const name = activity.userName || '';
+                            const parts = name.trim().split(/\s+/).filter(Boolean);
+                            if (parts.length === 0) return '';
+                            if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+                            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                          })()}
+                        </AvatarFallback>
+                      </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-[#101828] dark:text-foreground text-[12px] leading-[16px]">
-                      <span className="font-semibold">{activity.userName}</span>
+                          <span className="font-semibold">{displayName}</span>
                       {activity.type === 'task_moved' ? (
                         <>
                           {' '}moved from{' '}
