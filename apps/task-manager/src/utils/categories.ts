@@ -1,6 +1,7 @@
 export const SYSTEM_CATEGORIES = [
   'Work',
   'Personal',
+  'Study',
 ];
 
 // Return Tailwind background color classes for known categories

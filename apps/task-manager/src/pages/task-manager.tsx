@@ -1609,7 +1609,7 @@ export function TaskManager() {
                   placeholder="Enter task title"
                   value={newTask.title || ''}
                   onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                  className=""
+                    className="h-[36px] rounded-[8px] border border-gray-200"
                 />
               </div>
               <div className="grid gap-2">
@@ -1619,7 +1619,7 @@ export function TaskManager() {
                   placeholder="Enter task description"
                   value={newTask.description || ''}
                   onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                  className="h-32"
+                  className="h-32 rounded-[8px] border border-gray-200 p-2"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1633,7 +1633,7 @@ export function TaskManager() {
                       setNewTask({ ...newTask, category: value });
                     }}
                   >
-                    <SelectTrigger id="category" className="">
+                    <SelectTrigger id="category" className="h-[36px] rounded-[8px] border border-gray-200">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1650,7 +1650,7 @@ export function TaskManager() {
                     value={newTask.priority || 'Medium'}
                     onValueChange={(value) => setNewTask({ ...newTask, priority: value as Task['priority'] })}
                   >
-                    <SelectTrigger id="priority" className="">
+                    <SelectTrigger id="priority" className="h-[36px] rounded-[8px] border border-gray-200">
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1669,7 +1669,7 @@ export function TaskManager() {
                   placeholder="mm/dd/yyyy"
                   value={newTask.dueDate || ''}
                   onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-                  className=""
+                  className="h-[36px] rounded-[8px] border border-gray-200"
                 />
               </div>
 
@@ -1681,7 +1681,7 @@ export function TaskManager() {
                     value={newTask.status || 'pending'}
                     onValueChange={(value) => setNewTask({ ...newTask, status: value as Task['status'] })}
                   >
-                    <SelectTrigger id="status" className="">
+                      <SelectTrigger id="status" className="h-[36px] rounded-[8px] border border-gray-200">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1729,7 +1729,7 @@ export function TaskManager() {
               )}
 
               {/* Assign To field - only for collaborated groups, visible to admin/editor/owner */}
-              {canSeeAssignTo && !editingTask && (
+              {canSeeAssignTo && (
                 <div className="grid gap-2">
                   <Label htmlFor="assignTo">Assign To</Label>
                   <Select
@@ -1741,7 +1741,7 @@ export function TaskManager() {
                       });
                     }}
                   >
-                    <SelectTrigger id="assignTo">
+                    <SelectTrigger id="assignTo" className="h-[36px] rounded-[8px] border border-gray-200">
                       <SelectValue placeholder="Select a team member (optional)" />
                     </SelectTrigger>
                     <SelectContent>
