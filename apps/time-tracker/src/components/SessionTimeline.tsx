@@ -23,6 +23,19 @@ export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelin
   const { fetchPlans } = usePlansStore();
   const { fetchSummary } = useSummaryStore();
 
+  // Fetch sessions when selectedDate changes (as a safety measure, though TodayView also does this)
+  useEffect(() => {
+    if (!isTimeApiReady()) return;
+    
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    fetchSessions(dateStr, tz);
+  }, [selectedDate, fetchSessions]);
+
   const handleSave = async () => {
     // Refresh sessions, plans, and summary after manual entry
     const year = selectedDate.getFullYear();
@@ -82,6 +95,7 @@ export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelin
       const isToday = selectedDate.toDateString() === new Date().toDateString();
       
       await Promise.all([
+        fetchSessions(dateStr, tz), // Refresh sessions list to show updated session
         fetchActiveSession(),
         fetchSummary(dateStr, tz, isToday),
       ]);
