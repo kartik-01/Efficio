@@ -36,7 +36,7 @@ const originalEnv = process.env;
 beforeAll(() => {
   process.env = {
     ...originalEnv,
-    REACT_APP_API_BASE_URL: 'http://localhost:4000/api',
+    API_BASE_URL: 'http://localhost:4000/api',
   };
 });
 
