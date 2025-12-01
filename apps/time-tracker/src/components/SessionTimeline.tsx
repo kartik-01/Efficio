@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Category } from '../types';
 import { formatTime, formatDuration, getCategoryColor, getCategoryCardColor } from '../lib/utils';
+import { classifyTitleToCategoryId } from '../lib/classification';
 import { Clock, Plus, Trash2, Edit } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, Input, Label } from '@efficio/ui';
 import { ManualTimeEntry } from './ManualTimeEntry';
@@ -253,29 +254,11 @@ function SessionCard({
   };
 
   const handleClassifyTitle = async () => {
-    if (!getAccessToken || !editForm.taskTitle.trim()) return;
+    if (!editForm.taskTitle.trim()) return;
 
     try {
       setClassifying(true);
-      const token = await getAccessToken();
-      if (!token) return;
-
-      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
-      const response = await fetch(`${API_BASE_URL}/time/classify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ title: editForm.taskTitle }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Classification failed');
-      }
-
-      const result = await response.json();
-      const categoryId = result.data?.categoryId || 'work';
+      const categoryId = await classifyTitleToCategoryId(editForm.taskTitle);
       setEditForm(prev => ({ ...prev, categoryId }));
     } catch (error) {
       console.error('Failed to classify title:', error);
