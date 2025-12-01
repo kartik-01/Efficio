@@ -49,6 +49,23 @@ const getHeaders = async (): Promise<HeadersInit> => {
   return headers;
 };
 
+export interface TimePlanning {
+  enabled?: boolean;
+  defaultStartTime?: string; // "HH:MM" format
+  defaultEndTime?: string; // "HH:MM" format
+  defaultDuration?: number; // minutes
+  categoryId?: 'work' | 'learning' | 'admin' | 'health' | 'personal' | 'rest';
+  recurrence?: {
+    type?: 'none' | 'daily' | 'weekdays';
+    endDate?: string; // ISO date string
+    activatedAt?: string; // ISO date string
+  };
+  autoPlanOnStart?: boolean;
+  showPlanningPrompt?: boolean;
+  lastPlanGenerated?: string; // ISO date string
+  planInstanceCount?: number;
+}
+
 export interface Task {
   _id?: string;
   id?: string;
@@ -64,6 +81,7 @@ export interface Task {
   groupTag?: string; // Group/Workspace tag
   assignedTo?: string[]; // Array of user IDs assigned to this task
   assignedUsers?: Array<{ userId: string; name: string; email?: string; picture?: string | null }>; // Assigned user info (for displaying exited users)
+  timePlanning?: TimePlanning;
 }
 
 export interface CreateTaskData {
@@ -265,6 +283,25 @@ export const taskApi = {
       });
       throw new Error(result.message || result.error || 'Failed to delete task');
     }
+  },
+
+  // Configure time planning for a task
+  async configureTimePlanning(id: string, config: Partial<TimePlanning>): Promise<Task> {
+    const headers = await getHeaders();
+    const response = await fetch(`${API_BASE_URL}/tasks/${id}/time-planning`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(config),
+    });
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.message || result.error || 'Failed to configure time planning');
+    }
+    return {
+      ...result.data,
+      id: result.data._id || result.data.id,
+    };
   },
 };
 
