@@ -831,6 +831,9 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
                   findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, false) !== undefined
                 );
                 
+                // Check if this block is from timePlanning (auto-planned from task manager)
+                const isAutoPlanned = !!(block.isVirtual && block.taskId);
+                
                 return (
                   <PlannedBlockOverlay
                     key={block.id} 
@@ -838,6 +841,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
                     style={getBlockStyle(block)}
                     hasActiveSession={!!hasActiveSession}
                     isEdited={isEdited}
+                    isAutoPlanned={isAutoPlanned}
                     onEdit={() => handleEditClick(block)}
                     onStartNow={() => handleStartNow(block)}
                     onStopTimer={() => handleStopTimer(block)}
@@ -967,6 +971,7 @@ interface PlannedBlockOverlayProps {
   style: { top: string; height: string; width: string; left: string; zIndex: number };
   hasActiveSession: boolean;
   isEdited: boolean;
+  isAutoPlanned: boolean;
   onEdit: () => void;
   onStartNow: () => void;
   onStopTimer: () => void;
@@ -974,7 +979,7 @@ interface PlannedBlockOverlayProps {
   onDeleteBlock: () => void;
 }
 
-function PlannedBlockOverlay({ block, style, hasActiveSession, isEdited, onEdit, onStartNow, onStopTimer, onMarkDone, onDeleteBlock }: PlannedBlockOverlayProps) {
+function PlannedBlockOverlay({ block, style, hasActiveSession, isEdited, isAutoPlanned, onEdit, onStartNow, onStopTimer, onMarkDone, onDeleteBlock }: PlannedBlockOverlayProps) {
   const getCategoryColorClass = (category: Category) => {
     const colors = {
       Work: 'bg-blue-500/20 dark:bg-blue-500/20 border-blue-500/50 dark:border-blue-500/50 text-blue-700 dark:text-blue-300',
@@ -1004,8 +1009,13 @@ function PlannedBlockOverlay({ block, style, hasActiveSession, isEdited, onEdit,
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="text-sm truncate">{block.title}</div>
+            {isAutoPlanned && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-neutral-500/20 text-neutral-700 dark:text-neutral-300 border border-neutral-500/50">
+                Auto
+              </span>
+            )}
             {isEdited && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-500/50">
                 Edited

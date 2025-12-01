@@ -90,7 +90,26 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         categoryId,
       });
       const newSession = convertSession(session);
-      set({ activeSession: newSession });
+      
+      // Add to sessions array if it's for today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const sessionDate = new Date(newSession.startTime);
+      sessionDate.setHours(0, 0, 0, 0);
+      
+      set(state => {
+        const isToday = sessionDate.getTime() === today.getTime();
+        const alreadyExists = state.sessions.some(s => s.id === newSession.id);
+        
+        return {
+          activeSession: newSession,
+          // Add to sessions if it's for today and doesn't already exist
+          sessions: isToday && !alreadyExists 
+            ? [...state.sessions, newSession]
+            : state.sessions,
+        };
+      });
+      
       toast.success('Timer started');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to start timer';
@@ -107,7 +126,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     
     try {
       await sessionsApi.stopSession(activeSession.id);
-      set({ activeSession: null });
+      
+      // Update the session in the sessions array to mark it as completed
+      set(state => ({
+        activeSession: null,
+        sessions: state.sessions.map(s => 
+          s.id === activeSession.id 
+            ? { ...s, endTime: new Date(), duration: Math.round((new Date().getTime() - s.startTime.getTime()) / 60000) }
+            : s
+        ),
+      }));
+      
       toast.success('Timer stopped');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to stop timer';
