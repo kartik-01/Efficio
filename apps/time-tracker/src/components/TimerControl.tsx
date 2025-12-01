@@ -379,7 +379,6 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken, activeSe
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <Play className="w-12 h-12 text-neutral-500 dark:text-neutral-600" />
-              <div className="text-neutral-600 dark:text-neutral-400 mt-2 text-sm">Ready to track</div>
             </div>
           </div>
 

@@ -165,6 +165,18 @@ export const getCategoryColor = (category: Category): string => {
   return colors[category];
 };
 
+export const getCategoryCardColor = (category: Category): string => {
+  const colors: Record<Category, string> = {
+    Work: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/50',
+    Learning: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/50',
+    Admin: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800/50',
+    Health: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50',
+    Personal: 'bg-pink-50 dark:bg-pink-950/30 border-pink-200 dark:border-pink-800/50',
+    Rest: 'bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800',
+  };
+  return colors[category];
+};
+
 export const calculateGoalProgress = (
   sessions: TimeSession[],
   category: Category,
