@@ -3,7 +3,11 @@ import { TodayView } from './components/TodayView';
 import { GoalsInsightsView } from './components/GoalsInsightsView';
 import { Clock, Target } from 'lucide-react';
 
-export function TimeTrackerApp() {
+interface TimeTrackerAppProps {
+  getAccessToken?: () => Promise<string | undefined>;
+}
+
+export function TimeTrackerApp({ getAccessToken }: TimeTrackerAppProps) {
   const [activeView, setActiveView] = useState<'today' | 'goals'>('today');
 
   return (
@@ -46,7 +50,7 @@ export function TimeTrackerApp() {
 
         {/* Main Content */}
         <main className="w-full px-4 py-6 text-neutral-900 dark:text-neutral-100">
-          {activeView === 'today' ? <TodayView /> : <GoalsInsightsView />}
+          {activeView === 'today' ? <TodayView getAccessToken={getAccessToken} /> : <GoalsInsightsView />}
         </main>
       </div>
     </div>
