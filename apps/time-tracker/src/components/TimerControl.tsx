@@ -2,29 +2,56 @@ import { useState, useEffect } from 'react';
 import { Play, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { TimeSession, Task, Category } from '../types';
-import { getActiveSession, setActiveSession, addSession, updateSession, getTasks } from '../lib/storage';
+import { getActiveSession, setActiveSession, addSession, updateSession } from '../lib/storage';
 import { formatTime, formatDuration } from '../lib/utils';
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label } from '@efficio/ui';
+import { taskApi, initializeTaskApi, isTaskApiReady } from '../services/taskApi';
+import { toast } from 'sonner';
 
 const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
 
 interface TimerControlProps {
   onUpdate: () => void;
   externalStart?: { taskId: string; taskTitle: string; category: Category } | null;
+  getAccessToken?: () => Promise<string | undefined>;
 }
 
-export function TimerControl({ onUpdate, externalStart }: TimerControlProps) {
+export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerControlProps) {
   const [activeSession, setActive] = useState<TimeSession | null>(null);
   const [selectedTask, setSelectedTask] = useState<string>('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [pulseKey, setPulseKey] = useState(0);
+  const [loading, setLoading] = useState(false);
 
+  // Initialize taskApi
   useEffect(() => {
-    setTasks(getTasks());
+    if (getAccessToken) {
+      initializeTaskApi(getAccessToken);
+    }
+  }, [getAccessToken]);
+
+  // Fetch tasks from backend
+  useEffect(() => {
+    const loadTasks = async () => {
+      if (!isTaskApiReady()) return;
+
+      try {
+        setLoading(true);
+        const fetchedTasks = await taskApi.getTasks();
+        setTasks(fetchedTasks);
+      } catch (error) {
+        console.error('Failed to load tasks:', error);
+        toast.error('Failed to load tasks');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTasks();
     const session = getActiveSession();
     setActive(session);
-  }, []);
+  }, [getAccessToken]);
 
   // Handle external timer start requests
   useEffect(() => {
@@ -228,16 +255,22 @@ export function TimerControl({ onUpdate, externalStart }: TimerControlProps) {
         <div className="space-y-4">
             <div className="space-y-2">
               <Label className="text-neutral-900 dark:text-neutral-100">Task</Label>
-              <Select value={selectedTask} onValueChange={setSelectedTask}>
+              <Select value={selectedTask} onValueChange={setSelectedTask} disabled={loading}>
                 <SelectTrigger className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 h-11">
-                  <SelectValue placeholder="Select a task" />
+                  <SelectValue placeholder={loading ? "Loading tasks..." : "Select a task"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {tasks.map(task => (
-                    <SelectItem key={task.id} value={task.id}>
-                      {task.title}
-                    </SelectItem>
-                  ))}
+                  {tasks.length === 0 && !loading ? (
+                    <div className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">
+                      No tasks available
+                    </div>
+                  ) : (
+                    tasks.map(task => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.title}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
