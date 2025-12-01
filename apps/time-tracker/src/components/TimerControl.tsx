@@ -44,12 +44,15 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
   const { fetchSummary } = useSummaryStore();
   
   const loading = tasksLoading;
+  
+  // Filter to only show in-progress tasks
+  const inProgressTasks = tasks.filter(task => task.status === 'in-progress');
 
   // Classify selected task when it changes (if it's a regular task)
   useEffect(() => {
     const classifySelectedTask = async () => {
       if (selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
-        const task = tasks.find(t => t.id === selectedTask);
+        const task = inProgressTasks.find(t => t.id === selectedTask);
         if (task) {
           try {
             const category = await classifyTitle(task.title);
@@ -66,12 +69,12 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       }
     };
 
-    if (tasks.length > 0 && selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
+    if (inProgressTasks.length > 0 && selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
       classifySelectedTask();
     } else {
       setSelectedTaskCategory(null);
     }
-  }, [selectedTask, tasks]);
+  }, [selectedTask, inProgressTasks]);
 
   // Handle external timer start requests
   useEffect(() => {
@@ -117,7 +120,9 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const isToday = selectedDate.toDateString() === new Date().toDateString();
       
+      const { fetchSessions } = useSessionsStore.getState();
       await Promise.all([
+        fetchSessions(dateStr, tz), // Refresh sessions to show the new active session
         fetchPlans(dateStr, tz),
         fetchSummary(dateStr, tz, isToday),
       ]);
@@ -186,7 +191,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
     }
 
     // Handle regular task
-    const task = tasks.find(t => t.id === selectedTask);
+    const task = inProgressTasks.find(t => t.id === selectedTask);
     if (!task) return;
 
     // Classify the task title for automatic category detection
@@ -213,7 +218,9 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const isToday = selectedDate.toDateString() === new Date().toDateString();
       
+      const { fetchSessions } = useSessionsStore.getState();
       await Promise.all([
+        fetchSessions(dateStr, tz), // Refresh sessions to show the completed session
         fetchPlans(dateStr, tz),
         fetchSummary(dateStr, tz, isToday),
       ]);
@@ -367,14 +374,14 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
                   <SelectItem value={CUSTOM_TASK_VALUE}>
                     Work on something else
                   </SelectItem>
-                  {tasks.length > 0 && tasks.map(task => (
+                  {inProgressTasks.length > 0 && inProgressTasks.map(task => (
                     <SelectItem key={task.id} value={task.id}>
                       {task.title}
                     </SelectItem>
                   ))}
-                  {tasks.length === 0 && !loading && (
+                  {inProgressTasks.length === 0 && !loading && (
                     <div className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">
-                      No tasks available
+                      No in-progress tasks available
                     </div>
                   )}
                 </SelectContent>
@@ -414,12 +421,12 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
           <div className="mt-auto">
             <Button 
               onClick={handleStart} 
-              disabled={!selectedTask || (selectedTask === CUSTOM_TASK_VALUE && !customTitle.trim()) || classifying} 
+              disabled={!selectedTask || (selectedTask === CUSTOM_TASK_VALUE && !customTitle.trim())} 
               className="w-full h-12 bg-blue-600 dark:bg-indigo-700 hover:bg-blue-700 dark:hover:bg-indigo-800 disabled:opacity-50"
               size="lg"
             >
               <Play className="w-5 h-5 mr-2" />
-              {classifying ? 'Starting...' : 'Start Timer'}
+              Start Timer
           </Button>
         </div>
         </motion.div>
