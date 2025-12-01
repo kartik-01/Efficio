@@ -92,10 +92,55 @@ export const taskApi = {
       _id: task._id,
       title: task.title || '',
       status: mapStatus(task.status || 'pending'),
+      category: task.category || '', // Include category from task manager
       groupTag: task.groupTag,
       fromTime: task.fromTime,
       toTime: task.toTime,
+      timePlanning: task.timePlanning, // Include timePlanning config
     }));
+  },
+
+  // Update a task
+  async updateTask(taskId: string, updates: Partial<Task>): Promise<Task> {
+    const headers = await getHeaders();
+    
+    const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(updates),
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      console.error('API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: result
+      });
+      throw new Error(result.message || result.error || `Failed to update task: ${response.status}`);
+    }
+    
+    // Map _id to id for frontend compatibility
+    const mapStatus = (status: string): 'todo' | 'in-progress' | 'done' => {
+      if (status === 'completed') return 'done';
+      if (status === 'pending') return 'todo';
+      if (status === 'in-progress') return 'in-progress';
+      return 'todo';
+    };
+
+    const mappedTask: Task = {
+      id: result.data._id || result.data.id || '',
+      title: result.data.title || '',
+      status: mapStatus(result.data.status || 'pending'),
+      category: result.data.category || '',
+      groupTag: result.data.groupTag,
+      fromTime: result.data.fromTime,
+      toTime: result.data.toTime,
+      timePlanning: result.data.timePlanning,
+    };
+    
+    return mappedTask;
   },
 };
 

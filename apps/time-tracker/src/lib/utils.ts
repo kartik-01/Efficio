@@ -39,19 +39,104 @@ export const getWeekStart = (date: Date): Date => {
   return new Date(d.setDate(diff));
 };
 
-export const calculateDailySummary = (sessions: TimeSession[], date: Date): DailySummary => {
-  const daySessions = sessions.filter(s => isSameDay(s.startTime, date) && s.endTime);
+// Helper function to calculate minutes between two dates
+const minutesBetween = (a: Date, b: Date): number => {
+  return Math.max(0, Math.round((b.getTime() - a.getTime()) / 60000));
+};
+
+// Get day window (start and end of day in local timezone)
+const getDayWindow = (date: Date): { start: Date; end: Date } => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
   
-  const totalMinutes = daySessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  
+  return { start, end };
+};
+
+// Focus categories (Work and Learning)
+const FOCUS_CATEGORIES = new Set<Category>(['Work', 'Learning']);
+
+/**
+ * Aggregates time sessions for a specific date
+ * Handles both completed and running sessions
+ * Clamps session times to the day window
+ */
+export const aggregateSessionsForDate = (sessions: TimeSession[], date: Date): DailySummary => {
+  const { start: dayStart, end: dayEnd } = getDayWindow(date);
+  const now = new Date();
+  
+  // Filter sessions that overlap with the day
+  const relevantSessions = sessions.filter(s => {
+    const sessionStart = s.startTime;
+    const sessionEnd = s.endTime || now; // Use current time for running sessions
+    
+    // Session overlaps with day if:
+    // 1. Session starts before day ends AND ends after day starts
+    return sessionStart < dayEnd && sessionEnd > dayStart;
+  });
+  
+  // Aggregate by category
+  const byCategory = new Map<Category, number>();
+  let totalMinutes = 0;
+  let focusMinutes = 0;
+  
+  for (const session of relevantSessions) {
+    // Clamp session to day window
+    const sessionStart = new Date(Math.max(session.startTime.getTime(), dayStart.getTime()));
+    const sessionEnd = new Date(Math.min(
+      (session.endTime || now).getTime(),
+      dayEnd.getTime()
+    ));
+    
+    const minutes = minutesBetween(sessionStart, sessionEnd);
+    if (minutes <= 0) continue;
+    
+    totalMinutes += minutes;
+    
+    // Aggregate by category
+    const current = byCategory.get(session.category) || 0;
+    byCategory.set(session.category, current + minutes);
+    
+    // Calculate focus time (Work + Learning)
+    if (FOCUS_CATEGORIES.has(session.category)) {
+      focusMinutes += minutes;
+    }
+  }
+  
+  // Find top category
+  let topCategory: Category | null = null;
+  let maxMinutes = 0;
+  byCategory.forEach((minutes, category) => {
+    if (minutes > maxMinutes) {
+      maxMinutes = minutes;
+      topCategory = category;
+    }
+  });
+  
+  return {
+    totalMinutes,
+    focusMinutes,
+    topCategory,
+  };
+};
+
+// Legacy function for backward compatibility
+export const calculateDailySummary = (sessions: TimeSession[], date: Date): DailySummary => {
+  // Filter to only completed sessions for backward compatibility
+  const completedSessions = sessions.filter(s => isSameDay(s.startTime, date) && s.endTime);
+  
+  const totalMinutes = completedSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
   
   // Focus time = Work + Learning categories
-  const focusMinutes = daySessions
+  const focusMinutes = completedSessions
     .filter(s => s.category === 'Work' || s.category === 'Learning')
     .reduce((sum, s) => sum + (s.duration || 0), 0);
   
   // Calculate top category
   const categoryMinutes = new Map<Category, number>();
-  daySessions.forEach(s => {
+  completedSessions.forEach(s => {
     const current = categoryMinutes.get(s.category) || 0;
     categoryMinutes.set(s.category, current + (s.duration || 0));
   });
