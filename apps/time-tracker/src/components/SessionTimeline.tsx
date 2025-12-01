@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { TimeSession, Category } from '../types';
-import { formatTime, formatDuration, getCategoryColor } from '../lib/utils';
+import { formatTime, formatDuration, getCategoryColor, getCategoryCardColor } from '../lib/utils';
 import { Clock, Plus, Trash2, Edit } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, Input, Label } from '@efficio/ui';
 import { ManualTimeEntry } from './ManualTimeEntry';
-import { sessionsApi, initializeTimeApi, isTimeApiReady } from '../services/timeApi';
+import { sessionsApi, isTimeApiReady } from '../services/timeApi';
 import { toast } from 'sonner';
 
 interface SessionTimelineProps {
@@ -18,15 +18,6 @@ export function SessionTimeline({ selectedDate, getAccessToken, refreshTrigger, 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [sessions, setSessions] = useState<TimeSession[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Initialize API
-  useEffect(() => {
-    if (getAccessToken && !isInitialized) {
-      initializeTimeApi(getAccessToken);
-      setIsInitialized(true);
-    }
-  }, [getAccessToken, isInitialized]);
 
   // Fetch sessions from backend
   useEffect(() => {
@@ -74,10 +65,11 @@ export function SessionTimeline({ selectedDate, getAccessToken, refreshTrigger, 
       }
     };
 
+    // Only load if API is ready (initialized by parent TodayView)
     if (isTimeApiReady()) {
       loadSessions();
     }
-  }, [selectedDate, refreshTrigger, isInitialized]);
+  }, [selectedDate, refreshTrigger]); // Removed isInitialized dependency
 
   const handleSave = () => {
     onUpdate(true, false); // Refresh sessions and summary, but not tasks
@@ -340,9 +332,11 @@ function SessionCard({
     return '0m';
   };
 
+  const cardColorClasses = getCategoryCardColor(session.category);
+
   return (
     <>
-      <div className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
+      <div className={`${cardColorClasses} rounded-lg p-4 hover:opacity-90 transition-opacity`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="text-neutral-900 dark:text-neutral-100 truncate font-medium">{session.taskTitle || 'Untitled'}</div>
