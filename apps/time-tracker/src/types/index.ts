@@ -52,14 +52,6 @@ export interface PlannedBlock {
   sessionId?: string; // Session ID if timer is running
 }
 
-export interface Goal {
-  id: string;
-  category: Category;
-  period: 'daily' | 'weekly';
-  targetMinutes: number;
-  isActive: boolean;
-}
-
 export interface DailySummary {
   totalMinutes: number;
   focusMinutes: number;
