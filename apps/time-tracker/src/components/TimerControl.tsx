@@ -4,9 +4,16 @@ import { motion } from 'motion/react';
 import { TimeSession, Task, Category } from '../types';
 import { getActiveSession, setActiveSession, addSession, updateSession } from '../lib/storage';
 import { formatTime, formatDuration } from '../lib/utils';
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label } from '@efficio/ui';
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Input } from '@efficio/ui';
 import { taskApi, initializeTaskApi, isTaskApiReady } from '../services/taskApi';
 import { toast } from 'sonner';
+
+// API base URL - same pattern as taskApi
+declare const process: {
+  env: {
+    API_BASE_URL?: string;
+  };
+};
 
 const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
 
@@ -16,13 +23,18 @@ interface TimerControlProps {
   getAccessToken?: () => Promise<string | undefined>;
 }
 
+const CUSTOM_TASK_VALUE = '__custom__';
+
 export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerControlProps) {
   const [activeSession, setActive] = useState<TimeSession | null>(null);
-  const [selectedTask, setSelectedTask] = useState<string>('');
+  const [selectedTask, setSelectedTask] = useState<string>(CUSTOM_TASK_VALUE);
+  const [customTitle, setCustomTitle] = useState<string>('');
+  const [selectedTaskCategory, setSelectedTaskCategory] = useState<Category | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [pulseKey, setPulseKey] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [classifying, setClassifying] = useState(false);
 
   // Initialize taskApi
   useEffect(() => {
@@ -52,6 +64,34 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
     const session = getActiveSession();
     setActive(session);
   }, [getAccessToken]);
+
+  // Classify selected task when it changes (if it's a regular task)
+  useEffect(() => {
+    const classifySelectedTask = async () => {
+      if (selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
+        const task = tasks.find(t => t.id === selectedTask);
+        if (task) {
+          try {
+            const category = await classifyTitle(task.title);
+            setSelectedTaskCategory(category);
+          } catch (error) {
+            console.error('Failed to classify task:', error);
+            setSelectedTaskCategory('Work'); // Default fallback
+          }
+        } else {
+          setSelectedTaskCategory(null);
+        }
+      } else {
+        setSelectedTaskCategory(null);
+      }
+    };
+
+    if (tasks.length > 0 && selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
+      classifySelectedTask();
+    } else {
+      setSelectedTaskCategory(null);
+    }
+  }, [selectedTask, tasks]);
 
   // Handle external timer start requests
   useEffect(() => {
@@ -90,14 +130,74 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
     onUpdate();
   };
 
-  const handleStart = () => {
+  const classifyTitle = async (title: string): Promise<Category> => {
+    if (!getAccessToken) return 'Work';
+
+    try {
+      setClassifying(true);
+      const token = await getAccessToken();
+      if (!token) return 'Work';
+
+      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${API_BASE_URL}/time/classify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Classification failed');
+      }
+
+      const result = await response.json();
+      const categoryId = result.data?.categoryId || 'work';
+      
+      // Map backend category to frontend Category type
+      const categoryMap: Record<string, Category> = {
+        'work': 'Work',
+        'learning': 'Learning',
+        'admin': 'Admin',
+        'health': 'Health',
+        'personal': 'Personal',
+        'rest': 'Rest',
+      };
+
+      return categoryMap[categoryId] || 'Work';
+    } catch (error) {
+      console.error('Failed to classify title:', error);
+      return 'Work'; // Default to Work on error
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  const handleStart = async () => {
     if (!selectedTask) return;
 
+    // Handle custom task
+    if (selectedTask === CUSTOM_TASK_VALUE) {
+      if (!customTitle.trim()) {
+        toast.error('Please enter a title');
+        return;
+      }
+
+      const category = await classifyTitle(customTitle.trim());
+      startTimerForTask('', customTitle.trim(), category);
+      setCustomTitle('');
+      setSelectedTask('');
+      return;
+    }
+
+    // Handle regular task
     const task = tasks.find(t => t.id === selectedTask);
     if (!task) return;
 
-    // Default to 'Work' category
-    startTimerForTask(task.id, task.title, 'Work');
+    // Classify the task title for automatic category detection
+    const category = await classifyTitle(task.title);
+    startTimerForTask(task.id, task.title, category);
   };
 
   const handleStop = () => {
@@ -114,6 +214,7 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
     setActiveSession(null);
     setActive(null);
     setSelectedTask('');
+    setCustomTitle('');
     onUpdate();
   };
 
@@ -122,7 +223,7 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
   const circumference = 2 * Math.PI * 120; // radius 120
 
   return (
-    <div className="h-[460px]">
+    <div className="h-[540px]">
       {activeSession ? (
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -252,7 +353,7 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
           </div>
 
           {/* Task Selection */}
-        <div className="space-y-4">
+        <div className="space-y-3 flex-1 flex flex-col">
             <div className="space-y-2">
               <Label className="text-neutral-900 dark:text-neutral-100">Task</Label>
               <Select value={selectedTask} onValueChange={setSelectedTask} disabled={loading}>
@@ -260,32 +361,62 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
                   <SelectValue placeholder={loading ? "Loading tasks..." : "Select a task"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {tasks.length === 0 && !loading ? (
+                  <SelectItem value={CUSTOM_TASK_VALUE}>
+                    Work on something else
+                  </SelectItem>
+                  {tasks.length > 0 && tasks.map(task => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.title}
+                    </SelectItem>
+                  ))}
+                  {tasks.length === 0 && !loading && (
                     <div className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">
                       No tasks available
                     </div>
-                  ) : (
-                    tasks.map(task => (
-                      <SelectItem key={task.id} value={task.id}>
-                        {task.title}
-                      </SelectItem>
-                    ))
                   )}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Custom Title Input - shown when "Work on something else" is selected */}
+            {selectedTask === CUSTOM_TASK_VALUE && (
+              <div className="space-y-2">
+                <Label className="text-neutral-900 dark:text-neutral-100">What are you working on?</Label>
+                <Input
+                  type="text"
+                  placeholder="Enter task title..."
+                  value={customTitle}
+                  onChange={(e) => setCustomTitle(e.target.value)}
+                  className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 h-11"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customTitle.trim()) {
+                      handleStart();
+                    }
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Category Pill - shown when a regular task is selected */}
+            {selectedTask && selectedTask !== CUSTOM_TASK_VALUE && selectedTaskCategory && (
+              <div className="flex items-center">
+                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs border ${getCategoryColorClass(selectedTaskCategory)}`}>
+                  {selectedTaskCategory}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Start Button */}
-          <div>
+          <div className="mt-auto">
             <Button 
               onClick={handleStart} 
-              disabled={!selectedTask} 
-              className="w-full h-12 bg-blue-600 dark:bg-indigo-700 hover:bg-blue-700 dark:hover:bg-indigo-800"
+              disabled={!selectedTask || (selectedTask === CUSTOM_TASK_VALUE && !customTitle.trim()) || classifying} 
+              className="w-full h-12 bg-blue-600 dark:bg-indigo-700 hover:bg-blue-700 dark:hover:bg-indigo-800 disabled:opacity-50"
               size="lg"
             >
               <Play className="w-5 h-5 mr-2" />
-            Start Timer
+              {classifying ? 'Starting...' : 'Start Timer'}
           </Button>
         </div>
         </motion.div>

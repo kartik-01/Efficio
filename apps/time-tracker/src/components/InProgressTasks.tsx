@@ -50,7 +50,7 @@ export function InProgressTasks({ tasks, onStartTimer, onUpdateTaskTime, isTimer
 
   if (inProgressTasks.length === 0) {
     return (
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-8 h-[460px] flex items-center justify-center">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-8 h-[540px] flex items-center justify-center">
         <div className="flex flex-col items-center justify-center text-center">
           <CheckCircle2 className="w-12 h-12 text-neutral-300 dark:text-neutral-700 mb-3" />
           <h3 className="text-neutral-600 dark:text-neutral-400 mb-1">No Tasks In Progress</h3>
@@ -63,7 +63,7 @@ export function InProgressTasks({ tasks, onStartTimer, onUpdateTaskTime, isTimer
   }
 
   return (
-    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 h-[460px] flex flex-col">
+    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 h-[540px] flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <h3 className="text-neutral-900 dark:text-neutral-100 font-semibold">In Progress</h3>
         <span className="text-neutral-600 dark:text-neutral-400 text-sm">
