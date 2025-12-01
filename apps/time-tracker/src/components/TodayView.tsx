@@ -9,7 +9,11 @@ import { SessionTimeline } from './SessionTimeline';
 import { PlannedTimeBlocks } from './PlannedTimeBlocks';
 import { InProgressTasks } from './InProgressTasks';
 
-export function TodayView() {
+interface TodayViewProps {
+  getAccessToken?: () => Promise<string | undefined>;
+}
+
+export function TodayView({ getAccessToken }: TodayViewProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [sessions, setSessions] = useState<TimeSession[]>([]);
   const [plannedBlocks, setPlannedBlocks] = useState<PlannedBlock[]>([]);
@@ -57,7 +61,7 @@ export function TodayView() {
 
       {/* Timer Control + In Progress Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TimerControl onUpdate={refreshData} externalStart={externalTimerStart} />
+        <TimerControl onUpdate={refreshData} externalStart={externalTimerStart} getAccessToken={getAccessToken} />
         <InProgressTasks 
           tasks={tasks} 
           onStartTimer={handleStartTimerFromTask}
