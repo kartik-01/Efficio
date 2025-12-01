@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { Play, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { TimeSession, Task, Category } from '../types';
-import { getActiveSession, setActiveSession, addSession, updateSession } from '../lib/storage';
 import { formatTime, formatDuration } from '../lib/utils';
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Input } from '@efficio/ui';
 import { taskApi, initializeTaskApi, isTaskApiReady } from '../services/taskApi';
+import { sessionsApi, initializeTimeApi, isTimeApiReady } from '../services/timeApi';
 import { toast } from 'sonner';
 
 // API base URL - same pattern as taskApi
@@ -18,15 +18,15 @@ declare const process: {
 const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
 
 interface TimerControlProps {
-  onUpdate: () => void;
+  onUpdate: (shouldRefreshPlans?: boolean, shouldRefreshTasks?: boolean) => void;
   externalStart?: { taskId: string; taskTitle: string; category: Category } | null;
   getAccessToken?: () => Promise<string | undefined>;
+  activeSession?: TimeSession | null; // Active session from parent
 }
 
 const CUSTOM_TASK_VALUE = '__custom__';
 
-export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerControlProps) {
-  const [activeSession, setActive] = useState<TimeSession | null>(null);
+export function TimerControl({ onUpdate, externalStart, getAccessToken, activeSession: activeSessionProp }: TimerControlProps) {
   const [selectedTask, setSelectedTask] = useState<string>(CUSTOM_TASK_VALUE);
   const [customTitle, setCustomTitle] = useState<string>('');
   const [selectedTaskCategory, setSelectedTaskCategory] = useState<Category | null>(null);
@@ -36,14 +36,22 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
   const [loading, setLoading] = useState(false);
   const [classifying, setClassifying] = useState(false);
 
-  // Initialize taskApi
-  useEffect(() => {
-    if (getAccessToken) {
-      initializeTaskApi(getAccessToken);
-    }
-  }, [getAccessToken]);
+  // Track initialization to prevent re-initialization
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Use activeSession from props, fallback to null
+  const activeSession = activeSessionProp || null;
 
-  // Fetch tasks from backend
+  // Initialize APIs (only once)
+  useEffect(() => {
+    if (getAccessToken && !isInitialized) {
+      initializeTaskApi(getAccessToken);
+      initializeTimeApi(getAccessToken);
+      setIsInitialized(true);
+    }
+  }, [getAccessToken, isInitialized]);
+
+  // Fetch tasks from backend (only once on mount, or when API becomes ready)
   useEffect(() => {
     const loadTasks = async () => {
       if (!isTaskApiReady()) return;
@@ -60,10 +68,10 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
       }
     };
 
-    loadTasks();
-    const session = getActiveSession();
-    setActive(session);
-  }, [getAccessToken]);
+    if (isTaskApiReady()) {
+      loadTasks();
+    }
+  }, [isInitialized]); // Only depend on initialization status, not getAccessToken
 
   // Classify selected task when it changes (if it's a regular task)
   useEffect(() => {
@@ -115,19 +123,42 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
     }
   }, [activeSession]);
 
-  const startTimerForTask = (taskId: string, taskTitle: string, category: Category) => {
-    const newSession: TimeSession = {
-      id: Date.now().toString(),
-      taskId: taskId,
-      taskTitle: taskTitle,
-      category: category,
-      startTime: new Date(),
-    };
+  const startTimerForTask = async (taskId: string, taskTitle: string, category: Category) => {
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
 
-    addSession(newSession);
-    setActiveSession(newSession);
-    setActive(newSession);
-    onUpdate();
+    try {
+      const categoryId = category.toLowerCase();
+      const session = await sessionsApi.startSession({
+        taskId: taskId || null,
+        taskTitle: taskTitle,
+        categoryId,
+      });
+
+      // Convert backend session to TimeSession format
+      const newSession: TimeSession = {
+        id: session._id || session.id || '',
+        taskId: session.taskId || undefined,
+        taskTitle: session.taskTitle || '',
+        category: (session.categoryId?.charAt(0).toUpperCase() + session.categoryId?.slice(1)) as Category || category,
+        startTime: typeof session.startTime === 'string' ? new Date(session.startTime) : session.startTime,
+        endTime: session.endTime ? (typeof session.endTime === 'string' ? new Date(session.endTime) : session.endTime) : undefined,
+      };
+
+      // Reset form
+      setSelectedTask(CUSTOM_TASK_VALUE);
+      setCustomTitle('');
+      setSelectedTaskCategory(null);
+
+      // Notify parent to refresh
+      onUpdate(true, true);
+      toast.success('Timer started');
+    } catch (error) {
+      console.error('Failed to start timer:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to start timer');
+    }
   };
 
   const classifyTitle = async (title: string): Promise<Category> => {
@@ -185,9 +216,7 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
       }
 
       const category = await classifyTitle(customTitle.trim());
-      startTimerForTask('', customTitle.trim(), category);
-      setCustomTitle('');
-      setSelectedTask('');
+      await startTimerForTask('', customTitle.trim(), category);
       return;
     }
 
@@ -197,25 +226,27 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken }: TimerC
 
     // Classify the task title for automatic category detection
     const category = await classifyTitle(task.title);
-    startTimerForTask(task.id, task.title, category);
+    await startTimerForTask(task.id, task.title, category);
   };
 
-  const handleStop = () => {
-    if (!activeSession) return;
+  const handleStop = async () => {
+    if (!activeSession || !isTimeApiReady()) return;
 
-    const endTime = new Date();
-    const duration = (endTime.getTime() - activeSession.startTime.getTime()) / 1000 / 60;
+    try {
+      await sessionsApi.stopSession(activeSession.id);
+      
+      // Reset form
+      setSelectedTask(CUSTOM_TASK_VALUE);
+      setCustomTitle('');
+      setSelectedTaskCategory(null);
 
-    updateSession(activeSession.id, {
-      endTime,
-      duration: Math.round(duration),
-    });
-
-    setActiveSession(null);
-    setActive(null);
-    setSelectedTask('');
-    setCustomTitle('');
-    onUpdate();
+      // Notify parent to refresh
+      onUpdate(true, true);
+      toast.success('Timer stopped');
+    } catch (error) {
+      console.error('Failed to stop timer:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to stop timer');
+    }
   };
 
   // Calculate progress for circular animation (reset every 60 minutes)

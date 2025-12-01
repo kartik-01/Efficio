@@ -1,26 +1,330 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { PlannedBlock, TimeSession, Category } from '../types';
 import { formatTime, getCategoryColor } from '../lib/utils';
-import { updatePlannedBlock, addSession, addPlannedBlock, deletePlannedBlock } from '../lib/storage';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@efficio/ui';
-import { Play, Check, Calendar, Plus, Trash2, Square } from 'lucide-react';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Input, Label } from '@efficio/ui';
+import { Play, Check, Calendar, Plus, Trash2, Square, Edit } from 'lucide-react';
+import { taskApi, initializeTaskApi, isTaskApiReady as isTaskApiReadyForTasks } from '../services/taskApi';
+import { plansApi, sessionsApi, initializeTimeApi, isTimeApiReady, Plan, Session } from '../services/timeApi';
+import { toast } from 'sonner';
 
 const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0-23 hours
 
 interface PlannedTimeBlocksProps {
-  blocks: PlannedBlock[];
-  onUpdate: () => void;
+  selectedDate: Date;
+  getAccessToken?: () => Promise<string | undefined>;
+  onUpdate: (shouldRefreshPlans?: boolean, shouldRefreshTasks?: boolean) => void;
+  refreshTrigger?: number;
+  activeSession?: TimeSession | null; // Active session from parent
 }
 
-export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) {
+export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refreshTrigger, activeSession: activeSessionProp }: PlannedTimeBlocksProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingBlock, setEditingBlock] = useState<PlannedBlock | null>(null);
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [realPlans, setRealPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(false);
   const [newBlock, setNewBlock] = useState({
     title: '',
     startTime: '',
     endTime: '',
   });
+
+  // Use activeSession from props
+  const activeSession = activeSessionProp || null;
+
+  // Track initialization to prevent re-initialization
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize APIs (only once)
+  useEffect(() => {
+    if (getAccessToken && !isInitialized) {
+      initializeTaskApi(getAccessToken);
+      initializeTimeApi(getAccessToken);
+      setIsInitialized(true);
+    }
+  }, [getAccessToken, isInitialized]);
+
+  // Function to reload plans data
+  const reloadPlans = async () => {
+    if (!isTimeApiReady()) return;
+
+    try {
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      const fetchedPlans = await plansApi.getPlans({ date: dateStr, tz });
+      setRealPlans(fetchedPlans);
+    } catch (error) {
+      console.error('Failed to reload plans:', error);
+    }
+  };
+
+  // Fetch tasks, real plans, and active session
+  useEffect(() => {
+    const loadData = async () => {
+      if (!isTaskApiReadyForTasks() || !isTimeApiReady()) return;
+
+      try {
+        setLoading(true);
+        
+        // Fetch tasks
+        const fetchedTasks = await taskApi.getTasks();
+        setTasks(fetchedTasks);
+
+        // Fetch real plans for the selected date
+        await reloadPlans();
+      } catch (error) {
+        console.error('Failed to load planned blocks data:', error);
+        toast.error('Failed to load planned blocks');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Only load if API is ready and we have refreshTrigger (or initial load)
+    if (isTaskApiReadyForTasks() && isTimeApiReady()) {
+      loadData();
+    }
+  }, [selectedDate, refreshTrigger]); // Removed getAccessToken from deps since we track initialization separately
+
+  // No need to poll for active session - it comes from props
+
+  const dateStr = useMemo(() => {
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, [selectedDate]);
+
+  // Helper function to compare dates (normalize to YYYY-MM-DD string)
+  const normalizeDateToString = (date: Date | string): string => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString().split('T')[0];
+  };
+
+  // Helper function to find override for a task and date
+  const findOverrideForTaskAndDate = (
+    taskId: string,
+    targetDate: Date,
+    plans: Plan[],
+    includeCanceled: boolean = false
+  ): Plan | undefined => {
+    const targetDateStr = normalizeDateToString(targetDate);
+    const searchTaskId = String(taskId);
+    
+    const found = plans.find(p => {
+      if (!p.taskId || p.isAutoGenerated) return false;
+      
+      // Status filtering
+      if (!includeCanceled && p.status === 'canceled') return false;
+      if (includeCanceled && p.status !== 'canceled') return false;
+      
+      // Convert taskId to string for comparison (handles ObjectId from MongoDB)
+      // Try multiple methods to handle ObjectId objects
+      let pTaskId: string;
+      if (typeof p.taskId === 'string') {
+        pTaskId = p.taskId;
+      } else if (p.taskId && typeof (p.taskId as any).toString === 'function') {
+        pTaskId = (p.taskId as any).toString();
+      } else {
+        pTaskId = String(p.taskId);
+      }
+      
+      // TaskId must match first
+      if (pTaskId !== searchTaskId) return false;
+      
+      // Compare by instanceDate if available
+      if (p.instanceDate) {
+        const pDateStr = normalizeDateToString(p.instanceDate);
+        return pDateStr === targetDateStr;
+      }
+      
+      // Fallback: compare by startTime date
+      const pStartDateStr = normalizeDateToString(p.startTime);
+      return pStartDateStr === targetDateStr;
+    });
+    
+    // Debug logging for canceled override searches
+    if (includeCanceled) {
+      const allCanceledPlans = plans.filter(p => p.status === 'canceled' && p.taskId && !p.isAutoGenerated);
+      
+      // Try multiple comparison methods for taskId
+      const matchingByTaskId = allCanceledPlans.filter(p => {
+        const pTaskIdStr = String(p.taskId);
+        // Also try toString() if taskId is an object
+        const pTaskIdStr2 = p.taskId?.toString ? p.taskId.toString() : pTaskIdStr;
+        return pTaskIdStr === searchTaskId || pTaskIdStr2 === searchTaskId;
+      });
+      
+      console.log('[findOverrideForTaskAndDate] Searching for canceled override:', {
+        searchTaskId,
+        searchTaskIdType: typeof searchTaskId,
+        targetDate: targetDateStr,
+        plansChecked: plans.length,
+        allCanceledPlans: allCanceledPlans.length,
+        allCanceledTaskIds: allCanceledPlans.map(p => ({
+          raw: p.taskId,
+          string: String(p.taskId),
+          toString: p.taskId?.toString ? p.taskId.toString() : 'N/A',
+          type: typeof p.taskId,
+          constructor: p.taskId?.constructor?.name
+        })),
+        matchingByTaskId: matchingByTaskId.length,
+        found: !!found,
+        matchingPlans: matchingByTaskId.map(p => ({
+          id: p.id,
+          taskId: String(p.taskId),
+          taskIdRaw: p.taskId,
+          taskIdType: typeof p.taskId,
+          instanceDate: p.instanceDate ? normalizeDateToString(p.instanceDate) : 'NO_INSTANCE_DATE',
+          instanceDateRaw: p.instanceDate,
+          startTime: normalizeDateToString(p.startTime),
+          startTimeRaw: p.startTime,
+          status: p.status,
+          dateMatch: p.instanceDate ? normalizeDateToString(p.instanceDate) === targetDateStr : normalizeDateToString(p.startTime) === targetDateStr
+        }))
+      });
+    }
+    
+    return found;
+  };
+
+  // Generate virtual plans from tasks and merge with real plans
+  const mergedBlocks = useMemo(() => {
+    const virtualBlocks: PlannedBlock[] = [];
+    const realBlocks: PlannedBlock[] = [];
+
+    // Generate virtual plans from in-progress tasks with timePlanning enabled
+    const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
+    
+    inProgressTasks.forEach(task => {
+      const timePlanning = (task as any).timePlanning;
+      if (!timePlanning?.enabled || !timePlanning.defaultStartTime) return;
+
+      const [startHours, startMins] = timePlanning.defaultStartTime.split(':').map(Number);
+      const [endHours, endMins] = timePlanning.defaultEndTime 
+        ? timePlanning.defaultEndTime.split(':').map(Number)
+        : [startHours + 1, startMins]; // Default 1 hour if no end time
+
+      // Check recurrence
+      const recurrence = timePlanning.recurrence?.type || 'none';
+      const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const shouldCreate = 
+        recurrence === 'daily' ||
+        (recurrence === 'weekdays' && dayOfWeek >= 1 && dayOfWeek <= 5) ||
+        recurrence === 'none';
+
+      if (!shouldCreate) return;
+
+      // Create virtual plan for this date
+      const start = new Date(selectedDate);
+      start.setHours(startHours, startMins, 0, 0);
+
+      const end = new Date(selectedDate);
+      end.setHours(endHours, endMins, 0, 0);
+
+      // Check if this date is excluded (user deleted the plan for this day)
+      const dateStr = normalizeDateToString(selectedDate);
+      const excludedDates = timePlanning.excludedDates || [];
+      if (excludedDates.includes(dateStr)) {
+        console.log('[mergedBlocks] Date excluded for task', task.id, 'on', dateStr, '- skipping virtual plan');
+        return; // Skip creating virtual plan for this date
+      }
+
+      // Check if there's a real plan override for this task and date
+      // Use helper function to find non-canceled override
+      const override = findOverrideForTaskAndDate(task.id, selectedDate, realPlans, false);
+
+      // Only create virtual plan if there's no real override
+      if (!override) {
+        const categoryId = timePlanning.categoryId || 'work';
+        const categoryMap: Record<string, Category> = {
+          'work': 'Work',
+          'learning': 'Learning',
+          'admin': 'Admin',
+          'health': 'Health',
+          'personal': 'Personal',
+          'rest': 'Rest',
+        };
+
+        virtualBlocks.push({
+          id: `virtual-${task.id}-${dateStr}`,
+          title: task.title,
+          category: categoryMap[categoryId] || 'Work',
+          startTime: start,
+          endTime: end,
+          status: 'scheduled',
+          taskId: task.id,
+          isVirtual: true,
+        });
+      }
+    });
+
+    // Convert real plans to PlannedBlock format
+    realPlans.forEach(plan => {
+      // Skip canceled plans
+      if (plan.status === 'canceled') return;
+      
+      // Skip auto-generated plans that have overrides (we show the override instead)
+      if (plan.isAutoGenerated && plan.isOverridden) return;
+
+      const categoryId = plan.categoryId || 'work';
+      const categoryMap: Record<string, Category> = {
+        'work': 'Work',
+        'learning': 'Learning',
+        'admin': 'Admin',
+        'health': 'Health',
+        'personal': 'Personal',
+        'rest': 'Rest',
+      };
+
+      // Map backend status to frontend status (we've already filtered out canceled)
+      const mappedStatus: 'scheduled' | 'in-progress' | 'done' = 
+        plan.status === 'in_progress' ? 'in-progress' : 
+        plan.status === 'done' ? 'done' : 
+        'scheduled';
+
+      // Use _id for MongoDB operations, fallback to id
+      const planMongoId = (plan as any)._id || plan.id;
+      
+      realBlocks.push({
+        id: plan.id,
+        title: plan.taskTitle || 'Untitled',
+        category: categoryMap[categoryId] || 'Work',
+        startTime: plan.startTime instanceof Date ? plan.startTime : new Date(plan.startTime),
+        endTime: plan.endTime instanceof Date ? plan.endTime : new Date(plan.endTime),
+        status: mappedStatus,
+        taskId: plan.taskId || null,
+        isVirtual: false,
+        planId: planMongoId, // Use MongoDB _id for API operations
+        sessionId: plan.sessionId,
+      });
+    });
+
+    // Merge: real plans take precedence over virtual plans
+    const allBlocks: PlannedBlock[] = [...realBlocks];
+    
+    virtualBlocks.forEach(virtual => {
+      // Only add if there's no real plan for this task/date
+      // (realBlocks already excludes canceled plans, so we don't need to check status)
+      const hasRealPlan = realBlocks.some(real => 
+        real.taskId === virtual.taskId && 
+        real.startTime.getTime() === virtual.startTime.getTime()
+      );
+      if (!hasRealPlan) {
+        allBlocks.push(virtual);
+      }
+    });
+
+    return allBlocks.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  }, [tasks, realPlans, selectedDate, dateStr]);
 
   const handleSlotClick = (hour: number) => {
     const startHours = String(hour).padStart(2, '0');
@@ -35,73 +339,522 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
     setIsDialogOpen(true);
   };
 
-  const handleSaveBlock = () => {
+  const handleEditClick = (block: PlannedBlock) => {
+    setEditingBlock(block);
+    const startHours = String(block.startTime.getHours()).padStart(2, '0');
+    const startMins = String(block.startTime.getMinutes()).padStart(2, '0');
+    const endHours = String(block.endTime.getHours()).padStart(2, '0');
+    const endMins = String(block.endTime.getMinutes()).padStart(2, '0');
+    
+    setNewBlock({
+      title: block.title,
+      startTime: `${startHours}:${startMins}`,
+      endTime: `${endHours}:${endMins}`,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveBlock = async () => {
     if (!newBlock.title || !newBlock.startTime || !newBlock.endTime) return;
 
-    // Create dates for today with the specified times
-    const today = new Date();
     const [startHours, startMinutes] = newBlock.startTime.split(':').map(Number);
     const [endHours, endMinutes] = newBlock.endTime.split(':').map(Number);
 
-    const start = new Date(today);
+    const start = new Date(selectedDate);
     start.setHours(startHours, startMinutes, 0, 0);
 
-    const end = new Date(today);
+    const end = new Date(selectedDate);
     end.setHours(endHours, endMinutes, 0, 0);
 
     if (end <= start) {
-      alert('End time must be after start time');
+      toast.error('End time must be after start time');
       return;
     }
 
-    const plannedBlock: PlannedBlock = {
-      id: Date.now().toString(),
-      title: newBlock.title,
-      category: 'Work',
-      startTime: start,
-      endTime: end,
-      status: 'scheduled',
-    };
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
 
-    addPlannedBlock(plannedBlock);
-    setIsDialogOpen(false);
-    setNewBlock({ title: '', startTime: '', endTime: '' });
-    onUpdate();
+    try {
+      // If editing a plan with active session, warn user (but allow editing)
+      if (editingBlock) {
+        const hasActiveSessionForBlock = activeSession && (
+          (editingBlock.sessionId && activeSession.id === editingBlock.sessionId) ||
+          (editingBlock.taskId && activeSession.taskId === editingBlock.taskId) ||
+          (editingBlock.planId && activeSession.id === editingBlock.planId)
+        );
+
+        if (hasActiveSessionForBlock) {
+          // Warn but allow editing
+          toast.warning('Editing plan with active session. Timer will continue running.');
+        }
+      }
+
+      // Classify title to get category
+      const classification = await plansApi.classifyTitle(newBlock.title);
+      const categoryId = classification.categoryId;
+
+      if (editingBlock) {
+        // Editing existing block
+        if (editingBlock.isVirtual && editingBlock.taskId) {
+          // Virtual plan: check if override already exists
+          const instanceDate = new Date(selectedDate);
+          instanceDate.setHours(0, 0, 0, 0);
+          const instanceDateStr = instanceDate.toISOString().split('T')[0];
+          
+          // Find existing override for this task and date
+          const existingOverride = realPlans.find(p => {
+            if (!p.taskId || p.isAutoGenerated) return false;
+            if (p.instanceDate) {
+              const pDate = new Date(p.instanceDate);
+              pDate.setHours(0, 0, 0, 0);
+              const pDateStr = pDate.toISOString().split('T')[0];
+              return p.taskId === editingBlock.taskId && pDateStr === instanceDateStr;
+            }
+            const pStartDate = new Date(p.startTime);
+            pStartDate.setHours(0, 0, 0, 0);
+            const pStartDateStr = pStartDate.toISOString().split('T')[0];
+            return p.taskId === editingBlock.taskId && pStartDateStr === instanceDateStr;
+          });
+
+          if (existingOverride) {
+            // Update existing override
+            await plansApi.updatePlan(existingOverride.id, {
+              taskTitle: newBlock.title,
+              categoryId,
+              startTime: start.toISOString(),
+              endTime: end.toISOString(),
+            });
+          } else {
+            // Create new override
+            await plansApi.createPlan({
+              taskId: editingBlock.taskId,
+              taskTitle: newBlock.title,
+              categoryId,
+              startTime: start.toISOString(),
+              endTime: end.toISOString(),
+              isOverride: true,
+            });
+          }
+        } else if (editingBlock.planId) {
+          // Real plan: update it
+          await plansApi.updatePlan(editingBlock.planId, {
+            taskTitle: newBlock.title,
+            categoryId,
+            startTime: start.toISOString(),
+            endTime: end.toISOString(),
+          });
+        }
+      } else {
+        // Creating new block (not from task)
+        await plansApi.createPlan({
+          taskTitle: newBlock.title,
+          categoryId,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+        });
+      }
+
+      setIsDialogOpen(false);
+      setIsEditDialogOpen(false);
+      setEditingBlock(null);
+      setNewBlock({ title: '', startTime: '', endTime: '' });
+      
+      // Reload plans to reflect the changes
+      await reloadPlans();
+      
+      // Also trigger parent update
+      onUpdate(true, false); // Refresh plans
+      toast.success(editingBlock ? 'Plan updated' : 'Plan created');
+    } catch (error) {
+      console.error('Failed to save plan:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save plan');
+    }
   };
 
-  const handleStartNow = (block: PlannedBlock) => {
-    const newSession: TimeSession = {
-      id: Date.now().toString(),
-      taskTitle: block.title,
-      category: block.category,
-      startTime: new Date(),
-    };
-    
-    addSession(newSession);
-    updatePlannedBlock(block.id, { status: 'in-progress' });
-    onUpdate();
+  const handleStartNow = async (block: PlannedBlock) => {
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
+
+    try {
+      // Stop any existing active session first
+      if (activeSession) {
+        try {
+          await sessionsApi.stopSession(activeSession.id);
+          // Clear sessionId from the plan that had the active session
+          if (activeSession.taskId) {
+            // Find and update the plan that had this session
+            const planWithSession = realPlans.find(p => 
+              p.sessionId === activeSession.id || 
+              (p.taskId === activeSession.taskId && p.status === 'in_progress')
+            );
+            if (planWithSession) {
+              await plansApi.updatePlan(planWithSession.id, { 
+                status: 'scheduled', 
+                sessionId: undefined 
+              });
+            }
+          }
+        } catch (stopError) {
+          console.error('Failed to stop existing session:', stopError);
+          // Continue anyway - the new session will be created
+        }
+      }
+
+      // Start new session via API
+      const categoryId = block.category.toLowerCase();
+      const session = await sessionsApi.startSession({
+        taskId: block.taskId || null,
+        taskTitle: block.title,
+        categoryId,
+      });
+
+      // Update plan status if it's a real plan
+      if (block.planId && !block.isVirtual) {
+        await plansApi.updatePlan(block.planId, { status: 'in_progress', sessionId: session.id });
+      } else if (block.isVirtual && block.taskId) {
+        // For virtual plans, check if override already exists (including canceled ones)
+        const existingOverride = findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, true);
+
+        if (existingOverride) {
+          // Update existing override (even if it was canceled)
+          const planMongoId = (existingOverride as any)._id || existingOverride.id;
+          await plansApi.updatePlan(planMongoId, { 
+            status: 'in_progress', 
+            sessionId: session.id 
+          });
+        } else {
+          // Create new override
+          const createdPlan = await plansApi.createPlan({
+            taskId: block.taskId,
+            taskTitle: block.title,
+            categoryId,
+            startTime: block.startTime.toISOString(),
+            endTime: block.endTime.toISOString(),
+            isOverride: true,
+          });
+
+          const createdPlanMongoId = (createdPlan as any)._id || createdPlan.id;
+          await plansApi.updatePlan(createdPlanMongoId, { status: 'in_progress', sessionId: session.id });
+        }
+      }
+
+      // Reload plans to reflect status change
+      await reloadPlans();
+      
+      // Notify parent to refresh (which will update activeSession)
+      onUpdate(true, true); // Refresh plans and sessions
+      toast.success('Timer started');
+    } catch (error) {
+      console.error('Failed to start timer:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to start timer');
+    }
   };
 
-  const handleMarkDone = (block: PlannedBlock) => {
-    const duration = (block.endTime.getTime() - block.startTime.getTime()) / 1000 / 60;
-    
-    const completedSession: TimeSession = {
-      id: Date.now().toString(),
-      taskTitle: block.title,
-      category: block.category,
-      startTime: block.startTime,
-      endTime: block.endTime,
-      duration: Math.round(duration),
-    };
-    
-    addSession(completedSession);
-    updatePlannedBlock(block.id, { status: 'done' });
-    onUpdate();
+  const handleStopTimer = async (block: PlannedBlock) => {
+    if (!isTimeApiReady() || !activeSession) {
+      toast.error('No active session');
+      return;
+    }
+
+    try {
+      // Stop the active session
+      await sessionsApi.stopSession(activeSession.id);
+
+      // Update plan status and clear sessionId
+      if (block.planId) {
+        await plansApi.updatePlan(block.planId, { 
+          status: 'scheduled', 
+          sessionId: undefined // Clear sessionId
+        });
+      } else if (block.isVirtual && block.taskId) {
+        // For virtual plans, find and update the override
+        const existingOverride = findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, true);
+
+        if (existingOverride) {
+          const planMongoId = (existingOverride as any)._id || existingOverride.id;
+          await plansApi.updatePlan(planMongoId, { 
+            status: 'scheduled', 
+            sessionId: undefined 
+          });
+        }
+      }
+
+      // Reload plans to reflect status change
+      await reloadPlans();
+      
+      // Notify parent to refresh (which will update activeSession)
+      onUpdate(true, true); // Refresh plans and sessions
+      toast.success('Timer stopped');
+    } catch (error) {
+      console.error('Failed to stop timer:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to stop timer');
+    }
   };
 
-  const handleDeleteBlock = (block: PlannedBlock) => {
-    deletePlannedBlock(block.id);
-    onUpdate();
+  const handleMarkDone = async (block: PlannedBlock) => {
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
+
+    try {
+      const categoryId = block.category.toLowerCase();
+      let sessionStartTime = block.startTime;
+      let sessionEndTime = block.endTime;
+      
+      // Check if there's an active session for this block
+      const hasActiveSessionForBlock = activeSession && (
+        (block.sessionId && activeSession.id === block.sessionId) ||
+        (block.taskId && activeSession.taskId === block.taskId) ||
+        (block.planId && activeSession.id === block.planId)
+      );
+
+      // If there's an active session, stop it and use actual times
+      if (hasActiveSessionForBlock && activeSession) {
+        try {
+          const stoppedSession = await sessionsApi.stopSession(activeSession.id);
+          // Use actual session times if available
+          if (stoppedSession.startTime) {
+            sessionStartTime = typeof stoppedSession.startTime === 'string' 
+              ? new Date(stoppedSession.startTime) 
+              : stoppedSession.startTime;
+          }
+          if (stoppedSession.endTime) {
+            sessionEndTime = typeof stoppedSession.endTime === 'string' 
+              ? new Date(stoppedSession.endTime) 
+              : stoppedSession.endTime;
+          }
+        } catch (stopError) {
+          console.error('Failed to stop active session:', stopError);
+          // Continue with planned times if stopping fails
+        }
+      } else {
+        // No active session - create a completed session with planned times
+        await sessionsApi.createSession({
+          taskId: block.taskId || null,
+          taskTitle: block.title,
+          categoryId,
+          startTime: sessionStartTime.toISOString(),
+          endTime: sessionEndTime.toISOString(),
+        });
+      }
+
+      // Update plan status if it's a real plan
+      if (block.planId && !block.isVirtual) {
+        await plansApi.updatePlan(block.planId, { 
+          status: 'done',
+          sessionId: undefined // Clear sessionId if it was set
+        });
+      } else if (block.isVirtual && block.taskId) {
+        // For virtual plans, check if override exists, if not create one and mark as done
+        const existingOverride = findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, true);
+
+        if (existingOverride) {
+          const planMongoId = (existingOverride as any)._id || existingOverride.id;
+          await plansApi.updatePlan(planMongoId, { 
+            status: 'done',
+            sessionId: undefined 
+          });
+        } else {
+          const createdPlan = await plansApi.createPlan({
+            taskId: block.taskId,
+            taskTitle: block.title,
+            categoryId,
+            startTime: sessionStartTime.toISOString(),
+            endTime: sessionEndTime.toISOString(),
+            isOverride: true,
+          });
+          const createdPlanMongoId = (createdPlan as any)._id || createdPlan.id;
+          await plansApi.updatePlan(createdPlanMongoId, { status: 'done' });
+        }
+      }
+
+      // Reload plans to reflect status change
+      await reloadPlans();
+      
+      onUpdate(true, true); // Refresh plans and sessions
+      toast.success('Session completed');
+    } catch (error) {
+      console.error('Failed to mark done:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to mark as done');
+    }
+  };
+
+  const handleDeleteBlock = async (block: PlannedBlock) => {
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
+
+    console.log('[handleDeleteBlock] Block to delete:', {
+      id: block.id,
+      planId: block.planId,
+      isVirtual: block.isVirtual,
+      taskId: block.taskId,
+      title: block.title
+    });
+
+    try {
+      // Check if this block has an active session and stop it first
+      const hasActiveSessionForBlock = activeSession && (
+        (block.sessionId && activeSession.id === block.sessionId) ||
+        (block.taskId && activeSession.taskId === block.taskId) ||
+        (block.planId && activeSession.id === block.planId)
+      );
+
+      if (hasActiveSessionForBlock && activeSession) {
+        try {
+          console.log('[handleDeleteBlock] Stopping active session:', activeSession.id);
+          await sessionsApi.stopSession(activeSession.id);
+          toast.info('Active session stopped');
+        } catch (stopError) {
+          console.error('[handleDeleteBlock] Failed to stop active session:', stopError);
+          // Continue with deletion anyway
+        }
+      }
+
+      if (block.isVirtual && block.taskId) {
+        // CASE 1: Deleting a virtual plan (from task manager)
+        // Strategy: Add date to excludedDates in the task's timePlanning
+        console.log('[handleDeleteBlock] Deleting virtual plan, adding date to excludedDates');
+        
+        // Find the task to get current timePlanning
+        const task = tasks.find(t => t.id === block.taskId);
+        if (!task) {
+          console.error('[handleDeleteBlock] Task not found:', block.taskId);
+          toast.error('Task not found');
+          return;
+        }
+
+        const timePlanning = (task as any).timePlanning || {};
+        const excludedDates = timePlanning.excludedDates || [];
+        const dateStr = normalizeDateToString(selectedDate);
+
+        // Add date to excludedDates if not already there
+        if (!excludedDates.includes(dateStr)) {
+          const updatedTimePlanning = {
+            ...timePlanning,
+            excludedDates: [...excludedDates, dateStr]
+          };
+
+          console.log('[handleDeleteBlock] Updating task excludedDates:', {
+            taskId: block.taskId,
+            dateStr,
+            excludedDates: updatedTimePlanning.excludedDates
+          });
+
+          await taskApi.updateTask(block.taskId, {
+            timePlanning: updatedTimePlanning
+          } as any);
+
+          console.log('[handleDeleteBlock] Task updated successfully');
+        } else {
+          console.log('[handleDeleteBlock] Date already in excludedDates:', dateStr);
+        }
+        
+      } else if (block.planId) {
+        // CASE 2: Deleting a real plan
+        // Need to determine if it's an override or manual plan
+        console.log('[handleDeleteBlock] Deleting real plan:', block.planId);
+        
+        // Find the plan in realPlans to check if it's an override
+        const planMongoId = block.planId;
+        const plan = realPlans.find(p => {
+          const pMongoId = (p as any)._id || p.id;
+          return pMongoId === planMongoId;
+        });
+        
+        if (plan && plan.taskId && plan.instanceDate) {
+          // This is an override - delete the plan AND add date to excludedDates to prevent virtual plan from showing
+          console.log('[handleDeleteBlock] Deleting override plan and adding date to excludedDates');
+          
+          // Delete the override plan
+          await plansApi.deletePlan(planMongoId);
+          
+          // Also add to excludedDates to prevent virtual plan from showing
+          const task = tasks.find(t => t.id === String(plan.taskId));
+          if (task) {
+            const timePlanning = (task as any).timePlanning || {};
+            const excludedDates = timePlanning.excludedDates || [];
+            const dateStr = normalizeDateToString(selectedDate);
+
+            if (!excludedDates.includes(dateStr)) {
+              const updatedTimePlanning = {
+                ...timePlanning,
+                excludedDates: [...excludedDates, dateStr]
+              };
+
+              await taskApi.updateTask(task.id, {
+                timePlanning: updatedTimePlanning
+              } as any);
+              
+              console.log('[handleDeleteBlock] Added date to excludedDates after deleting override');
+            }
+          }
+        } else {
+          // This is a manual plan (no taskId or no instanceDate) - just delete it
+          console.log('[handleDeleteBlock] Deleting manual plan');
+          await plansApi.deletePlan(planMongoId);
+        }
+        
+        console.log('[handleDeleteBlock] Plan deleted successfully');
+      } else {
+        // Edge case: No planId and not virtual
+        console.error('[handleDeleteBlock] No planId and not virtual - cannot delete:', block);
+        toast.error('Cannot delete: Plan ID not found');
+        return;
+      }
+
+      // Reload plans to reflect deletion
+      console.log('[handleDeleteBlock] Reloading plans...');
+      
+      // Force immediate update - fetch plans directly and update state
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const fetchedPlans = await plansApi.getPlans({ date: dateStr, tz });
+      
+      console.log('[handleDeleteBlock] Plans reloaded, new count:', fetchedPlans.length);
+      
+      // Update state FIRST so mergedBlocks can recalculate with new data
+      setRealPlans(fetchedPlans);
+      
+      // Small delay to ensure state update propagates before parent refresh
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Then trigger parent update (this will also refresh tasks to get updated excludedDates)
+      onUpdate(true, true); // Refresh plans, sessions, and tasks
+      
+      toast.success('Plan deleted');
+      
+      // Also log the specific taskId we're looking for
+      console.log('[handleDeleteBlock] Looking for canceled override with:', {
+        taskId: String(block.taskId),
+        taskIdType: typeof block.taskId,
+        targetDate: normalizeDateToString(selectedDate),
+        selectedDateRaw: selectedDate
+      });
+      
+      // Update state FIRST so mergedBlocks can recalculate with new data
+      setRealPlans(fetchedPlans);
+      
+      // Small delay to ensure state update propagates before parent refresh
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Then trigger parent update
+      onUpdate(true, true); // Refresh plans and sessions
+      
+      toast.success('Plan deleted');
+    } catch (error) {
+      console.error('[handleDeleteBlock] Failed to delete plan:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete plan');
+    }
   };
 
   // Calculate position and height for a block
@@ -111,13 +864,13 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
     const endHour = block.endTime.getHours();
     const endMinute = block.endTime.getMinutes();
 
-    const PIXELS_PER_HOUR = 80; // Increased from 60px to 80px per hour
+    const PIXELS_PER_HOUR = 80;
     const top = (startHour + startMinute / 60) * PIXELS_PER_HOUR;
     const duration = (endHour - startHour) + (endMinute - startMinute) / 60;
     const height = duration * PIXELS_PER_HOUR;
 
     // Calculate overlaps
-    const { width, left, zIndex } = calculateOverlapPosition(block, blocks);
+    const { width, left, zIndex } = calculateOverlapPosition(block, mergedBlocks);
 
     return { 
       top: `${top}px`, 
@@ -132,8 +885,8 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
     <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 h-[600px] flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-2">
-        <Calendar className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
-        <h2 className="text-neutral-900 dark:text-neutral-100 font-semibold">Planned Time Blocks</h2>
+          <Calendar className="w-5 h-5 text-neutral-600 dark:text-neutral-400" />
+          <h2 className="text-neutral-900 dark:text-neutral-100 font-semibold">Planned Time Blocks</h2>
         </div>
       </div>
       
@@ -157,7 +910,7 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
           ))}
 
           {/* Clickable grid area */}
-          <div className="absolute inset-0 left-16 z-10">
+          <div className="absolute inset-0 left-16 z-10 pointer-events-auto">
             {HOURS.map((hour) => (
               <div
                 key={`grid-${hour}`}
@@ -165,25 +918,49 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
                 className="h-[80px] cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/20 transition-colors"
               />
             ))}
-        </div>
+          </div>
 
           {/* Planned blocks overlay */}
-          <div className="absolute top-0 right-0 bottom-0 left-16 pointer-events-none z-20">
-            {blocks.map((block) => (
-              <PlannedBlockOverlay
-              key={block.id} 
-              block={block} 
-                style={getBlockStyle(block)}
-              onStartNow={() => handleStartNow(block)}
-              onMarkDone={() => handleMarkDone(block)}
-                onDeleteBlock={() => handleDeleteBlock(block)}
-            />
-          ))}
+          <div className="absolute top-0 right-0 bottom-0 left-16 pointer-events-none z-30">
+            {loading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-neutral-500 dark:text-neutral-400">Loading...</div>
+              </div>
+            ) : (
+              mergedBlocks.map((block) => {
+                // Check if this block has an active session
+                const hasActiveSession = activeSession && (
+                  (block.sessionId && activeSession.id === block.sessionId) ||
+                  (block.taskId && activeSession.taskId === block.taskId) ||
+                  (block.planId && activeSession.id === block.planId)
+                );
+                
+                // Check if this virtual block has been edited (has a non-canceled override)
+                const isEdited = !!(block.isVirtual && block.taskId && 
+                  findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, false) !== undefined
+                );
+                
+                return (
+                  <PlannedBlockOverlay
+                    key={block.id} 
+                    block={block} 
+                    style={getBlockStyle(block)}
+                    hasActiveSession={!!hasActiveSession}
+                    isEdited={isEdited}
+                    onEdit={() => handleEditClick(block)}
+                    onStartNow={() => handleStartNow(block)}
+                    onStopTimer={() => handleStopTimer(block)}
+                    onMarkDone={() => handleMarkDone(block)}
+                    onDeleteBlock={() => handleDeleteBlock(block)}
+                  />
+                );
+              })
+            )}
           </div>
         </div>
       </div>
 
-      {/* Add Block Dialog */}
+      {/* Create Block Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800">
           <DialogHeader>
@@ -206,26 +983,22 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-neutral-900 dark:text-neutral-100">Start Time</Label>
-                <div className="relative">
-                  <Input
-                    type="time"
-                    value={newBlock.startTime}
-                    onChange={(e) => setNewBlock({ ...newBlock, startTime: e.target.value })}
-                    className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100"
-                  />
-                </div>
+                <Input
+                  type="time"
+                  value={newBlock.startTime}
+                  onChange={(e) => setNewBlock({ ...newBlock, startTime: e.target.value })}
+                  className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label className="text-neutral-900 dark:text-neutral-100">End Time</Label>
-                <div className="relative">
-                  <Input
-                    type="time"
-                    value={newBlock.endTime}
-                    onChange={(e) => setNewBlock({ ...newBlock, endTime: e.target.value })}
-                    className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100"
-                  />
-                </div>
+                <Input
+                  type="time"
+                  value={newBlock.endTime}
+                  onChange={(e) => setNewBlock({ ...newBlock, endTime: e.target.value })}
+                  className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100"
+                />
               </div>
             </div>
 
@@ -240,6 +1013,60 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Block Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800">
+          <DialogHeader>
+            <DialogTitle className="text-neutral-900 dark:text-neutral-100">Edit Planned Block</DialogTitle>
+            <DialogDescription className="text-neutral-600 dark:text-neutral-400">Update the time block details.</DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-neutral-900 dark:text-neutral-100">Title</Label>
+              <Input
+                type="text"
+                placeholder="What will you work on?"
+                value={newBlock.title}
+                onChange={(e) => setNewBlock({ ...newBlock, title: e.target.value })}
+                className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-neutral-900 dark:text-neutral-100">Start Time</Label>
+                <Input
+                  type="time"
+                  value={newBlock.startTime}
+                  onChange={(e) => setNewBlock({ ...newBlock, startTime: e.target.value })}
+                  className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-neutral-900 dark:text-neutral-100">End Time</Label>
+                <Input
+                  type="time"
+                  value={newBlock.endTime}
+                  onChange={(e) => setNewBlock({ ...newBlock, endTime: e.target.value })}
+                  className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100"
+                />
+              </div>
+            </div>
+
+            <Button 
+              onClick={handleSaveBlock}
+              disabled={!newBlock.title || !newBlock.startTime || !newBlock.endTime}
+              className="w-full bg-blue-600 dark:bg-indigo-700 hover:bg-blue-700 dark:hover:bg-indigo-800"
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Update Block
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -247,12 +1074,16 @@ export function PlannedTimeBlocks({ blocks, onUpdate }: PlannedTimeBlocksProps) 
 interface PlannedBlockOverlayProps {
   block: PlannedBlock;
   style: { top: string; height: string; width: string; left: string; zIndex: number };
+  hasActiveSession: boolean;
+  isEdited: boolean;
+  onEdit: () => void;
   onStartNow: () => void;
+  onStopTimer: () => void;
   onMarkDone: () => void;
   onDeleteBlock: () => void;
 }
 
-function PlannedBlockOverlay({ block, style, onStartNow, onMarkDone, onDeleteBlock }: PlannedBlockOverlayProps) {
+function PlannedBlockOverlay({ block, style, hasActiveSession, isEdited, onEdit, onStartNow, onStopTimer, onMarkDone, onDeleteBlock }: PlannedBlockOverlayProps) {
   const getCategoryColorClass = (category: Category) => {
     const colors = {
       Work: 'bg-blue-500/20 dark:bg-blue-500/20 border-blue-500/50 dark:border-blue-500/50 text-blue-700 dark:text-blue-300',
@@ -274,64 +1105,105 @@ function PlannedBlockOverlay({ block, style, onStartNow, onMarkDone, onDeleteBlo
   return (
     <div
       className={`absolute rounded-lg border-2 p-2 pointer-events-auto group ${getCategoryColorClass(block.category)} ${getStatusBorder()}`}
-      style={style}
+      style={{ ...style, zIndex: (style.zIndex || 0) + 100 }}
+      onClick={(e) => {
+        // Prevent clicks on the block itself from propagating to grid
+        e.stopPropagation();
+      }}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-sm truncate">{block.title}</div>
+          <div className="flex items-center gap-2">
+            <div className="text-sm truncate">{block.title}</div>
+            {isEdited && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-500/50">
+                Edited
+              </span>
+            )}
+          </div>
           <div className="text-xs opacity-75 mt-0.5">
             {formatTime(block.startTime)} - {formatTime(block.endTime)}
           </div>
         </div>
         
-        {/* Action icons - always visible on hover */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {block.status === 'scheduled' && (
+        {/* Action icons - always visible and clickable */}
+        <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity" style={{ pointerEvents: 'auto', zIndex: 1000 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Edit button clicked for block:', block.id);
+              onEdit();
+            }}
+            className="p-1.5 rounded hover:bg-blue-600/30 transition-colors cursor-pointer z-50 relative"
+            title="Edit block"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <Edit className="w-5 h-5 text-blue-400" />
+          </button>
+
+          {hasActiveSession ? (
             <button
+              type="button"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
+                console.log('Stop timer button clicked for block:', block.id);
+                onStopTimer();
+              }}
+              className="p-1.5 rounded hover:bg-red-600/30 transition-colors cursor-pointer z-50 relative"
+              title="Stop timer"
+              style={{ pointerEvents: 'auto' }}
+            >
+              <Square className="w-5 h-5 text-red-400" />
+            </button>
+          ) : block.status === 'scheduled' && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Start timer button clicked for block:', block.id);
                 onStartNow();
               }}
-              className="p-1.5 rounded hover:bg-blue-600/30 transition-colors"
+              className="p-1.5 rounded hover:bg-blue-600/30 transition-colors cursor-pointer z-50 relative"
               title="Start timer"
+              style={{ pointerEvents: 'auto' }}
             >
               <Play className="w-5 h-5 text-blue-400" />
             </button>
           )}
-          
-          {block.status === 'in-progress' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onMarkDone();
-              }}
-              className="p-1.5 rounded hover:bg-green-600/30 transition-colors"
-              title="Stop and mark done"
-            >
-              <Square className="w-5 h-5 text-green-400" />
-            </button>
-          )}
 
-      {block.status === 'scheduled' && (
+          {/* Mark Done button - show for scheduled or in-progress (without active session) blocks */}
+          {!hasActiveSession && (block.status === 'scheduled' || block.status === 'in-progress') && (
             <button
+              type="button"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
+                console.log('Mark done button clicked for block:', block.id);
                 onMarkDone();
               }}
-              className="p-1.5 rounded hover:bg-green-600/30 transition-colors"
+              className="p-1.5 rounded hover:bg-green-600/30 transition-colors cursor-pointer z-50 relative"
               title="Mark as done"
-          >
+              style={{ pointerEvents: 'auto' }}
+            >
               <Check className="w-5 h-5 text-green-400" />
             </button>
           )}
           
           <button
+            type="button"
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
+              console.log('Delete button clicked for block:', block.id);
               onDeleteBlock();
             }}
-            className="p-1.5 rounded hover:bg-red-600/30 transition-colors"
+            className="p-1.5 rounded hover:bg-red-600/30 transition-colors cursor-pointer z-50 relative"
             title="Delete block"
+            style={{ pointerEvents: 'auto' }}
           >
             <Trash2 className="w-5 h-5 text-red-400" />
           </button>
@@ -346,15 +1218,6 @@ function formatHour(hour: number): string {
   if (hour < 12) return `${hour} AM`;
   if (hour === 12) return '12 PM';
   return `${hour - 12} PM`;
-}
-
-function formatDateTimeLocal(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function calculateOverlapPosition(block: PlannedBlock, blocks: PlannedBlock[]) {
