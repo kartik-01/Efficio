@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { PlannedBlock, TimeSession, Category } from '../types';
+import { PlannedBlock, Category } from '../types';
 import { formatTime, getCategoryColor } from '../lib/utils';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Input, Label } from '@efficio/ui';
 import { Play, Check, Calendar, Plus, Trash2, Square, Edit } from 'lucide-react';
-import { taskApi, initializeTaskApi, isTaskApiReady as isTaskApiReadyForTasks } from '../services/taskApi';
-import { plansApi, sessionsApi, initializeTimeApi, isTimeApiReady, Plan, Session } from '../services/timeApi';
+import { plansApi, sessionsApi, isTimeApiReady, Plan } from '../services/timeApi';
+import { useTasksStore } from '../store/slices/tasksSlice';
+import { usePlansStore } from '../store/slices/plansSlice';
+import { useSessionsStore } from '../store/slices/sessionsSlice';
+import { useSummaryStore } from '../store/slices/summarySlice';
 import { toast } from 'sonner';
 
 const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
@@ -13,87 +16,24 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0-23 hours
 interface PlannedTimeBlocksProps {
   selectedDate: Date;
   getAccessToken?: () => Promise<string | undefined>;
-  onUpdate: (shouldRefreshPlans?: boolean, shouldRefreshTasks?: boolean) => void;
-  refreshTrigger?: number;
-  activeSession?: TimeSession | null; // Active session from parent
 }
 
-export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refreshTrigger, activeSession: activeSessionProp }: PlannedTimeBlocksProps) {
+export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeBlocksProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<PlannedBlock | null>(null);
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [realPlans, setRealPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(false);
   const [newBlock, setNewBlock] = useState({
     title: '',
     startTime: '',
     endTime: '',
   });
 
-  // Use activeSession from props
-  const activeSession = activeSessionProp || null;
-
-  // Track initialization to prevent re-initialization
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Initialize APIs (only once)
-  useEffect(() => {
-    if (getAccessToken && !isInitialized) {
-      initializeTaskApi(getAccessToken);
-      initializeTimeApi(getAccessToken);
-      setIsInitialized(true);
-    }
-  }, [getAccessToken, isInitialized]);
-
-  // Function to reload plans data
-  const reloadPlans = async () => {
-    if (!isTimeApiReady()) return;
-
-    try {
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
-      const fetchedPlans = await plansApi.getPlans({ date: dateStr, tz });
-      setRealPlans(fetchedPlans);
-    } catch (error) {
-      console.error('Failed to reload plans:', error);
-    }
-  };
-
-  // Fetch tasks, real plans, and active session
-  useEffect(() => {
-    const loadData = async () => {
-      if (!isTaskApiReadyForTasks() || !isTimeApiReady()) return;
-
-      try {
-        setLoading(true);
-        
-        // Fetch tasks
-        const fetchedTasks = await taskApi.getTasks();
-        setTasks(fetchedTasks);
-
-        // Fetch real plans for the selected date
-        await reloadPlans();
-      } catch (error) {
-        console.error('Failed to load planned blocks data:', error);
-        toast.error('Failed to load planned blocks');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Only load if API is ready and we have refreshTrigger (or initial load)
-    if (isTaskApiReadyForTasks() && isTimeApiReady()) {
-      loadData();
-    }
-  }, [selectedDate, refreshTrigger]); // Removed getAccessToken from deps since we track initialization separately
-
-  // No need to poll for active session - it comes from props
+  // Zustand stores
+  const { tasks } = useTasksStore(); // No more duplicate fetching!
+  const { plans: realPlans, loading, fetchPlans, createPlan, updatePlan, deletePlan } = usePlansStore();
+  const { activeSession, startSession, stopSession, fetchActiveSession } = useSessionsStore();
+  const { fetchSummary } = useSummaryStore();
 
   const dateStr = useMemo(() => {
     const year = selectedDate.getFullYear();
@@ -154,6 +94,19 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
     
     return found;
   };
+
+  // Fetch plans when date changes
+  useEffect(() => {
+    if (!isTimeApiReady()) return;
+    
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    fetchPlans(dateStr, tz);
+  }, [selectedDate, fetchPlans]);
 
   // Generate virtual plans from tasks and merge with real plans
   const mergedBlocks = useMemo(() => {
@@ -378,15 +331,16 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
 
           if (existingOverride) {
             // Update existing override
-            await plansApi.updatePlan(existingOverride.id, {
+            const overrideId = (existingOverride as any)._id || existingOverride.id;
+            await updatePlan(overrideId, {
               taskTitle: newBlock.title,
               categoryId,
               startTime: start.toISOString(),
               endTime: end.toISOString(),
-            });
+            } as any);
           } else {
             // Create new override
-            await plansApi.createPlan({
+            await createPlan({
               taskId: editingBlock.taskId,
               taskTitle: newBlock.title,
               categoryId,
@@ -397,16 +351,16 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
           }
         } else if (editingBlock.planId) {
           // Real plan: update it
-          await plansApi.updatePlan(editingBlock.planId, {
+          await updatePlan(editingBlock.planId, {
             taskTitle: newBlock.title,
             categoryId,
             startTime: start.toISOString(),
             endTime: end.toISOString(),
-          });
+          } as any);
         }
       } else {
         // Creating new block (not from task)
-        await plansApi.createPlan({
+        await createPlan({
           taskTitle: newBlock.title,
           categoryId,
           startTime: start.toISOString(),
@@ -420,10 +374,14 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
       setNewBlock({ title: '', startTime: '', endTime: '' });
       
       // Reload plans to reflect the changes
-      await reloadPlans();
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       
-      // Also trigger parent update
-      onUpdate(true, false); // Refresh plans
+      await fetchPlans(dateStr, tz);
+      
       toast.success(editingBlock ? 'Plan updated' : 'Plan created');
     } catch (error) {
       console.error('Failed to save plan:', error);
@@ -441,7 +399,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
       // Stop any existing active session first
       if (activeSession) {
         try {
-          await sessionsApi.stopSession(activeSession.id);
+          await stopSession();
           // Clear sessionId from the plan that had the active session
           if (activeSession.taskId) {
             // Find and update the plan that had this session
@@ -450,10 +408,11 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
               (p.taskId === activeSession.taskId && p.status === 'in_progress')
             );
             if (planWithSession) {
-              await plansApi.updatePlan(planWithSession.id, { 
+              const planId = (planWithSession as any)._id || planWithSession.id;
+              await updatePlan(planId, { 
                 status: 'scheduled', 
                 sessionId: undefined 
-              });
+              } as any);
             }
           }
         } catch (stopError) {
@@ -462,17 +421,16 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
         }
       }
 
-      // Start new session via API
+      // Start new session via store
       const categoryId = block.category.toLowerCase();
-      const session = await sessionsApi.startSession({
-        taskId: block.taskId || null,
-        taskTitle: block.title,
-        categoryId,
-      });
+      await startSession(block.taskId || null, block.title, block.category);
 
       // Update plan status if it's a real plan
       if (block.planId && !block.isVirtual) {
-        await plansApi.updatePlan(block.planId, { status: 'in_progress', sessionId: session.id });
+        const { activeSession: newActiveSession } = useSessionsStore.getState();
+        if (newActiveSession) {
+          await updatePlan(block.planId, { status: 'in_progress', sessionId: newActiveSession.id } as any);
+        }
       } else if (block.isVirtual && block.taskId) {
         // For virtual plans, check if override already exists (including canceled ones)
         const existingOverride = findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, true);
@@ -480,13 +438,17 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
         if (existingOverride) {
           // Update existing override (even if it was canceled)
           const planMongoId = (existingOverride as any)._id || existingOverride.id;
-          await plansApi.updatePlan(planMongoId, { 
-            status: 'in_progress', 
-            sessionId: session.id 
-          });
+          const { activeSession: newActiveSession } = useSessionsStore.getState();
+          if (newActiveSession) {
+            await updatePlan(planMongoId, { 
+              status: 'in_progress', 
+              sessionId: newActiveSession.id 
+            } as any);
+          }
         } else {
           // Create new override
-          const createdPlan = await plansApi.createPlan({
+          const { activeSession: newActiveSession } = useSessionsStore.getState();
+          const createdPlan = await createPlan({
             taskId: block.taskId,
             taskTitle: block.title,
             categoryId,
@@ -495,16 +457,22 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
             isOverride: true,
           });
 
-          const createdPlanMongoId = (createdPlan as any)._id || createdPlan.id;
-          await plansApi.updatePlan(createdPlanMongoId, { status: 'in_progress', sessionId: session.id });
+          if (newActiveSession) {
+            const createdPlanMongoId = (createdPlan as any)._id || createdPlan.id;
+            await updatePlan(createdPlanMongoId, { status: 'in_progress', sessionId: newActiveSession.id } as any);
+          }
         }
       }
 
       // Reload plans to reflect status change
-      await reloadPlans();
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       
-      // Notify parent to refresh (which will update activeSession)
-      onUpdate(true, true); // Refresh plans and sessions
+      await fetchPlans(dateStr, tz);
+      
       toast.success('Timer started');
     } catch (error) {
       console.error('Failed to start timer:', error);
@@ -519,33 +487,37 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
     }
 
     try {
-      // Stop the active session
-      await sessionsApi.stopSession(activeSession.id);
+      // Stop the active session via store
+      await stopSession();
 
       // Update plan status and clear sessionId
       if (block.planId) {
-        await plansApi.updatePlan(block.planId, { 
+        await updatePlan(block.planId, { 
           status: 'scheduled', 
           sessionId: undefined // Clear sessionId
-        });
+        } as any);
       } else if (block.isVirtual && block.taskId) {
         // For virtual plans, find and update the override
         const existingOverride = findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, true);
 
         if (existingOverride) {
           const planMongoId = (existingOverride as any)._id || existingOverride.id;
-          await plansApi.updatePlan(planMongoId, { 
+          await updatePlan(planMongoId, { 
             status: 'scheduled', 
             sessionId: undefined 
-          });
+          } as any);
         }
       }
 
       // Reload plans to reflect status change
-      await reloadPlans();
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       
-      // Notify parent to refresh (which will update activeSession)
-      onUpdate(true, true); // Refresh plans and sessions
+      await fetchPlans(dateStr, tz);
+      
       toast.success('Timer stopped');
     } catch (error) {
       console.error('Failed to stop timer:', error);
@@ -603,22 +575,22 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
 
       // Update plan status if it's a real plan
       if (block.planId && !block.isVirtual) {
-        await plansApi.updatePlan(block.planId, { 
+        await updatePlan(block.planId, { 
           status: 'done',
           sessionId: undefined // Clear sessionId if it was set
-        });
+        } as any);
       } else if (block.isVirtual && block.taskId) {
         // For virtual plans, check if override exists, if not create one and mark as done
         const existingOverride = findOverrideForTaskAndDate(block.taskId, selectedDate, realPlans, true);
 
         if (existingOverride) {
           const planMongoId = (existingOverride as any)._id || existingOverride.id;
-          await plansApi.updatePlan(planMongoId, { 
+          await updatePlan(planMongoId, { 
             status: 'done',
             sessionId: undefined 
-          });
+          } as any);
         } else {
-          const createdPlan = await plansApi.createPlan({
+          const createdPlan = await createPlan({
             taskId: block.taskId,
             taskTitle: block.title,
             categoryId,
@@ -627,14 +599,25 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
             isOverride: true,
           });
           const createdPlanMongoId = (createdPlan as any)._id || createdPlan.id;
-          await plansApi.updatePlan(createdPlanMongoId, { status: 'done' });
+          await updatePlan(createdPlanMongoId, { status: 'done' } as any);
         }
       }
 
       // Reload plans to reflect status change
-      await reloadPlans();
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       
-      onUpdate(true, true); // Refresh plans and sessions
+      const { fetchSessions } = useSessionsStore.getState();
+      await Promise.all([
+        fetchPlans(dateStr, tz),
+        fetchActiveSession(),
+        fetchSessions(dateStr, tz),
+        fetchSummary(dateStr, tz, selectedDate.toDateString() === new Date().toDateString()),
+      ]);
+      
       toast.success('Session completed');
     } catch (error) {
       console.error('Failed to mark done:', error);
@@ -659,7 +642,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
 
       if (hasActiveSessionForBlock && activeSession) {
         try {
-          await sessionsApi.stopSession(activeSession.id);
+          await stopSession();
           toast.info('Active session stopped');
         } catch (stopError) {
           console.error('[handleDeleteBlock] Failed to stop active session:', stopError);
@@ -690,7 +673,8 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
             excludedDates: [...excludedDates, dateStr]
           };
 
-          await taskApi.updateTask(block.taskId, {
+          const { updateTask } = useTasksStore.getState();
+          await updateTask(block.taskId, {
             timePlanning: updatedTimePlanning
           } as any);
         }
@@ -710,7 +694,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
           // This is an override - delete the plan AND add date to excludedDates to prevent virtual plan from showing
           
           // Delete the override plan
-          await plansApi.deletePlan(planMongoId);
+          await deletePlan(planMongoId);
           
           // Also add to excludedDates to prevent virtual plan from showing
           const task = tasks.find(t => t.id === String(plan.taskId));
@@ -725,14 +709,15 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
                 excludedDates: [...excludedDates, dateStr]
               };
 
-              await taskApi.updateTask(task.id, {
+              const { updateTask } = useTasksStore.getState();
+              await updateTask(task.id, {
                 timePlanning: updatedTimePlanning
               } as any);
             }
           }
         } else {
           // This is a manual plan (no taskId or no instanceDate) - just delete it
-          await plansApi.deletePlan(planMongoId);
+          await deletePlan(planMongoId);
         }
       } else {
         // Edge case: No planId and not virtual
@@ -747,16 +732,14 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken, onUpdate, refr
       const day = String(selectedDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const fetchedPlans = await plansApi.getPlans({ date: dateStr, tz });
-      
-      // Update state FIRST so mergedBlocks can recalculate with new data
-      setRealPlans(fetchedPlans);
-      
-      // Small delay to ensure state update propagates before parent refresh
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Then trigger parent update (this will also refresh tasks to get updated excludedDates)
-      onUpdate(true, true); // Refresh plans, sessions, and tasks
+      // Refresh plans and related data
+      const { fetchTasks } = useTasksStore.getState();
+      await Promise.all([
+        fetchPlans(dateStr, tz),
+        fetchTasks(), // Refresh tasks to get updated excludedDates
+        fetchActiveSession(),
+        fetchSummary(dateStr, tz, selectedDate.toDateString() === new Date().toDateString()),
+      ]);
       
       toast.success('Plan deleted');
     } catch (error) {

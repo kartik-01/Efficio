@@ -1,125 +1,92 @@
 import { useState, useEffect } from 'react';
-import { TimeSession, Category } from '../types';
+import { Category } from '../types';
 import { formatTime, formatDuration, getCategoryColor, getCategoryCardColor } from '../lib/utils';
 import { Clock, Plus, Trash2, Edit } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, Input, Label } from '@efficio/ui';
 import { ManualTimeEntry } from './ManualTimeEntry';
-import { sessionsApi, isTimeApiReady } from '../services/timeApi';
+import { useSessionsStore } from '../store/slices/sessionsSlice';
+import { useUIStore } from '../store/slices/uiSlice';
+import { usePlansStore } from '../store/slices/plansSlice';
+import { useSummaryStore } from '../store/slices/summarySlice';
+import { isTimeApiReady } from '../services/timeApi';
 import { toast } from 'sonner';
 
 interface SessionTimelineProps {
   selectedDate: Date;
   getAccessToken?: () => Promise<string | undefined>;
-  refreshTrigger?: number;
-  onUpdate: (shouldRefreshPlans?: boolean, shouldRefreshTasks?: boolean) => void;
 }
 
-export function SessionTimeline({ selectedDate, getAccessToken, refreshTrigger, onUpdate }: SessionTimelineProps) {
+export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelineProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [sessions, setSessions] = useState<TimeSession[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { sessions, loading, deleteSession, updateSession, fetchSessions, fetchActiveSession } = useSessionsStore();
+  const { selectedDate: storeDate } = useUIStore();
+  const { fetchPlans } = usePlansStore();
+  const { fetchSummary } = useSummaryStore();
 
-  // Fetch sessions from backend
-  useEffect(() => {
-    const loadSessions = async () => {
-      if (!isTimeApiReady()) return;
-
-      try {
-        setLoading(true);
-        const year = selectedDate.getFullYear();
-        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const day = String(selectedDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        
-        const backendSessions = await sessionsApi.listSessions({ date: dateStr, tz });
-        const convertedSessions: TimeSession[] = backendSessions.map(s => {
-          const startTime = typeof s.startTime === 'string' ? new Date(s.startTime) : s.startTime;
-          const endTime = s.endTime ? (typeof s.endTime === 'string' ? new Date(s.endTime) : s.endTime) : undefined;
-          
-          // Calculate duration from startTime and endTime
-          let duration: number | undefined;
-          if (endTime) {
-            duration = Math.round((endTime.getTime() - startTime.getTime()) / 60000); // minutes
-          } else {
-            // For running sessions, calculate up to now
-            duration = Math.round((new Date().getTime() - startTime.getTime()) / 60000);
-          }
-          
-          return {
-            id: s._id || s.id || '',
-            taskId: s.taskId || undefined,
-            taskTitle: s.taskTitle || '',
-            category: (s.categoryId?.charAt(0).toUpperCase() + s.categoryId?.slice(1)) as Category || 'Work',
-            startTime,
-            endTime,
-            duration,
-          };
-        });
-        setSessions(convertedSessions);
-      } catch (error) {
-        console.error('Failed to load sessions:', error);
-        toast.error('Failed to load sessions');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Only load if API is ready (initialized by parent TodayView)
-    if (isTimeApiReady()) {
-      loadSessions();
-    }
-  }, [selectedDate, refreshTrigger]); // Removed isInitialized dependency
-
-  const handleSave = () => {
-    onUpdate(true, false); // Refresh sessions and summary, but not tasks
+  const handleSave = async () => {
+    // Refresh sessions, plans, and summary after manual entry
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const isToday = selectedDate.toDateString() === new Date().toDateString();
+    
+    await Promise.all([
+      fetchSessions(dateStr, tz),
+      fetchActiveSession(),
+      fetchPlans(dateStr, tz),
+      fetchSummary(dateStr, tz, isToday),
+    ]);
+    
     setIsDialogOpen(false);
   };
 
   const handleDelete = async (sessionId: string) => {
     if (!isTimeApiReady()) {
-      toast.error('API not initialized');
       return;
     }
 
     try {
-      await sessionsApi.deleteSession(sessionId);
-      toast.success('Session deleted');
-      onUpdate(true, false); // Refresh sessions and summary
+      await deleteSession(sessionId);
+      // Refresh related data
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      
+      await Promise.all([
+        fetchActiveSession(),
+        fetchSummary(dateStr, tz, isToday),
+      ]);
     } catch (error) {
-      console.error('Failed to delete session:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to delete session');
+      // Error already handled in store
     }
   };
 
   const handleEdit = async (sessionId: string, updates: { taskTitle: string; startTime: string; endTime: string; categoryId: string }) => {
     if (!isTimeApiReady()) {
-      toast.error('API not initialized');
       return;
     }
 
     try {
-      const [startHours, startMinutes] = updates.startTime.split(':').map(Number);
-      const [endHours, endMinutes] = updates.endTime.split(':').map(Number);
-
-      const start = new Date(selectedDate);
-      start.setHours(startHours, startMinutes, 0, 0);
-
-      const end = new Date(selectedDate);
-      end.setHours(endHours, endMinutes, 0, 0);
-
-      await sessionsApi.updateSession(sessionId, {
-        taskTitle: updates.taskTitle,
-        categoryId: updates.categoryId,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-      });
-
-      toast.success('Session updated');
-      onUpdate(true, false); // Refresh sessions and summary
+      await updateSession(sessionId, { ...updates, selectedDate } as any);
+      // Refresh related data
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      
+      await Promise.all([
+        fetchActiveSession(),
+        fetchSummary(dateStr, tz, isToday),
+      ]);
     } catch (error) {
-      console.error('Failed to update session:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update session');
+      // Error already handled in store
     }
   };
   
@@ -197,11 +164,11 @@ function SessionCard({
   onEdit,
   getAccessToken
 }: { 
-  session: TimeSession; 
+  session: import('../types').TimeSession; 
   isOngoing?: boolean;
   selectedDate: Date;
   onDelete?: (id: string) => void;
-  onEdit?: (id: string, updates: { taskTitle: string; startTime: string; endTime: string; categoryId: string }) => void;
+  onEdit?: (id: string, updates: { taskTitle: string; startTime: string; endTime: string; categoryId: string; selectedDate?: Date }) => void;
   getAccessToken?: () => Promise<string | undefined>;
 }) {
   const [deleting, setDeleting] = useState(false);
