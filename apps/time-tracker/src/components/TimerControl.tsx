@@ -3,6 +3,7 @@ import { Play, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Category } from '../types';
 import { formatTime, formatDuration } from '../lib/utils';
+import { classifyTitle } from '../lib/classification';
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Input } from '@efficio/ui';
 import { useTasksStore } from '../store/slices/tasksSlice';
 import { useSessionsStore } from '../store/slices/sessionsSlice';
@@ -11,15 +12,6 @@ import { usePlansStore } from '../store/slices/plansSlice';
 import { useSummaryStore } from '../store/slices/summarySlice';
 import { isTimeApiReady } from '../services/timeApi';
 import { toast } from 'sonner';
-
-// API base URL - same pattern as taskApi
-declare const process: {
-  env: {
-    API_BASE_URL?: string;
-  };
-};
-
-const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
 
 interface TimerControlProps {
   externalStart?: { taskId: string; taskTitle: string; category: Category } | null;
@@ -34,7 +26,6 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
   const [selectedTaskCategory, setSelectedTaskCategory] = useState<Category | null>(null);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [pulseKey, setPulseKey] = useState(0);
-  const [classifying, setClassifying] = useState(false);
 
   // Zustand stores
   const { tasks, loading: tasksLoading } = useTasksStore(); // No more duplicate fetching!
@@ -131,49 +122,6 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
     }
   };
 
-  const classifyTitle = async (title: string): Promise<Category> => {
-    if (!getAccessToken) return 'Work';
-
-    try {
-      setClassifying(true);
-      const token = await getAccessToken();
-      if (!token) return 'Work';
-
-      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
-      const response = await fetch(`${API_BASE_URL}/time/classify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ title }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Classification failed');
-      }
-
-      const result = await response.json();
-      const categoryId = result.data?.categoryId || 'work';
-      
-      // Map backend category to frontend Category type
-      const categoryMap: Record<string, Category> = {
-        'work': 'Work',
-        'learning': 'Learning',
-        'admin': 'Admin',
-        'health': 'Health',
-        'personal': 'Personal',
-        'rest': 'Rest',
-      };
-
-      return categoryMap[categoryId] || 'Work';
-    } catch (error) {
-      console.error('Failed to classify title:', error);
-      return 'Work'; // Default to Work on error
-    } finally {
-      setClassifying(false);
-    }
-  };
 
   const handleStart = async () => {
     if (!selectedTask) return;

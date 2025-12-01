@@ -46,11 +46,23 @@ export const usePlansStore = create<PlansState>((set, get) => ({
   
   updatePlan: async (id: string, updates: Partial<Plan>) => {
     try {
-      await plansApi.updatePlan(id, updates);
+      // Get the updated plan from the API (it returns the full updated plan with proper Date objects)
+      const updatedPlan = await plansApi.updatePlan(id, updates);
+      
+      // Update the store with the returned plan (which has proper Date objects)
       set(state => ({
         plans: state.plans.map(p => {
           const pId = (p as any)._id || p.id;
-          return pId === id ? { ...p, ...updates } : p;
+          if (pId === id) {
+            // Use the updated plan from API, ensuring proper Date conversion
+            return {
+              ...updatedPlan,
+              id: updatedPlan._id || updatedPlan.id || id,
+              startTime: typeof updatedPlan.startTime === 'string' ? new Date(updatedPlan.startTime) : updatedPlan.startTime,
+              endTime: typeof updatedPlan.endTime === 'string' ? new Date(updatedPlan.endTime) : updatedPlan.endTime,
+            };
+          }
+          return p;
         }),
       }));
     } catch (error) {

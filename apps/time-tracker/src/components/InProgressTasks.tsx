@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { Task, Category } from '../types';
 import { Input } from '@efficio/ui';
 import { getCategoryColor, formatDuration } from '../lib/utils';
+import { classifyTitle, classifyTitleToCategoryId } from '../lib/classification';
 import { useSessionsStore } from '../store/slices/sessionsSlice';
 import { useUIStore } from '../store/slices/uiSlice';
 import { usePlansStore } from '../store/slices/plansSlice';
@@ -19,25 +20,14 @@ interface InProgressTasksProps {
   isTimerActive: boolean;
 }
 
-// Map task category string to Category type
-const mapTaskCategoryToCategory = (category?: string): Category => {
-  if (!category) return 'Work';
-  
-  const normalized = category.toLowerCase().trim();
-  const categoryMap: Record<string, Category> = {
-    'work': 'Work',
-    'learning': 'Learning',
-    'admin': 'Admin',
-    'health': 'Health',
-    'personal': 'Personal',
-    'rest': 'Rest',
-  };
-  
-  return categoryMap[normalized] || 'Work';
+// Helper to get classified category for a task
+const getTaskCategory = (taskId: string, taskCategories: Record<string, Category>): Category => {
+  return taskCategories[taskId] || 'Work'; // Default to Work if not yet classified
 };
 
 export function InProgressTasks({ tasks, loading = false, getAccessToken, onStartTimer, onUpdateTaskTime, isTimerActive }: InProgressTasksProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [taskCategories, setTaskCategories] = useState<Record<string, Category>>({});
 
   // Zustand stores
   const { sessions, activeSession } = useSessionsStore();
@@ -45,6 +35,32 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
   const { plans, createPlan, updatePlan, fetchPlans } = usePlansStore();
 
   const inProgressTasks = tasks.filter(task => task.status === 'in-progress');
+
+  // Classify all in-progress tasks on mount and when tasks change
+  useEffect(() => {
+    const classifyTasks = async () => {
+      const categoryMap: Record<string, Category> = {};
+      
+      for (const task of inProgressTasks) {
+        try {
+          const category = await classifyTitle(task.title);
+          categoryMap[task.id] = category;
+        } catch (error) {
+          console.error(`Failed to classify task ${task.id}:`, error);
+          categoryMap[task.id] = 'Work'; // Default fallback
+        }
+      }
+      
+      setTaskCategories(categoryMap);
+    };
+
+    if (inProgressTasks.length > 0) {
+      classifyTasks();
+    } else {
+      setTaskCategories({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inProgressTasks.map(t => `${t.id}:${t.title}`).join(',')]); // Re-classify when task IDs or titles change
 
   // Update elapsed time every second for active session
   useEffect(() => {
@@ -191,7 +207,8 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
     }
 
     try {
-      const categoryId = mapTaskCategoryToCategory(task.category).toLowerCase();
+      // Use classification API for consistency
+      const categoryId = await classifyTitleToCategoryId(task.title);
       const dateStr = normalizeDateToString(selectedDate);
       
       // Check if override already exists
@@ -200,21 +217,26 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
       if (existingOverride) {
         // Update existing override
         const planId = (existingOverride as any)._id || existingOverride.id;
+        const instanceDate = new Date(selectedDate);
+        instanceDate.setHours(0, 0, 0, 0);
         await updatePlan(planId, {
           taskTitle: task.title,
           categoryId,
           startTime: start.toISOString(),
           endTime: end.toISOString(),
+          instanceDate: instanceDate.toISOString().split('T')[0], // Include instanceDate in update
         } as any);
       } else {
         // Create new override
+        const instanceDateForCreate = new Date(selectedDate);
+        instanceDateForCreate.setHours(0, 0, 0, 0);
         await createPlan({
           taskId: taskId,
           taskTitle: task.title,
           categoryId,
           startTime: start.toISOString(),
           endTime: end.toISOString(),
-          instanceDate: selectedDate.toISOString(),
+          instanceDate: instanceDateForCreate.toISOString().split('T')[0], // Use YYYY-MM-DD format
           isOverride: true,
         });
       }
@@ -290,8 +312,8 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
               <div className="flex-1 min-w-0">
                 <h4 className="text-neutral-900 dark:text-neutral-100 truncate text-sm font-medium">{task.title}</h4>
               </div>
-              <span className={`flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs ${getCategoryColor(mapTaskCategoryToCategory(task.category))}`}>
-                {mapTaskCategoryToCategory(task.category)}
+              <span className={`flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs ${getCategoryColor(getTaskCategory(task.id, taskCategories))}`}>
+                {getTaskCategory(task.id, taskCategories)}
               </span>
             </div>
 

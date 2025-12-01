@@ -97,6 +97,7 @@ export interface CreatePlanData {
   endTime: string; // ISO 8601 string
   notes?: string;
   isOverride?: boolean; // For creating overrides for virtual plans
+  instanceDate?: string; // For override plans (YYYY-MM-DD format)
 }
 
 export interface UpdatePlanData {
@@ -108,6 +109,7 @@ export interface UpdatePlanData {
   notes?: string;
   status?: 'scheduled' | 'in_progress' | 'done' | 'canceled';
   sessionId?: string;
+  instanceDate?: string; // For override plans
 }
 
 // Plans API
