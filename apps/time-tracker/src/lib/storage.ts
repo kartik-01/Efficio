@@ -1,9 +1,8 @@
-import { TimeSession, PlannedBlock, Goal, Task } from '../types';
+import { TimeSession, PlannedBlock, Task } from '../types';
 
 const STORAGE_KEYS = {
   SESSIONS: 'efficio_sessions',
   PLANNED_BLOCKS: 'efficio_planned_blocks',
-  GOALS: 'efficio_goals',
   TASKS: 'efficio_tasks',
   ACTIVE_SESSION: 'efficio_active_session',
 };
@@ -152,39 +151,4 @@ export const deletePlannedBlock = (id: string) => {
   const blocks = getPlannedBlocks();
   const filteredBlocks = blocks.filter(b => b.id !== id);
   savePlannedBlocks(filteredBlocks);
-};
-
-// Goals
-export const getGoals = (): Goal[] => {
-  const stored = localStorage.getItem(STORAGE_KEYS.GOALS);
-  if (!stored) {
-    // Initialize with sample goals
-    const sampleGoals: Goal[] = [
-      { id: '1', category: 'Work', period: 'daily', targetMinutes: 240, isActive: true },
-      { id: '2', category: 'Learning', period: 'daily', targetMinutes: 60, isActive: true },
-      { id: '3', category: 'Health', period: 'weekly', targetMinutes: 300, isActive: true },
-    ];
-    localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(sampleGoals));
-    return sampleGoals;
-  }
-  return JSON.parse(stored);
-};
-
-export const saveGoals = (goals: Goal[]) => {
-  localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
-};
-
-export const addGoal = (goal: Goal) => {
-  const goals = getGoals();
-  goals.push(goal);
-  saveGoals(goals);
-};
-
-export const updateGoal = (id: string, updates: Partial<Goal>) => {
-  const goals = getGoals();
-  const index = goals.findIndex(g => g.id === id);
-  if (index !== -1) {
-    goals[index] = { ...goals[index], ...updates };
-    saveGoals(goals);
-  }
 };

@@ -177,34 +177,3 @@ export const getCategoryCardColor = (category: Category): string => {
   return colors[category];
 };
 
-export const calculateGoalProgress = (
-  sessions: TimeSession[],
-  category: Category,
-  period: 'daily' | 'weekly',
-  targetMinutes: number,
-  referenceDate: Date
-): { loggedMinutes: number; percentage: number } => {
-  let relevantSessions: TimeSession[];
-  
-  if (period === 'daily') {
-    relevantSessions = sessions.filter(s => 
-      isSameDay(s.startTime, referenceDate) && s.category === category && s.endTime
-    );
-  } else {
-    const weekStart = getWeekStart(referenceDate);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    
-    relevantSessions = sessions.filter(s => 
-      s.startTime >= weekStart && 
-      s.startTime < weekEnd && 
-      s.category === category && 
-      s.endTime
-    );
-  }
-  
-  const loggedMinutes = relevantSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
-  const percentage = Math.min(100, Math.round((loggedMinutes / targetMinutes) * 100));
-  
-  return { loggedMinutes, percentage };
-};
