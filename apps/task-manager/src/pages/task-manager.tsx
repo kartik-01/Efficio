@@ -6,6 +6,7 @@ import { TaskColumn } from '../components/TaskColumn';
 import { TaskCard, Task } from '../components/TaskCard';
 import { LeftSidebar, Group, GroupCollaborator } from '../components/LeftSidebar';
 import { RightSidebar, Activity } from '../components/RightSidebar';
+import { TimePlanningDialog } from '../components/TimePlanningDialog';
 import { Card } from '@efficio/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@efficio/ui';
 import { Input } from '@efficio/ui';
@@ -87,6 +88,9 @@ export function TaskManager() {
   const [flyingTask, setFlyingTask] = useState<{ task: Partial<Task>; fromRect: DOMRect; toRect: DOMRect } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [timePlanningDialogOpen, setTimePlanningDialogOpen] = useState(false);
+  const [taskForTimePlanning, setTaskForTimePlanning] = useState<Task | null>(null);
+
   // Localized today's date string for date `min` attribute (YYYY-MM-DD)
   const todayString = (() => {
     const d = new Date();
@@ -96,6 +100,7 @@ export function TaskManager() {
     const local = new Date(d.getTime() - tzOffset);
     return local.toISOString().split('T')[0];
   })();
+
   const modalContentRef = useRef<HTMLDivElement>(null);
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
@@ -369,28 +374,30 @@ export function TaskManager() {
 
   const handleTaskDrop = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
     try {
-      const task = tasks.find(t => t.id === taskId);
+      const task = tasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId);
       if (task && task.status !== newStatus) {
-      // Optimistically update UI
-      setTasks((prevTasks) =>
+        const oldStatus = task.status;
+        
+        // Optimistically update UI
+        setTasks((prevTasks) =>
           prevTasks.map((t) =>
             t.id === taskId ? { ...t, status: newStatus } : t
           )
         );
-      setAllTasks((prevTasks) =>
-        prevTasks.map((t) =>
-          t.id === taskId ? { ...t, status: newStatus } : t
-        )
-      );
-      // Also update in groupTasksMap
-      setGroupTasksMap((prev) => {
-        const newMap = new Map(prev);
-        newMap.forEach((groupTasks, groupTag) => {
-          const updatedTasks = groupTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
-          newMap.set(groupTag, updatedTasks);
+        setAllTasks((prevTasks) =>
+          prevTasks.map((t) =>
+            t.id === taskId ? { ...t, status: newStatus } : t
+          )
+        );
+        // Also update in groupTasksMap
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          newMap.forEach((groupTasks, groupTag) => {
+            const updatedTasks = groupTasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
+            newMap.set(groupTag, updatedTasks);
+          });
+          return newMap;
         });
-        return newMap;
-      });
         
         // Update via API and get the created activity back so we can update sidebar immediately
         const result: any = await taskApi.updateTaskStatus(taskId, newStatus);
@@ -407,6 +414,17 @@ export function TaskManager() {
             });
             return newMap;
           });
+
+          // If task moved to in-progress, check if we should show time planning dialog
+          if (oldStatus !== 'in-progress' && newStatus === 'in-progress') {
+            // Check if task has time planning enabled and should show prompt
+            const taskWithPlanning = returnedTask as Task & { timePlanning?: any };
+            if (taskWithPlanning.timePlanning?.showPlanningPrompt !== false) {
+              // Show time planning dialog
+              setTaskForTimePlanning(returnedTask);
+              setTimePlanningDialogOpen(true);
+            }
+          }
         }
 
         if (result && result.activity) {
@@ -433,6 +451,7 @@ export function TaskManager() {
     } catch (error) {
       // Revert on error - refetch both
       await fetchTasks(selectedGroup);
+      toast.error('Failed to update task status');
     }
   };
 
@@ -2168,6 +2187,37 @@ export function TaskManager() {
             </AnimatePresence>
           </SheetContent>
         </Sheet>
+
+        {/* Time Planning Dialog */}
+        {taskForTimePlanning && (
+          <TimePlanningDialog
+            open={timePlanningDialogOpen}
+            onOpenChange={(open) => {
+              setTimePlanningDialogOpen(open);
+              if (!open) {
+                setTaskForTimePlanning(null);
+              }
+            }}
+            taskTitle={taskForTimePlanning.title}
+            initialConfig={(taskForTimePlanning as any).timePlanning}
+            onSave={async (config) => {
+              if (taskForTimePlanning.id) {
+                await taskApi.configureTimePlanning(taskForTimePlanning.id, config);
+                // Refresh tasks to get updated time planning config
+                await fetchTasks(selectedGroup);
+                toast.success('Time planning configured successfully');
+              }
+            }}
+            onSkip={() => {
+              // Update task to disable prompt for next time
+              if (taskForTimePlanning.id) {
+                taskApi.configureTimePlanning(taskForTimePlanning.id, {
+                  showPlanningPrompt: false
+                }).catch(console.error);
+              }
+            }}
+          />
+        )}
     </DndProvider>
   );
 }
