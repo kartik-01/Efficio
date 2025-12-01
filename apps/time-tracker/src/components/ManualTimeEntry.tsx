@@ -1,136 +1,141 @@
 import { useState } from 'react';
-import { TimeSession, Category } from '../types';
-import { addSession } from '../lib/storage';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@efficio/ui';
+import { Category } from '../types';
+import { Button, Input, Label } from '@efficio/ui';
 import { Plus } from 'lucide-react';
-
-const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
+import { sessionsApi, isTimeApiReady } from '../services/timeApi';
+import { toast } from 'sonner';
 
 interface ManualTimeEntryProps {
   onSave: () => void;
   selectedDate: Date;
+  getAccessToken?: () => Promise<string | undefined>;
 }
 
-export function ManualTimeEntry({ onSave, selectedDate }: ManualTimeEntryProps) {
+export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: ManualTimeEntryProps) {
   const [title, setTitle] = useState('');
-  const [startDateTime, setStartDateTime] = useState('');
-  const [endDateTime, setEndDateTime] = useState('');
-  const [category, setCategory] = useState<Category>('Work');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('10:00');
+  const [loading, setLoading] = useState(false);
 
-  const handleSave = () => {
-    if (!title || !startDateTime || !endDateTime) return;
-
-    const start = new Date(startDateTime);
-    const end = new Date(endDateTime);
-
-    if (end <= start) {
-      alert('End time must be after start time');
+  const handleSave = async () => {
+    if (!title || !startTime || !endTime) {
+      toast.error('Please fill in all fields');
       return;
     }
 
-    const duration = (end.getTime() - start.getTime()) / 1000 / 60;
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
 
-    const newSession: TimeSession = {
-      id: Date.now().toString(),
-      taskTitle: title,
-      category,
-      startTime: start,
-      endTime: end,
-      duration: Math.round(duration),
-    };
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
 
-    addSession(newSession);
-    
-    // Reset form
-    setTitle('');
-    setStartDateTime('');
-    setEndDateTime('');
-    setCategory('Work');
-    
-    onSave();
-  };
+    const start = new Date(selectedDate);
+    start.setHours(startHours, startMinutes, 0, 0);
 
-  // Helper to get default datetime-local values
-  const getDefaultStartTime = () => {
-    const date = new Date(selectedDate);
-    date.setHours(9, 0, 0, 0);
-    return formatDateTimeLocal(date);
-  };
+    const end = new Date(selectedDate);
+    end.setHours(endHours, endMinutes, 0, 0);
 
-  const getDefaultEndTime = () => {
-    const date = new Date(selectedDate);
-    date.setHours(10, 0, 0, 0);
-    return formatDateTimeLocal(date);
+    if (end <= start) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Classify title to get category
+      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
+      const token = await getAccessToken?.();
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const classifyResponse = await fetch(`${API_BASE_URL}/time/classify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!classifyResponse.ok) {
+        throw new Error('Classification failed');
+      }
+
+      const classifyResult = await classifyResponse.json();
+      const categoryId = classifyResult.data?.categoryId || 'work';
+
+      // Create session via API
+      await sessionsApi.createSession({
+        taskTitle: title,
+        categoryId,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        notes: '',
+      });
+
+      // Reset form
+      setTitle('');
+      setStartTime('09:00');
+      setEndTime('10:00');
+      
+      toast.success('Time entry saved');
+      onSave();
+    } catch (error) {
+      console.error('Failed to save manual entry:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save time entry');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-      <div className="space-y-4">
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="text-neutral-900 dark:text-neutral-100">Title</Label>
+        <Input
+          type="text"
+          placeholder="What did you work on?"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Title</Label>
+          <Label className="text-neutral-900 dark:text-neutral-100">Start Time</Label>
           <Input
-            type="text"
-            placeholder="What did you work on?"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="bg-neutral-950 border-neutral-800"
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Start Time</Label>
-            <Input
-              type="datetime-local"
-              value={startDateTime}
-              onChange={(e) => setStartDateTime(e.target.value)}
-              className="bg-neutral-950 border-neutral-800"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>End Time</Label>
-            <Input
-              type="datetime-local"
-              value={endDateTime}
-              onChange={(e) => setEndDateTime(e.target.value)}
-              className="bg-neutral-950 border-neutral-800"
-            />
-          </div>
-        </div>
-
         <div className="space-y-2">
-          <Label>Category</Label>
-          <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
-            <SelectTrigger className="bg-neutral-950 border-neutral-800">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map(cat => (
-                <SelectItem key={cat} value={cat}>
-                  {cat}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-neutral-900 dark:text-neutral-100">End Time</Label>
+          <Input
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+          />
         </div>
+      </div>
 
-        <Button 
-          onClick={handleSave} 
-          disabled={!title || !startDateTime || !endDateTime}
-          className="w-full bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Save Entry
-        </Button>
+      <Button 
+        onClick={handleSave} 
+        disabled={!title || !startTime || !endTime || loading}
+        className="w-full bg-blue-600 dark:bg-indigo-700 hover:bg-blue-700 dark:hover:bg-indigo-800"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        {loading ? 'Saving...' : 'Save Entry'}
+      </Button>
     </div>
   );
-}
-
-function formatDateTimeLocal(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }

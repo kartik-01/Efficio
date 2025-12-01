@@ -1,30 +1,142 @@
-import { useState } from 'react';
-import { TimeSession } from '../types';
+import { useState, useEffect } from 'react';
+import { TimeSession, Category } from '../types';
 import { formatTime, formatDuration, getCategoryColor } from '../lib/utils';
-import { Clock, Plus } from 'lucide-react';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@efficio/ui';
+import { Clock, Plus, Trash2, Edit } from 'lucide-react';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, Input, Label } from '@efficio/ui';
 import { ManualTimeEntry } from './ManualTimeEntry';
+import { sessionsApi, initializeTimeApi, isTimeApiReady } from '../services/timeApi';
+import { toast } from 'sonner';
 
 interface SessionTimelineProps {
-  sessions: TimeSession[];
-  onUpdate: () => void;
   selectedDate: Date;
+  getAccessToken?: () => Promise<string | undefined>;
+  refreshTrigger?: number;
+  onUpdate: (shouldRefreshPlans?: boolean, shouldRefreshTasks?: boolean) => void;
 }
 
-export function SessionTimeline({ sessions, onUpdate, selectedDate }: SessionTimelineProps) {
+export function SessionTimeline({ selectedDate, getAccessToken, refreshTrigger, onUpdate }: SessionTimelineProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [sessions, setSessions] = useState<TimeSession[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize API
+  useEffect(() => {
+    if (getAccessToken && !isInitialized) {
+      initializeTimeApi(getAccessToken);
+      setIsInitialized(true);
+    }
+  }, [getAccessToken, isInitialized]);
+
+  // Fetch sessions from backend
+  useEffect(() => {
+    const loadSessions = async () => {
+      if (!isTimeApiReady()) return;
+
+      try {
+        setLoading(true);
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        
+        const backendSessions = await sessionsApi.listSessions({ date: dateStr, tz });
+        const convertedSessions: TimeSession[] = backendSessions.map(s => {
+          const startTime = typeof s.startTime === 'string' ? new Date(s.startTime) : s.startTime;
+          const endTime = s.endTime ? (typeof s.endTime === 'string' ? new Date(s.endTime) : s.endTime) : undefined;
+          
+          // Calculate duration from startTime and endTime
+          let duration: number | undefined;
+          if (endTime) {
+            duration = Math.round((endTime.getTime() - startTime.getTime()) / 60000); // minutes
+          } else {
+            // For running sessions, calculate up to now
+            duration = Math.round((new Date().getTime() - startTime.getTime()) / 60000);
+          }
+          
+          return {
+            id: s._id || s.id || '',
+            taskId: s.taskId || undefined,
+            taskTitle: s.taskTitle || '',
+            category: (s.categoryId?.charAt(0).toUpperCase() + s.categoryId?.slice(1)) as Category || 'Work',
+            startTime,
+            endTime,
+            duration,
+          };
+        });
+        setSessions(convertedSessions);
+      } catch (error) {
+        console.error('Failed to load sessions:', error);
+        toast.error('Failed to load sessions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isTimeApiReady()) {
+      loadSessions();
+    }
+  }, [selectedDate, refreshTrigger, isInitialized]);
+
+  const handleSave = () => {
+    onUpdate(true, false); // Refresh sessions and summary, but not tasks
+    setIsDialogOpen(false);
+  };
+
+  const handleDelete = async (sessionId: string) => {
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
+
+    try {
+      await sessionsApi.deleteSession(sessionId);
+      toast.success('Session deleted');
+      onUpdate(true, false); // Refresh sessions and summary
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete session');
+    }
+  };
+
+  const handleEdit = async (sessionId: string, updates: { taskTitle: string; startTime: string; endTime: string; categoryId: string }) => {
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
+
+    try {
+      const [startHours, startMinutes] = updates.startTime.split(':').map(Number);
+      const [endHours, endMinutes] = updates.endTime.split(':').map(Number);
+
+      const start = new Date(selectedDate);
+      start.setHours(startHours, startMinutes, 0, 0);
+
+      const end = new Date(selectedDate);
+      end.setHours(endHours, endMinutes, 0, 0);
+
+      await sessionsApi.updateSession(sessionId, {
+        taskTitle: updates.taskTitle,
+        categoryId: updates.categoryId,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      });
+
+      toast.success('Session updated');
+      onUpdate(true, false); // Refresh sessions and summary
+    } catch (error) {
+      console.error('Failed to update session:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update session');
+    }
+  };
   
-  // Sort sessions by start time (most recent first)
-  const sortedSessions = [...sessions].sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+  // Sort sessions by start time (earliest first)
+  const sortedSessions = [...sessions].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   
   // Separate completed and ongoing sessions
   const completedSessions = sortedSessions.filter(s => s.endTime);
   const ongoingSessions = sortedSessions.filter(s => !s.endTime);
-
-  const handleSave = () => {
-    onUpdate();
-    setIsDialogOpen(false);
-  };
 
   return (
     <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 h-[600px] flex flex-col">
@@ -41,23 +153,42 @@ export function SessionTimeline({ sessions, onUpdate, selectedDate }: SessionTim
             <DialogHeader>
               <DialogTitle className="text-neutral-900 dark:text-neutral-100">Manual Time Entry</DialogTitle>
             </DialogHeader>
-            <ManualTimeEntry onSave={handleSave} selectedDate={selectedDate} />
+            <ManualTimeEntry onSave={handleSave} selectedDate={selectedDate} getAccessToken={getAccessToken} />
           </DialogContent>
         </Dialog>
       </div>
       
       <div className="flex-1 overflow-y-auto min-h-0 pr-2 scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar-track-transparent dark:scrollbar-track-neutral-900">
-      {sessions.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+          Loading sessions...
+        </div>
+      ) : sessions.length === 0 ? (
         <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
           No sessions tracked yet today
         </div>
       ) : (
         <div className="space-y-3">
           {ongoingSessions.map(session => (
-            <SessionCard key={session.id} session={session} isOngoing />
+            <SessionCard 
+              key={session.id} 
+              session={session} 
+              isOngoing 
+              selectedDate={selectedDate}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
+              getAccessToken={getAccessToken}
+            />
           ))}
           {completedSessions.map(session => (
-            <SessionCard key={session.id} session={session} />
+            <SessionCard 
+              key={session.id} 
+              session={session} 
+              selectedDate={selectedDate}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
+              getAccessToken={getAccessToken}
+            />
           ))}
         </div>
       )}
@@ -66,45 +197,300 @@ export function SessionTimeline({ sessions, onUpdate, selectedDate }: SessionTim
   );
 }
 
-function SessionCard({ session, isOngoing = false }: { session: TimeSession; isOngoing?: boolean }) {
+function SessionCard({ 
+  session, 
+  isOngoing = false, 
+  selectedDate,
+  onDelete,
+  onEdit,
+  getAccessToken
+}: { 
+  session: TimeSession; 
+  isOngoing?: boolean;
+  selectedDate: Date;
+  onDelete?: (id: string) => void;
+  onEdit?: (id: string, updates: { taskTitle: string; startTime: string; endTime: string; categoryId: string }) => void;
+  getAccessToken?: () => Promise<string | undefined>;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    taskTitle: session.taskTitle,
+    startTime: '',
+    endTime: '',
+    categoryId: session.category.toLowerCase(),
+  });
+  const [classifying, setClassifying] = useState(false);
+
+  // Initialize form with session data
+  useEffect(() => {
+    const startHours = String(session.startTime.getHours()).padStart(2, '0');
+    const startMins = String(session.startTime.getMinutes()).padStart(2, '0');
+    const endHours = session.endTime ? String(session.endTime.getHours()).padStart(2, '0') : '';
+    const endMins = session.endTime ? String(session.endTime.getMinutes()).padStart(2, '0') : '';
+    
+    setEditForm({
+      taskTitle: session.taskTitle,
+      startTime: `${startHours}:${startMins}`,
+      endTime: session.endTime ? `${endHours}:${endMins}` : '',
+      categoryId: session.category.toLowerCase(),
+    });
+  }, [session]);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onDelete) return;
+    
+    try {
+      setDeleting(true);
+      await onDelete(session.id);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editForm.taskTitle || !editForm.startTime || (!editForm.endTime && !isOngoing)) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!onEdit) return;
+
+    // If endTime is empty for ongoing session, use current time
+    let endTime = editForm.endTime;
+    if (!endTime && isOngoing) {
+      const now = new Date();
+      endTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    }
+
+    await onEdit(session.id, {
+      taskTitle: editForm.taskTitle,
+      startTime: editForm.startTime,
+      endTime: endTime,
+      categoryId: editForm.categoryId,
+    });
+
+    setIsEditDialogOpen(false);
+  };
+
+  const handleClassifyTitle = async () => {
+    if (!getAccessToken || !editForm.taskTitle.trim()) return;
+
+    try {
+      setClassifying(true);
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${API_BASE_URL}/time/classify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: editForm.taskTitle }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Classification failed');
+      }
+
+      const result = await response.json();
+      const categoryId = result.data?.categoryId || 'work';
+      setEditForm(prev => ({ ...prev, categoryId }));
+    } catch (error) {
+      console.error('Failed to classify title:', error);
+      // Don't show error, just keep current category
+    } finally {
+      setClassifying(false);
+    }
+  };
+
+  // Real-time duration update for running sessions
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  useEffect(() => {
+    if (isOngoing && !session.endTime) {
+      const interval = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isOngoing, session.endTime]);
+
+  // Calculate duration for display
+  const displayDuration = () => {
+    if (isOngoing && !session.endTime) {
+      const minutes = Math.round((currentTime - session.startTime.getTime()) / 60000);
+      return formatDuration(minutes);
+    }
+    if (session.duration !== undefined) {
+      return formatDuration(session.duration);
+    }
+    if (session.endTime) {
+      const minutes = Math.round((session.endTime.getTime() - session.startTime.getTime()) / 60000);
+      return formatDuration(minutes);
+    }
+    return '0m';
+  };
+
   return (
-    <div className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="text-neutral-900 dark:text-neutral-100 truncate">{session.taskTitle}</div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border ${getCategoryColor(session.category)}`}>
-              {session.category}
-            </span>
-            {isOngoing && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                In Progress
+    <>
+      <div className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="text-neutral-900 dark:text-neutral-100 truncate font-medium">{session.taskTitle || 'Untitled'}</div>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs border ${getCategoryColor(session.category)}`}>
+                {session.category}
               </span>
-            )}
+              {isOngoing && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                  In Progress
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="text-right">
+              {session.endTime ? (
+                <>
+                  <div className="text-neutral-900 dark:text-neutral-100 font-semibold">{displayDuration()}</div>
+                  <div className="text-neutral-600 dark:text-neutral-400 text-sm mt-1">
+                    {formatTime(session.startTime)} - {formatTime(session.endTime)}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                    <Clock className="w-3 h-3" />
+                    <span className="text-sm font-medium">Running</span>
+                  </div>
+                  <div className="text-neutral-600 dark:text-neutral-400 text-sm mt-1">
+                    Started {formatTime(session.startTime)}
+                  </div>
+                  <div className="text-neutral-500 dark:text-neutral-500 text-xs mt-0.5">
+                    {displayDuration()} elapsed
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {onEdit && (
+                <button
+                  onClick={handleEditClick}
+                  className="p-1.5 hover:bg-white/20 dark:hover:bg-black/20 rounded transition-colors"
+                  title="Edit session"
+                >
+                  <Edit className="w-4 h-4 text-neutral-600 dark:text-neutral-400" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="p-1.5 hover:bg-red-500/20 dark:hover:bg-red-500/20 rounded transition-colors disabled:opacity-50"
+                  title="Delete session"
+                >
+                  <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
-        
-        <div className="text-right flex-shrink-0">
-          {session.endTime ? (
-            <>
-              <div className="text-neutral-900 dark:text-neutral-100">{formatDuration(session.duration || 0)}</div>
-              <div className="text-neutral-600 dark:text-neutral-400 text-sm mt-1">
-                {formatTime(session.startTime)} - {formatTime(session.endTime)}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                <Clock className="w-3 h-3" />
-                <span className="text-sm">Running</span>
-              </div>
-              <div className="text-neutral-500 text-sm mt-1">
-                Started {formatTime(session.startTime)}
-              </div>
-            </>
-          )}
-        </div>
       </div>
-    </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-neutral-900 dark:text-neutral-100">Edit Session</DialogTitle>
+            <DialogDescription className="text-neutral-600 dark:text-neutral-400">
+              Update the session details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-neutral-900 dark:text-neutral-100">Title</Label>
+              <Input
+                type="text"
+                placeholder="What did you work on?"
+                value={editForm.taskTitle}
+                onChange={(e) => {
+                  setEditForm(prev => ({ ...prev, taskTitle: e.target.value }));
+                  // Auto-classify on blur
+                  if (e.target.value.trim()) {
+                    setTimeout(() => handleClassifyTitle(), 500);
+                  }
+                }}
+                className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-neutral-900 dark:text-neutral-100">Start Time</Label>
+                <Input
+                  type="time"
+                  value={editForm.startTime}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, startTime: e.target.value }))}
+                  className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-neutral-900 dark:text-neutral-100">End Time {isOngoing && '(optional)'}</Label>
+                <Input
+                  type="time"
+                  value={editForm.endTime}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, endTime: e.target.value }))}
+                  disabled={isOngoing && !editForm.endTime}
+                  className="bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800"
+                  placeholder={isOngoing ? 'Leave empty for now' : ''}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-neutral-900 dark:text-neutral-100">Category</Label>
+              <select
+                value={editForm.categoryId}
+                onChange={(e) => setEditForm(prev => ({ ...prev, categoryId: e.target.value }))}
+                className="w-full px-3 py-2 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md text-neutral-900 dark:text-neutral-100"
+              >
+                <option value="work">Work</option>
+                <option value="learning">Learning</option>
+                <option value="admin">Admin</option>
+                <option value="health">Health</option>
+                <option value="personal">Personal</option>
+                <option value="rest">Rest</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              className="border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditSave}
+              disabled={!editForm.taskTitle || !editForm.startTime || (!editForm.endTime && !isOngoing) || classifying}
+              className="bg-blue-600 dark:bg-indigo-700 hover:bg-blue-700 dark:hover:bg-indigo-800"
+            >
+              {classifying ? 'Classifying...' : 'Save Changes'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
