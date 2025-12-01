@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Category } from '../types';
 import { Button, Input, Label } from '@efficio/ui';
 import { Plus } from 'lucide-react';
 import { sessionsApi, isTimeApiReady } from '../services/timeApi';
+import { classifyTitleToCategoryId } from '../lib/classification';
 import { toast } from 'sonner';
 
 interface ManualTimeEntryProps {
@@ -46,28 +46,7 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
       setLoading(true);
       
       // Classify title to get category
-      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
-      const token = await getAccessToken?.();
-      if (!token) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      const classifyResponse = await fetch(`${API_BASE_URL}/time/classify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ title }),
-      });
-
-      if (!classifyResponse.ok) {
-        throw new Error('Classification failed');
-      }
-
-      const classifyResult = await classifyResponse.json();
-      const categoryId = classifyResult.data?.categoryId || 'work';
+      const categoryId = await classifyTitleToCategoryId(title);
 
       // Create session via API
       await sessionsApi.createSession({

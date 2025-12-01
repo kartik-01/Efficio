@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { PlannedBlock, Category } from '../types';
 import { formatTime, getCategoryColor } from '../lib/utils';
+import { classifyTitleToCategoryId } from '../lib/classification';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Input, Label } from '@efficio/ui';
 import { Play, Check, Calendar, Plus, Trash2, Square, Edit } from 'lucide-react';
 import { plansApi, sessionsApi, isTimeApiReady, Plan } from '../services/timeApi';
@@ -303,8 +304,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
       }
 
       // Classify title to get category
-      const classification = await plansApi.classifyTitle(newBlock.title);
-      const categoryId = classification.categoryId;
+      const categoryId = await classifyTitleToCategoryId(newBlock.title);
 
       if (editingBlock) {
         // Editing existing block
@@ -332,11 +332,14 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
           if (existingOverride) {
             // Update existing override
             const overrideId = (existingOverride as any)._id || existingOverride.id;
+            const instanceDate = new Date(selectedDate);
+            instanceDate.setHours(0, 0, 0, 0);
             await updatePlan(overrideId, {
               taskTitle: newBlock.title,
               categoryId,
               startTime: start.toISOString(),
               endTime: end.toISOString(),
+              instanceDate: instanceDate.toISOString().split('T')[0], // Include instanceDate in update
             } as any);
           } else {
             // Create new override
@@ -347,7 +350,8 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
               startTime: start.toISOString(),
               endTime: end.toISOString(),
               isOverride: true,
-            });
+              instanceDate: selectedDate.toISOString().split('T')[0], // Add instanceDate for override
+            } as any);
           }
         } else if (editingBlock.planId) {
           // Real plan: update it
