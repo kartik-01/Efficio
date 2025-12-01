@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Play, Square } from 'lucide-react';
 import { motion } from 'motion/react';
-import { TimeSession, Task, Category } from '../types';
+import { Category } from '../types';
 import { formatTime, formatDuration } from '../lib/utils';
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Input } from '@efficio/ui';
-import { taskApi, initializeTaskApi, isTaskApiReady } from '../services/taskApi';
-import { sessionsApi, initializeTimeApi, isTimeApiReady } from '../services/timeApi';
+import { useTasksStore } from '../store/slices/tasksSlice';
+import { useSessionsStore } from '../store/slices/sessionsSlice';
+import { useUIStore } from '../store/slices/uiSlice';
+import { usePlansStore } from '../store/slices/plansSlice';
+import { useSummaryStore } from '../store/slices/summarySlice';
+import { isTimeApiReady } from '../services/timeApi';
 import { toast } from 'sonner';
 
 // API base URL - same pattern as taskApi
@@ -18,60 +22,28 @@ declare const process: {
 const CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
 
 interface TimerControlProps {
-  onUpdate: (shouldRefreshPlans?: boolean, shouldRefreshTasks?: boolean) => void;
   externalStart?: { taskId: string; taskTitle: string; category: Category } | null;
   getAccessToken?: () => Promise<string | undefined>;
-  activeSession?: TimeSession | null; // Active session from parent
 }
 
 const CUSTOM_TASK_VALUE = '__custom__';
 
-export function TimerControl({ onUpdate, externalStart, getAccessToken, activeSession: activeSessionProp }: TimerControlProps) {
+export function TimerControl({ externalStart, getAccessToken }: TimerControlProps) {
   const [selectedTask, setSelectedTask] = useState<string>(CUSTOM_TASK_VALUE);
   const [customTitle, setCustomTitle] = useState<string>('');
   const [selectedTaskCategory, setSelectedTaskCategory] = useState<Category | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [pulseKey, setPulseKey] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [classifying, setClassifying] = useState(false);
 
-  // Track initialization to prevent re-initialization
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Zustand stores
+  const { tasks, loading: tasksLoading } = useTasksStore(); // No more duplicate fetching!
+  const { activeSession, startSession, stopSession, fetchActiveSession } = useSessionsStore();
+  const { selectedDate } = useUIStore();
+  const { fetchPlans } = usePlansStore();
+  const { fetchSummary } = useSummaryStore();
   
-  // Use activeSession from props, fallback to null
-  const activeSession = activeSessionProp || null;
-
-  // Initialize APIs (only once)
-  useEffect(() => {
-    if (getAccessToken && !isInitialized) {
-      initializeTaskApi(getAccessToken);
-      initializeTimeApi(getAccessToken);
-      setIsInitialized(true);
-    }
-  }, [getAccessToken, isInitialized]);
-
-  // Fetch tasks from backend (only once on mount, or when API becomes ready)
-  useEffect(() => {
-    const loadTasks = async () => {
-      if (!isTaskApiReady()) return;
-
-      try {
-        setLoading(true);
-        const fetchedTasks = await taskApi.getTasks();
-        setTasks(fetchedTasks);
-      } catch (error) {
-        console.error('Failed to load tasks:', error);
-        toast.error('Failed to load tasks');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isTaskApiReady()) {
-      loadTasks();
-    }
-  }, [isInitialized]); // Only depend on initialization status, not getAccessToken
+  const loading = tasksLoading;
 
   // Classify selected task when it changes (if it's a regular task)
   useEffect(() => {
@@ -130,34 +102,27 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken, activeSe
     }
 
     try {
-      const categoryId = category.toLowerCase();
-      const session = await sessionsApi.startSession({
-        taskId: taskId || null,
-        taskTitle: taskTitle,
-        categoryId,
-      });
-
-      // Convert backend session to TimeSession format
-      const newSession: TimeSession = {
-        id: session._id || session.id || '',
-        taskId: session.taskId || undefined,
-        taskTitle: session.taskTitle || '',
-        category: (session.categoryId?.charAt(0).toUpperCase() + session.categoryId?.slice(1)) as Category || category,
-        startTime: typeof session.startTime === 'string' ? new Date(session.startTime) : session.startTime,
-        endTime: session.endTime ? (typeof session.endTime === 'string' ? new Date(session.endTime) : session.endTime) : undefined,
-      };
+      await startSession(taskId || null, taskTitle, category);
 
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
       setSelectedTaskCategory(null);
 
-      // Notify parent to refresh
-      onUpdate(true, true);
-      toast.success('Timer started');
+      // Refresh related data
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      
+      await Promise.all([
+        fetchPlans(dateStr, tz),
+        fetchSummary(dateStr, tz, isToday),
+      ]);
     } catch (error) {
-      console.error('Failed to start timer:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to start timer');
+      // Error already handled in store
     }
   };
 
@@ -233,19 +198,27 @@ export function TimerControl({ onUpdate, externalStart, getAccessToken, activeSe
     if (!activeSession || !isTimeApiReady()) return;
 
     try {
-      await sessionsApi.stopSession(activeSession.id);
+      await stopSession();
       
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
       setSelectedTaskCategory(null);
 
-      // Notify parent to refresh
-      onUpdate(true, true);
-      toast.success('Timer stopped');
+      // Refresh related data
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      
+      await Promise.all([
+        fetchPlans(dateStr, tz),
+        fetchSummary(dateStr, tz, isToday),
+      ]);
     } catch (error) {
-      console.error('Failed to stop timer:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to stop timer');
+      // Error already handled in store
     }
   };
 
