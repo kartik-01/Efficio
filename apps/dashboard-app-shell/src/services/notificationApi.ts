@@ -40,7 +40,7 @@ export interface Notification {
   groupTag?: string;
   invitedAt?: string;
   createdAt?: string;
-  read: boolean;
+  acknowledgedAt?: string | null;
 }
 
 export interface NotificationsResponse {
@@ -91,6 +91,32 @@ export const notificationApi = {
     
     if (!response.ok) {
       throw new Error(result.message || 'Failed to mark all notifications as read');
+    }
+  },
+  
+  async deleteNotification(notificationId: string): Promise<void> {
+    const headers = await getHeaders();
+    const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
+      method: 'DELETE',
+      headers,
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to clear notification');
+    }
+  },
+
+  async clearTaskNotifications(): Promise<void> {
+    const headers = await getHeaders();
+    const response = await fetch(`${API_BASE_URL}/notifications/task-assignments`, {
+      method: 'DELETE',
+      headers,
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to clear task notifications');
     }
   },
 };

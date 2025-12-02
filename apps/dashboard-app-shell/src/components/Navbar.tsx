@@ -3,7 +3,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Settings, User, Menu, Bell, History } from "lucide-react";
+import { LogOut, Settings, User, Menu, Bell, History, X } from "lucide-react";
 import { ProfileModal } from "./ProfileModal";
 import { SettingsModal } from "./SettingsModal";
 import { userApi, UserProfile, initializeUserApi, isUserApiReady } from "../services/userApi";
@@ -34,6 +34,18 @@ export const Navbar = ({
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [notifications, setNotifications] = useState<NotificationsResponse | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const dropdownPreviouslyOpenRef = React.useRef(false);
+  const eventSourceRef = React.useRef<EventSource | null>(null);
+  const unreadCount = notifications?.totalUnreadCount ?? 0;
+  const invitationNotifications = React.useMemo(
+    () => (notifications?.notifications || []).filter((n) => n.type === "invitation"),
+    [notifications]
+  );
+  const taskNotifications = React.useMemo(
+    () => (notifications?.notifications || []).filter((n) => n.type === "task_assigned"),
+    [notifications]
+  );
+  const hasNotifications = invitationNotifications.length > 0 || taskNotifications.length > 0;
   
   // Initialize notificationApi with token getter (only once)
   useEffect(() => {
@@ -81,6 +93,49 @@ export const Navbar = ({
     }
   }, [isAuthenticated]);
 
+  const loadNotifications = React.useCallback(async () => {
+    try {
+      const data = await notificationApi.getNotifications();
+      setNotifications(data);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+      // Set empty notifications object on error so icon still appears and shows "No notifications"
+      setNotifications({
+        notifications: [],
+        pendingInvitationsCount: 0,
+        taskAssignmentsCount: 0,
+        totalUnreadCount: 0,
+      });
+    }
+  }, []);
+
+  const handleClearNotification = React.useCallback(
+    async (notificationId: string) => {
+      if (!notificationId || !isNotificationApiReady()) {
+        return;
+      }
+      try {
+        await notificationApi.deleteNotification(notificationId);
+        await loadNotifications();
+      } catch (error) {
+        console.error("Failed to clear notification:", error);
+      }
+    },
+    [loadNotifications]
+  );
+
+  const handleClearTaskNotifications = React.useCallback(async () => {
+    if (!isNotificationApiReady()) {
+      return;
+    }
+    try {
+      await notificationApi.clearTaskNotifications();
+      await loadNotifications();
+    } catch (error) {
+      console.error("Failed to clear task notifications:", error);
+    }
+  }, [loadNotifications]);
+
   // Load notifications when authenticated and API is ready
   useEffect(() => {
     if (isAuthenticated && isNotificationApiReady()) {
@@ -102,25 +157,107 @@ export const Navbar = ({
     // Reset when user logs out
     if (!isAuthenticated) {
       setNotifications(null);
+      dropdownPreviouslyOpenRef.current = false;
+      setShowNotifications(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadNotifications]);
 
-  const loadNotifications = async () => {
-    try {
-      const data = await notificationApi.getNotifications();
-      setNotifications(data);
-    } catch (error) {
-      console.error("Failed to load notifications:", error);
-      // Set empty notifications object on error so icon still appears and shows "No notifications"
-      setNotifications({
-        notifications: [],
-        pendingInvitationsCount: 0,
-        taskAssignmentsCount: 0,
-        totalUnreadCount: 0,
+  useEffect(() => {
+    if (!isAuthenticated || !isNotificationApiReady()) {
+      dropdownPreviouslyOpenRef.current = false;
+      return;
+    }
+
+    if (showNotifications && !dropdownPreviouslyOpenRef.current && unreadCount > 0) {
+      const acknowledgedAt = new Date().toISOString();
+      notificationApi
+        .markAllAsRead()
+        .catch((error) => console.error("Failed to acknowledge notifications:", error));
+      setNotifications((prev) => {
+        if (!prev) return prev;
+        const updatedNotifications = prev.notifications.map((notif) =>
+          notif.acknowledgedAt ? notif : { ...notif, acknowledgedAt }
+        );
+        return {
+          ...prev,
+          notifications: updatedNotifications,
+          pendingInvitationsCount: 0,
+          taskAssignmentsCount: 0,
+          totalUnreadCount: 0,
+        };
       });
     }
-  };
+
+    dropdownPreviouslyOpenRef.current = showNotifications;
+  }, [showNotifications, isAuthenticated, unreadCount, isNotificationApiReady]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return;
+    }
+
+    if (!isAuthenticated || !isNotificationApiReady()) {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      return;
+    }
+
+    let disposed = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = async () => {
+      try {
+        if (disposed || eventSourceRef.current) {
+          return;
+        }
+
+        const token = await getAccessTokenSilently();
+        if (!token || disposed) return;
+
+        const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:4000/api";
+        const url = new URL(`${API_BASE_URL.replace(/\/$/, "")}/events/stream`);
+        url.searchParams.set("token", token);
+
+        const source = new EventSource(url.toString());
+        eventSourceRef.current = source;
+
+        const handleUpdate = () => {
+          loadNotifications();
+        };
+
+        source.addEventListener("notification", handleUpdate);
+        source.addEventListener("notification_removed", handleUpdate);
+
+        source.onerror = () => {
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+          if (!disposed) {
+            retryTimeout = setTimeout(connect, 5000);
+          }
+        };
+      } catch (error) {
+        console.error("Failed to connect to notification stream:", error);
+        if (!disposed) {
+          retryTimeout = setTimeout(connect, 5000);
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [isAuthenticated, isNotificationApiReady, getAccessTokenSilently, loadNotifications]);
 
   // Initialize notifications to empty state so icon appears immediately
   useEffect(() => {
@@ -296,12 +433,12 @@ export const Navbar = ({
                     transition={{ duration: 0.15 }}
                   >
                     <Bell className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
-                    {notifications && notifications.totalUnreadCount > 0 && (
+                    {unreadCount > 0 && (
                       <Badge 
                         variant="secondary" 
                         className="absolute -top-1 -right-1 text-[10px] bg-red-500 text-white px-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-white dark:border-card"
                       >
-                        {notifications.totalUnreadCount > 99 ? '99+' : notifications.totalUnreadCount}
+                        {unreadCount > 99 ? '99+' : unreadCount}
                       </Badge>
                     )}
                   </motion.button>
@@ -332,7 +469,7 @@ export const Navbar = ({
                         {/* Content */}
                         <ScrollArea className="max-h-[400px]">
                           <div className="p-4">
-                            {!notifications || notifications.totalUnreadCount === 0 ? (
+                            {!notifications || !hasNotifications ? (
                               <div className="flex flex-col items-center justify-center text-center py-12">
                                 <Bell className="h-12 w-12 text-gray-300 dark:text-muted-foreground mb-4" />
                                 <p className="text-gray-600 dark:text-muted-foreground text-sm">No notifications</p>
@@ -341,37 +478,43 @@ export const Navbar = ({
                                 </p>
                               </div>
                             ) : (
-                              <div className="space-y-3">
+                              <div className="space-y-4">
                                 {/* Pending Invitations */}
-                                {notifications.pendingInvitationsCount > 0 && (
-                                  <div className="space-y-2">
+                                {invitationNotifications.length > 0 && (
+                                  <div className="space-y-3">
                                     <h3 className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wide">Pending Invitations</h3>
-                                    {notifications.notifications
-                                      .filter(n => n.type === 'invitation')
-                                      .map(notification => (
+                                    <AnimatePresence initial={false}>
+                                      {invitationNotifications.map(notification => (
                                         <DropdownMenu.Item
                                           key={notification.id}
                                           className="p-0 m-0 cursor-pointer"
                                           asChild
-                                          onSelect={async (e) => {
+                                          onSelect={(e) => {
                                             e.preventDefault();
-                                            // Mark notification as read
-                                            try {
-                                              await notificationApi.markAsRead(notification.id);
-                                              // Refresh notifications to update count
-                                              loadNotifications();
-                                            } catch (error) {
-                                              console.error('Failed to mark notification as read:', error);
-                                            }
                                             setShowNotifications(false);
                                             window.dispatchEvent(new CustomEvent('openPendingInvitations'));
+                                            loadNotifications();
                                           }}
                                         >
                                           <motion.div
-                                            className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors"
+                                            className="relative p-4 pr-12 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800/30 rounded-xl hover:bg-yellow-100 dark:hover:bg-yellow-950/50 transition-colors shadow-sm"
                                             whileHover={{ x: 2 }}
                                             whileTap={{ scale: 0.98 }}
+                                            layout
+                                            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
                                           >
+                                            <button
+                                              type="button"
+                                              aria-label="Clear notification"
+                                              className="absolute top-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full border border-yellow-200 bg-white text-yellow-600 hover:bg-yellow-100 dark:bg-yellow-900/50 dark:border-yellow-800/60 dark:text-yellow-200"
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleClearNotification(notification.id);
+                                              }}
+                                            >
+                                              <X className="h-3.5 w-3.5" strokeWidth={2} />
+                                            </button>
                                             <div className="flex items-start justify-between">
                                               <div className="flex-1">
                                                 <p className="text-sm font-medium text-gray-900 dark:text-foreground">
@@ -381,53 +524,77 @@ export const Navbar = ({
                                                   Group invitation pending
                                                 </p>
                                               </div>
-                                              <Badge className="bg-yellow-500 text-white text-[10px] ml-2">
-                                                New
-                                              </Badge>
+                                              {!notification.acknowledgedAt && (
+                                                <Badge className="bg-yellow-500 text-white text-[10px] ml-2">
+                                                  New
+                                                </Badge>
+                                              )}
                                             </div>
                                           </motion.div>
                                         </DropdownMenu.Item>
                                       ))}
+                                    </AnimatePresence>
                                   </div>
                                 )}
                                 
                                 {/* Task Assignments */}
-                                {notifications.taskAssignmentsCount > 0 && (
-                                  <div className="space-y-2">
-                                    {notifications.pendingInvitationsCount > 0 && (
+                                {taskNotifications.length > 0 && (
+                                  <div className="space-y-3">
+                                    {invitationNotifications.length > 0 && (
                                       <div className="pt-2 border-t border-gray-200 dark:border-transparent" />
                                     )}
-                                    <h3 className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wide">Task Assignments</h3>
-                                    {notifications.notifications
-                                      .filter(n => n.type === 'task_assigned')
-                                      .map(notification => (
+                                      <div className="flex items-center justify-between gap-3">
+                                      <h3 className="text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase tracking-wide">
+                                        Task Assignments
+                                      </h3>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          handleClearTaskNotifications();
+                                        }}
+                                        className="text-xs font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-200"
+                                      >
+                                        Clear all
+                                      </button>
+                                    </div>
+                                    <AnimatePresence initial={false}>
+                                      {taskNotifications.map((notification, index) => (
                                         <DropdownMenu.Item
                                           key={notification.id}
-                                          className="p-0 m-0 cursor-pointer"
+                                          className={`p-0 m-0 cursor-pointer ${index > 0 ? 'mt-2' : ''}`}
                                           asChild
-                                          onSelect={async (e) => {
+                                          onSelect={(e) => {
                                             e.preventDefault();
-                                            // Mark notification as read
-                                            try {
-                                              await notificationApi.markAsRead(notification.id);
-                                              // Refresh notifications to update count
-                                              loadNotifications();
-                                            } catch (error) {
-                                              console.error('Failed to mark notification as read:', error);
-                                            }
                                             setShowNotifications(false);
+                                            handleClearNotification(notification.id);
                                             if (notification.groupTag) {
                                               window.dispatchEvent(new CustomEvent('navigateToGroup', { 
                                                 detail: { groupTag: notification.groupTag, taskId: notification.taskId } 
                                               }));
                                             }
+                                            loadNotifications();
                                           }}
                                         >
                                           <motion.div
-                                            className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+                                            className="relative p-4 pr-12 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors shadow-sm"
                                             whileHover={{ x: 2 }}
                                             whileTap={{ scale: 0.98 }}
+                                            layout
+                                            exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
                                           >
+                                            <button
+                                              type="button"
+                                              aria-label="Clear notification"
+                                              className="absolute top-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-600 hover:bg-blue-100 dark:bg-blue-900/50 dark:border-blue-800/60 dark:text-blue-200"
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleClearNotification(notification.id);
+                                              }}
+                                            >
+                                              <X className="h-3.5 w-3.5" strokeWidth={2} />
+                                            </button>
                                             <div className="flex items-start justify-between">
                                               <div className="flex-1">
                                                 <p className="text-sm font-medium text-gray-900 dark:text-foreground">
@@ -437,13 +604,16 @@ export const Navbar = ({
                                                   Assigned to you in {notification.groupTag}
                                                 </p>
                                               </div>
-                                              <Badge className="bg-blue-500 text-white text-[10px] ml-2">
-                                                New
-                                              </Badge>
+                                              {!notification.acknowledgedAt && (
+                                                <Badge className="bg-blue-500 text-white text-[10px] ml-2">
+                                                  New
+                                                </Badge>
+                                              )}
                                             </div>
                                           </motion.div>
                                         </DropdownMenu.Item>
                                       ))}
+                                    </AnimatePresence>
                                   </div>
                                 )}
                               </div>

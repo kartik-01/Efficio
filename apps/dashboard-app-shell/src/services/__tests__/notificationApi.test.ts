@@ -16,7 +16,7 @@ describe('notificationApi', () => {
         groupTag: '@test-group',
         invitedAt: '2025-01-15T10:00:00.000Z',
         createdAt: '2025-01-15T10:00:00.000Z',
-        read: false,
+        acknowledgedAt: null,
       },
       {
         id: '2',
@@ -24,7 +24,7 @@ describe('notificationApi', () => {
         taskId: 'task-1',
         taskTitle: 'Test Task',
         createdAt: '2025-01-15T11:00:00.000Z',
-        read: false,
+        acknowledgedAt: null,
       },
     ],
     pendingInvitationsCount: 1,
@@ -158,6 +158,66 @@ describe('notificationApi', () => {
       });
 
       await expect(notificationApi.markAllAsRead()).rejects.toThrow('Failed to mark all as read');
+    });
+  });
+
+  describe('deleteNotification', () => {
+    it('should delete a notification successfully', async () => {
+      (fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
+
+      await notificationApi.deleteNotification('notification-1');
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/notifications/notification-1'),
+        expect.objectContaining({
+          method: 'DELETE',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer mock-token',
+          }),
+        })
+      );
+    });
+
+    it('should throw error on API failure', async () => {
+      (fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: 'Failed to clear notification' }),
+      });
+
+      await expect(notificationApi.deleteNotification('notification-1')).rejects.toThrow('Failed to clear notification');
+    });
+  });
+
+  describe('clearTaskNotifications', () => {
+    it('should clear all task notifications successfully', async () => {
+      (fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
+
+      await notificationApi.clearTaskNotifications();
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/notifications/task-assignments'),
+        expect.objectContaining({
+          method: 'DELETE',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer mock-token',
+          }),
+        })
+      );
+    });
+
+    it('should throw error on API failure', async () => {
+      (fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: 'Failed to clear task notifications' }),
+      });
+
+      await expect(notificationApi.clearTaskNotifications()).rejects.toThrow('Failed to clear task notifications');
     });
   });
 

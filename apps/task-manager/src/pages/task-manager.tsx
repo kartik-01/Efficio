@@ -31,6 +31,17 @@ const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#0
 
 import { SYSTEM_CATEGORIES, getCategoryColor } from '../utils/categories';
 
+declare const process: {
+  env: {
+    API_BASE_URL?: string;
+    REACT_APP_AUTH0_AUDIENCE?: string;
+  };
+};
+
+interface TaskManagerProps {
+  getAccessToken?: () => Promise<string | undefined>;
+}
+
 // Helper function to map backend activity from API to frontend Activity format
 const mapApiActivityToFrontend = (act: any): Activity => ({
   id: act.id || act._id || '',
@@ -38,7 +49,9 @@ const mapApiActivityToFrontend = (act: any): Activity => ({
   taskTitle: act.taskTitle || '',
   taskId: act.taskId || '',
   userId: act.userId,
-  userName: act.userName,
+  userName: act.userName || null,
+  userEmail: act.userEmail || null,
+  userInitials: act.userInitials || null,
   userPicture: act.userPicture || null,
   timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
   fromStatus: act.fromStatus,
@@ -56,7 +69,7 @@ const mapApiTaskToFrontend = (task: any): Task => ({
   assignedUsers: task.assignedUsers || (task as any).assignedUsers || [],
 });
 
-export function TaskManager() {
+export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerProps = {}) {
   const [tasks, setTasks] = useState<Task[]>([]); // Filtered tasks for current view
   const [allTasks, setAllTasks] = useState<Task[]>([]); // All tasks for counting in sidebar (personal + assigned only, matching "All Tasks" view)
   const [groupTasksMap, setGroupTasksMap] = useState<Map<string, Task[]>>(new Map()); // Tasks per group for accurate group counts
@@ -105,8 +118,32 @@ export function TaskManager() {
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
 
-  const { user: auth0User } = useAuth0();
+  const { user: auth0User, getAccessTokenSilently } = useAuth0();
   const currentUserId = auth0User?.sub || '';
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const getSseToken = useCallback(async () => {
+    if (getAccessTokenProp) {
+      try {
+        return await getAccessTokenProp();
+      } catch (error) {
+        console.error('Failed to get SSE token from host getter:', error);
+        return undefined;
+      }
+    }
+
+    try {
+      const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
+      const options: { authorizationParams?: { audience: string } } = {};
+      if (audience) {
+        options.authorizationParams = { audience };
+      }
+      return await getAccessTokenSilently(options);
+    } catch (error) {
+      console.error('Failed to get SSE token from Auth0:', error);
+      return undefined;
+    }
+  }, [getAccessTokenProp, getAccessTokenSilently]);
 
   // Collaboration state
   const [groups, setGroups] = useState<Group[]>([
@@ -221,11 +258,56 @@ export function TaskManager() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const fetchTasks = useCallback(async (
+    groupTag?: string | null,
+    options: { silent?: boolean } = {}
+  ) => {
+    const { silent = false } = options;
+    try {
+      if (!silent) {
+        setLoading(true);
+      }
+      // Fetch tasks filtered by groupTag if provided
+      const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
+      // Ensure all tasks have id property and userId (map _id to id if needed)
+      const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
+      
+      // Update groupTasksMap BEFORE updating tasks to ensure counts are accurate
+      if (groupTag) {
+        // Store all tasks for this specific group (for accurate group count)
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          if (groupTag === '@personal') {
+            newMap.set('@personal', mappedTasks);
+          } else {
+            newMap.set(groupTag, mappedTasks);
+          }
+          return newMap;
+        });
+      } else {
+        // If no groupTag, this is "All Tasks" - update allTasks with fetched tasks
+        // These are already filtered by backend to show personal + assigned only
+        setAllTasks(mappedTasks);
+      }
+      
+      // Update tasks state AFTER groupTasksMap to ensure consistency
+      setTasks(mappedTasks);
+    } catch (error) {
+      toast.error('Failed to Fetch Tasks', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
+        duration: 2000,
+      });
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
   // Fetch tasks when selected group changes (this also handles initial load)
   useEffect(() => {
     fetchTasks(selectedGroup);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroup]);
+  }, [selectedGroup, fetchTasks]);
   
   // Persist sidebar states
   useEffect(() => {
@@ -291,43 +373,115 @@ export function TaskManager() {
     };
   }, [setSelectedGroup]);
 
-  const fetchTasks = async (groupTag?: string | null) => {
-    try {
-      setLoading(true);
-      // Fetch tasks filtered by groupTag if provided
-      const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
-      // Ensure all tasks have id property and userId (map _id to id if needed)
-      const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
-      
-      // Update groupTasksMap BEFORE updating tasks to ensure counts are accurate
-      if (groupTag) {
-        // Store all tasks for this specific group (for accurate group count)
-        setGroupTasksMap((prev) => {
-          const newMap = new Map(prev);
-          if (groupTag === '@personal') {
-            newMap.set('@personal', mappedTasks);
-          } else {
-            newMap.set(groupTag, mappedTasks);
-          }
-          return newMap;
-        });
-      } else {
-        // If no groupTag, this is "All Tasks" - update allTasks with fetched tasks
-        // These are already filtered by backend to show personal + assigned only
-        setAllTasks(mappedTasks);
-      }
-      
-      // Update tasks state AFTER groupTasksMap to ensure consistency
-      setTasks(mappedTasks);
-    } catch (error) {
-      toast.error('Failed to Fetch Tasks', {
-        description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
-        duration: 2000,
-      });
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return;
     }
-  };
+
+    let disposed = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const matchesCurrentView = (eventGroup?: string | null) => {
+      if (!selectedGroup) return true;
+      if (selectedGroup === '@personal') {
+        return !eventGroup || eventGroup === '@personal';
+      }
+      return eventGroup === selectedGroup;
+    };
+
+    const connect = async () => {
+      try {
+        if (disposed || eventSourceRef.current) {
+          return;
+        }
+
+        const token = await getSseToken();
+        if (!token) {
+          if (!disposed) {
+            retryTimeout = setTimeout(connect, 5000);
+          }
+          return;
+        }
+
+        const baseUrl = (process.env.API_BASE_URL || 'http://localhost:4000/api').replace(/\/$/, '');
+        const url = new URL(`${baseUrl}/events/stream`);
+        url.searchParams.set('token', token);
+
+        const source = new EventSource(url.toString());
+        eventSourceRef.current = source;
+
+        const handleTaskUpdated = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (matchesCurrentView(data.groupTag)) {
+              fetchTasks(selectedGroup, { silent: true }).catch((err) => console.error('Failed to refresh tasks from SSE update:', err));
+            }
+          } catch (err) {
+            console.error('Failed to process task_updated event:', err);
+          }
+        };
+
+        const handleTaskDeleted = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (matchesCurrentView(data.groupTag)) {
+              fetchTasks(selectedGroup, { silent: true }).catch((err) => console.error('Failed to refresh tasks from SSE delete:', err));
+            }
+          } catch (err) {
+            console.error('Failed to process task_deleted event:', err);
+          }
+        };
+
+        const handleActivityEvent = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (!matchesCurrentView(data.groupTag)) {
+              return;
+            }
+            setActivities((prev) => {
+              const mapped = mapApiActivityToFrontend(data);
+              if (mapped.id && prev.some((activity) => activity.id === mapped.id)) {
+                return prev;
+              }
+              return [mapped, ...prev].slice(0, 50);
+            });
+          } catch (err) {
+            console.error('Failed to process activity event:', err);
+          }
+        };
+
+        source.addEventListener('task_updated', handleTaskUpdated);
+        source.addEventListener('task_deleted', handleTaskDeleted);
+        source.addEventListener('activity', handleActivityEvent);
+
+        source.onerror = () => {
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+          if (!disposed) {
+            retryTimeout = setTimeout(connect, 5000);
+          }
+        };
+      } catch (error) {
+        console.error('Failed to establish task event stream:', error);
+        if (!disposed) {
+          retryTimeout = setTimeout(connect, 5000);
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [selectedGroup, fetchTasks, getSseToken]);
 
   // Fetch all tasks for sidebar counting (on mount and when groups change)
   // Apply same filtering logic as "All Tasks" view: personal tasks + assigned group tasks only

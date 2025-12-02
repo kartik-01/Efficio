@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { TaskManager } from "./pages/task-manager";
 import { initializeTaskApi, isTaskApiReady } from "./services/taskApi";
@@ -16,7 +16,7 @@ export const TaskManagerApp = ({ getAccessToken: propGetAccessToken }: TaskManag
   const auth0 = useAuth0();
 
   // Create a reusable token getter function
-  const tokenGetter = async () => {
+  const tokenGetter = useCallback(async () => {
     try {
       // Use prop token getter if provided (from host app - more reliable for module federation)
       if (propGetAccessToken) {
@@ -39,7 +39,7 @@ export const TaskManagerApp = ({ getAccessToken: propGetAccessToken }: TaskManag
       console.error("Failed to get access token:", error);
       return undefined;
     }
-  };
+  }, [propGetAccessToken, auth0]);
 
   // Initialize all APIs with token getter (prop takes precedence over hook)
   useEffect(() => {
@@ -47,7 +47,7 @@ export const TaskManagerApp = ({ getAccessToken: propGetAccessToken }: TaskManag
     initializeGroupApi(tokenGetter);
     initializeActivityApi(tokenGetter);
     setApiReady(true);
-  }, [propGetAccessToken, auth0]);
+  }, [tokenGetter]);
 
   // Only render TaskManager when all APIs are ready
   if (!apiReady || !isTaskApiReady() || !isGroupApiReady() || !isActivityApiReady()) {
@@ -58,6 +58,6 @@ export const TaskManagerApp = ({ getAccessToken: propGetAccessToken }: TaskManag
     );
   }
 
-  return <TaskManager />;
+  return <TaskManager getAccessToken={tokenGetter} />;
 };
 
