@@ -1,54 +1,18 @@
 import { Task } from '../types';
+import { API_BASE_URL, getHeaders, handleResponse, initializeApi, isApiReady } from './apiBase';
 
-// API base URL - injected by webpack DefinePlugin at build time
-// For development, defaults to http://localhost:4000/api
-// Can be overridden by setting API_BASE_URL environment variable
-declare const process: {
-  env: {
-    API_BASE_URL?: string;
-  };
-};
+// Re-export for backward compatibility
+export const initializeTaskApi = initializeApi;
+export const isTaskApiReady = isApiReady;
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
-
-// Token getter function type - will be set by initializeTaskApi
-let getAccessToken: (() => Promise<string | undefined>) | null = null;
-let isInitialized = false;
-
-// Initialize taskApi with Auth0 token getter
-export const initializeTaskApi = (tokenGetter: () => Promise<string | undefined>) => {
-  getAccessToken = tokenGetter;
-  isInitialized = true;
-};
-
-// Check if taskApi is ready
-export const isTaskApiReady = () => isInitialized && getAccessToken !== null;
-
-// Helper function to get headers with authorization
-const getHeaders = async (): Promise<HeadersInit> => {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (!getAccessToken) {
-    console.error('getAccessToken function is not initialized - API calls will fail');
-    throw new Error('Authentication not initialized. Please refresh the page.');
-  }
-
-  try {
-    const token = await getAccessToken();
-    if (token && token.trim()) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      console.error('Token getter returned empty/undefined token');
-      throw new Error('Failed to retrieve access token. Please login again.');
-    }
-  } catch (error) {
-    console.error('Failed to get access token:', error);
-    throw error;
-  }
-
-  return headers;
+// Map backend status to frontend status
+// Backend uses: 'pending' | 'in-progress' | 'completed'
+// Frontend uses: 'todo' | 'in-progress' | 'done'
+const mapStatus = (status: string): 'todo' | 'in-progress' | 'done' => {
+  if (status === 'completed') return 'done';
+  if (status === 'pending') return 'todo';
+  if (status === 'in-progress') return 'in-progress';
+  return 'todo'; // default
 };
 
 export const taskApi = {
@@ -66,16 +30,7 @@ export const taskApi = {
       headers,
     });
     
-    const result = await response.json();
-    
-    if (!response.ok) {
-      console.error('API Error Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: result
-      });
-      throw new Error(result.message || result.error || `Failed to fetch tasks: ${response.status}`);
-    }
+    const result = await handleResponse<any>(response);
     
     // Map _id to id for frontend compatibility and map status values
     // Backend uses: 'pending' | 'in-progress' | 'completed'
@@ -87,7 +42,10 @@ export const taskApi = {
       return 'todo'; // default
     };
 
-    return result.data.map((task: any) => ({
+    // Handle both wrapped { data: [...] } and direct array responses
+    const tasks = Array.isArray(result) ? result : (result.data || []);
+    
+    return tasks.map((task: any) => ({
       id: task._id || task.id || '',
       _id: task._id,
       title: task.title || '',
@@ -110,34 +68,17 @@ export const taskApi = {
       body: JSON.stringify(updates),
     });
     
-    const result = await response.json();
-    
-    if (!response.ok) {
-      console.error('API Error Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: result
-      });
-      throw new Error(result.message || result.error || `Failed to update task: ${response.status}`);
-    }
-    
-    // Map _id to id for frontend compatibility
-    const mapStatus = (status: string): 'todo' | 'in-progress' | 'done' => {
-      if (status === 'completed') return 'done';
-      if (status === 'pending') return 'todo';
-      if (status === 'in-progress') return 'in-progress';
-      return 'todo';
-    };
+    const result = await handleResponse<{ _id?: string; id?: string; title: string; status: string; category?: string; groupTag?: string; fromTime?: string; toTime?: string; timePlanning?: any }>(response);
 
     const mappedTask: Task = {
-      id: result.data._id || result.data.id || '',
-      title: result.data.title || '',
-      status: mapStatus(result.data.status || 'pending'),
-      category: result.data.category || '',
-      groupTag: result.data.groupTag,
-      fromTime: result.data.fromTime,
-      toTime: result.data.toTime,
-      timePlanning: result.data.timePlanning,
+      id: result._id || result.id || '',
+      title: result.title || '',
+      status: mapStatus(result.status || 'pending'),
+      category: result.category || '',
+      groupTag: result.groupTag,
+      fromTime: result.fromTime,
+      toTime: result.toTime,
+      timePlanning: result.timePlanning,
     };
     
     return mappedTask;
