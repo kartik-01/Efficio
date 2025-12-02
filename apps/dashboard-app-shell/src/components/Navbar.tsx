@@ -140,17 +140,14 @@ export const Navbar = ({
   useEffect(() => {
     if (isAuthenticated && isNotificationApiReady()) {
       loadNotifications();
-      // Refresh notifications every 30 seconds
-      const interval = setInterval(loadNotifications, 30000);
-      
-      // Listen for manual refresh events (e.g., after accepting/declining invitations)
+
+      // Manual refresh hook for other parts of the app (e.g., invitation dialogs)
       const handleRefresh = () => {
         loadNotifications();
       };
       window.addEventListener('refreshNotifications', handleRefresh);
-      
+
       return () => {
-        clearInterval(interval);
         window.removeEventListener('refreshNotifications', handleRefresh);
       };
     }
