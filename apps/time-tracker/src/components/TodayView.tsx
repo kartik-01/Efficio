@@ -6,8 +6,9 @@ import { SummaryStrip } from './SummaryStrip';
 import { SessionTimeline } from './SessionTimeline';
 import { PlannedTimeBlocks } from './PlannedTimeBlocks';
 import { InProgressTasks } from './InProgressTasks';
-import { initializeTaskApi, isTaskApiReady } from '../services/taskApi';
-import { initializeTimeApi, isTimeApiReady } from '../services/timeApi';
+import { initializeApi, isApiReady } from '../services/apiBase';
+import { isTaskApiReady } from '../services/taskApi';
+import { isTimeApiReady } from '../services/timeApi';
 import { useSessionsStore } from '../store/slices/sessionsSlice';
 import { useTasksStore } from '../store/slices/tasksSlice';
 import { usePlansStore } from '../store/slices/plansSlice';
@@ -52,11 +53,10 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
   
   const { fetchPlans } = usePlansStore();
 
-  // Initialize APIs (only once)
+  // Initialize API (only once - shared across all services)
   useEffect(() => {
     if (getAccessToken) {
-      initializeTaskApi(getAccessToken);
-      initializeTimeApi(getAccessToken);
+      initializeApi(getAccessToken);
     }
   }, [getAccessToken]);
 

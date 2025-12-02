@@ -1,71 +1,9 @@
 import { Category } from '../types';
+import { API_BASE_URL, getHeaders, handleResponse, initializeApi, isApiReady } from './apiBase';
 
-// API base URL - injected by webpack DefinePlugin at build time
-declare const process: {
-  env: {
-    API_BASE_URL?: string;
-  };
-};
-
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
-
-// Token getter function type - will be set by initializeTimeApi
-let getAccessToken: (() => Promise<string | undefined>) | null = null;
-let isInitialized = false;
-
-// Initialize timeApi with Auth0 token getter
-export const initializeTimeApi = (tokenGetter: () => Promise<string | undefined>) => {
-  getAccessToken = tokenGetter;
-  isInitialized = true;
-};
-
-// Check if timeApi is ready
-export const isTimeApiReady = () => isInitialized && getAccessToken !== null;
-
-// Helper function to get headers with authorization
-const getHeaders = async (): Promise<HeadersInit> => {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (!getAccessToken) {
-    console.error('getAccessToken function is not initialized - API calls will fail');
-    throw new Error('Authentication not initialized. Please refresh the page.');
-  }
-
-  try {
-    const token = await getAccessToken();
-    if (token && token.trim()) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      console.error('Token getter returned empty/undefined token');
-      throw new Error('Failed to retrieve access token. Please login again.');
-    }
-  } catch (error) {
-    console.error('Failed to get access token:', error);
-    throw error;
-  }
-
-  return headers;
-};
-
-// Helper to handle API responses
-const handleResponse = async <T>(response: Response): Promise<T> => {
-  const result = await response.json().catch(() => ({}));
-  
-  if (!response.ok) {
-    console.error('API Error Response:', {
-      status: response.status,
-      statusText: response.statusText,
-      error: result
-    });
-    throw new Error(result.message || result.error || `API request failed: ${response.status}`);
-  }
-
-  // Extract data from response if it's wrapped
-  const data = result.data !== undefined ? result.data : result;
-  return data;
-};
+// Re-export for backward compatibility
+export const initializeTimeApi = initializeApi;
+export const isTimeApiReady = isApiReady;
 
 // Plan interface
 export interface Plan {
