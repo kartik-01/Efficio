@@ -64,6 +64,7 @@ export interface TimePlanning {
   showPlanningPrompt?: boolean;
   lastPlanGenerated?: string; // ISO date string
   planInstanceCount?: number;
+  excludedDates?: string[]; // ISO date strings: ["YYYY-MM-DD", ...]
 }
 
 export interface Task {
