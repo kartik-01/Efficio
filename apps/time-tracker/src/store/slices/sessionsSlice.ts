@@ -67,15 +67,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   
   // Fetch active/running session
   fetchActiveSession: async () => {
-    try {
-      const running = await sessionsApi.getRunning();
-      if (running) {
-        set({ activeSession: convertSession(running) });
-      } else {
-        set({ activeSession: null });
-      }
-    } catch (error) {
-      // 404 is expected when no session is running
+    // getRunning() handles 404 (no running session) gracefully and returns null
+    // No need for try-catch as it never throws - 404 is expected
+    const running = await sessionsApi.getRunning();
+    if (running) {
+      set({ activeSession: convertSession(running) });
+    } else {
       set({ activeSession: null });
     }
   },
