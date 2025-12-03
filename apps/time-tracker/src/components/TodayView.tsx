@@ -60,6 +60,44 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
     }
   }, [getAccessToken]);
 
+  // Only fetch active session when window regains focus (user switches back to app)
+  // This minimizes 404s - we don't check on every mount/date change
+  useEffect(() => {
+    if (!isTimeApiReady()) return;
+    
+    const isToday = selectedDate.toDateString() === new Date().toDateString();
+    
+    const handleFocus = () => {
+      if (isToday) {
+        // Only check when viewing today and window regains focus
+        fetchActiveSession().catch(() => {
+          // Silently handle - 404 is expected when no session is running
+        });
+      }
+    };
+    
+    // Check once on mount if viewing today
+    if (isToday) {
+      // Small delay to avoid double-fetch in StrictMode
+      const timeoutId = setTimeout(() => {
+        fetchActiveSession().catch(() => {
+          // Silently handle - 404 is expected when no session is running
+        });
+      }, 100);
+      
+      window.addEventListener('focus', handleFocus);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('focus', handleFocus);
+      };
+    } else {
+      // For past/future dates, clear any active session state
+      useSessionsStore.getState().setActiveSession(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]); // Re-run when date changes
+
   // Fetch all data when date changes or on initial load
   useEffect(() => {
     if (!isTimeApiReady() || !isTaskApiReady()) return;
@@ -71,15 +109,14 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const isToday = selectedDate.toDateString() === new Date().toDateString();
     
-    // Fetch all data in parallel
+    // Fetch all data in parallel (active session is handled separately above)
     Promise.all([
       fetchSessions(dateStr, tz),
-      fetchActiveSession(),
       fetchTasks(),
       fetchPlans(dateStr, tz),
       fetchSummary(dateStr, tz, isToday),
     ]);
-  }, [selectedDate, fetchSessions, fetchActiveSession, fetchTasks, fetchPlans, fetchSummary]);
+  }, [selectedDate, fetchSessions, fetchTasks, fetchPlans, fetchSummary]);
 
   // Update timer display every second (but don't refetch from backend)
   // This updates a timestamp that triggers SummaryStrip to recalculate aggregated summary

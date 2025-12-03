@@ -183,21 +183,33 @@ export interface CreateSessionData {
 // Sessions API
 export const sessionsApi = {
   // Get running session
+  // Returns null if no session is running (404 is expected and handled silently)
   async getRunning(): Promise<Session | null> {
     const headers = await getHeaders();
-    const response = await fetch(`${API_BASE_URL}/time/sessions/running`, { headers });
-    
-    if (response.status === 404) {
-      return null; // No running session
+    try {
+      const response = await fetch(`${API_BASE_URL}/time/sessions/running`, { headers });
+      
+      // 404 means no running session - this is normal, return null silently
+      if (response.status === 404) {
+        return null;
+      }
+      
+      // For other non-ok responses, return null (don't throw)
+      if (!response.ok) {
+        return null;
+      }
+      
+      const session = await handleResponse<Session>(response);
+      return {
+        ...session,
+        id: session._id || session.id || '',
+        startTime: typeof session.startTime === 'string' ? new Date(session.startTime) : session.startTime,
+        endTime: session.endTime ? (typeof session.endTime === 'string' ? new Date(session.endTime) : session.endTime) : null,
+      };
+    } catch (error) {
+      // Network errors or other issues - return null silently
+      return null;
     }
-    
-    const session = await handleResponse<Session>(response);
-    return {
-      ...session,
-      id: session._id || session.id || '',
-      startTime: typeof session.startTime === 'string' ? new Date(session.startTime) : session.startTime,
-      endTime: session.endTime ? (typeof session.endTime === 'string' ? new Date(session.endTime) : session.endTime) : null,
-    };
   },
 
   // Start a new session
