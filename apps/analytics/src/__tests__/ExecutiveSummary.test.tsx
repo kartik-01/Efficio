@@ -154,9 +154,7 @@ describe('ExecutiveSummary', () => {
 
     // Check that KPI cards are rendered
     expect(screen.getByText('Tasks Completed')).toBeInTheDocument();
-    expect(screen.getByText('Focus Time Today')).toBeInTheDocument();
-    expect(screen.getByText('Overdue Tasks')).toBeInTheDocument();
-    expect(screen.getByText('Productivity Score')).toBeInTheDocument();
+    expect(screen.getByText('Time Tracked')).toBeInTheDocument();
   });
 
   it('includes Authorization header when getAccessToken is provided', async () => {

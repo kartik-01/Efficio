@@ -294,10 +294,16 @@ export function TaskManager() {
   const fetchTasks = async (groupTag?: string | null) => {
     try {
       setLoading(true);
+      console.log(`Fetching tasks for group: ${groupTag || 'all tasks'}`);
+      
       // Fetch tasks filtered by groupTag if provided
       const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
+      console.log(`Received ${fetchedTasks.length} task(s) from API`);
+      
       // Ensure all tasks have id property and userId (map _id to id if needed)
       const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
+      
+      console.log(`Mapped ${mappedTasks.length} task(s) for display`);
       
       // Update groupTasksMap BEFORE updating tasks to ensure counts are accurate
       if (groupTag) {
@@ -319,11 +325,31 @@ export function TaskManager() {
       
       // Update tasks state AFTER groupTasksMap to ensure consistency
       setTasks(mappedTasks);
+      
+      if (mappedTasks.length === 0) {
+        console.warn('No tasks found. This could mean:');
+        console.warn('1. No tasks exist in the database for this user/group');
+        console.warn('2. Backend is not connected to MongoDB');
+        console.warn('3. Tasks are filtered out by backend logic');
+      }
     } catch (error) {
-      toast.error('Failed to Fetch Tasks', {
-        description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
-        duration: 2000,
-      });
+      console.error('Error fetching tasks:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.';
+      
+      // If it's a group access error, reset to All Tasks view
+      if (errorMessage.includes("don't have access to this group") || errorMessage.includes("access to this group")) {
+        console.warn('Group access error detected. Resetting to All Tasks view.');
+        setSelectedGroup(null);
+        toast.error('Access Denied', {
+          description: 'You no longer have access to this group. Switched to All Tasks view.',
+          duration: 3000,
+        });
+      } else {
+        toast.error('Failed to Fetch Tasks', {
+          description: errorMessage,
+          duration: 2000,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -879,10 +905,22 @@ export function TaskManager() {
       setIncludeProgress(false);
     } catch (error) {
       console.log('🍞 Toast ERROR:', editingTask ? 'Failed to Update Task' : 'Failed to Add Task');
-      toast.error(editingTask ? 'Failed to Update Task' : 'Failed to Add Task', {
-        description: error instanceof Error ? error.message : 'An unknown error occurred. Please try again.',
-        duration: 2000,
-      });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred. Please try again.';
+      
+      // If it's a group access error, reset to All Tasks view and show helpful message
+      if (errorMessage.includes("don't have access to this group") || errorMessage.includes("access to this group")) {
+        console.warn('Group access error when creating/updating task. Resetting to All Tasks view.');
+        setSelectedGroup(null);
+        toast.error('Access Denied', {
+          description: 'You no longer have access to this group. Please select a different group or use Personal tasks.',
+          duration: 4000,
+        });
+      } else {
+        toast.error(editingTask ? 'Failed to Update Task' : 'Failed to Add Task', {
+          description: errorMessage,
+          duration: 2000,
+        });
+      }
       console.log('🍞 Toast error called');
     }
   };
@@ -893,14 +931,30 @@ export function TaskManager() {
     return group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
   };
 
-  const accessibleGroups = [
+  const accessibleGroups = useMemo(() => [
     { id: 'personal', tag: '@personal', name: 'Personal', color: '#9ca3af', owner: currentUserId, collaborators: [], createdAt: '' },
     ...groups.filter(hasGroupAccess),
-  ];
+  ], [groups, currentUserId]);
 
-  const pendingInvitations = groups.filter(group =>
-    group.collaborators.some(c => c.userId === currentUserId && c.status === 'pending')
+  const pendingInvitations = useMemo(() => 
+    groups.filter(group =>
+      group.collaborators.some(c => c.userId === currentUserId && c.status === 'pending')
+    ), [groups, currentUserId]
   );
+
+  // Validate selectedGroup is still accessible - reset if not
+  useEffect(() => {
+    if (selectedGroup && selectedGroup !== '@personal' && groups.length > 0) {
+      const isAccessible = accessibleGroups.some(g => g.tag === selectedGroup);
+      if (!isAccessible) {
+        console.warn(`Selected group "${selectedGroup}" is no longer accessible. Resetting to All Tasks.`);
+        // Use setTimeout to avoid setState during render
+        setTimeout(() => {
+          setSelectedGroup(null);
+        }, 0);
+      }
+    }
+  }, [selectedGroup, accessibleGroups, groups.length]);
 
   // Memoize selectedGroupData to update when groups or selectedGroup changes
   const selectedGroupData = useMemo(() => {

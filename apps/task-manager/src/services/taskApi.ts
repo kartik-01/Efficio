@@ -125,9 +125,15 @@ export const taskApi = {
     const headersObj = headers as Record<string, string>;
     console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
-    const response = await fetch(url, {
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers,
+      });
+    } catch (fetchError) {
+      console.error('Network error fetching tasks:', fetchError);
+      throw new Error(`Network error: Failed to connect to ${url}. Please check if the API server is running.`);
+    }
     
     const result = await response.json();
     
@@ -137,11 +143,31 @@ export const taskApi = {
         statusText: response.statusText,
         error: result
       });
-      throw new Error(result.message || result.error || `Failed to fetch tasks: ${response.status}`);
+      const errorMessage = result.message || result.error || `Failed to fetch tasks (${response.status} ${response.statusText})`;
+      throw new Error(errorMessage);
     }
     
+    // Handle different response formats and ensure data is an array
+    const tasksData = result.data || result.tasks || result || [];
+    
+    console.log('API Response received:', {
+      status: response.status,
+      hasData: !!result.data,
+      dataType: Array.isArray(result.data) ? 'array' : typeof result.data,
+      dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
+      fullResult: result
+    });
+    
+    if (!Array.isArray(tasksData)) {
+      console.error('Invalid response format - expected array, got:', typeof tasksData, tasksData);
+      console.error('Full API response:', result);
+      return [];
+    }
+    
+    console.log(`Successfully fetched ${tasksData.length} task(s) from API`);
+    
     // Map _id to id for frontend compatibility
-    return result.data.map((task: Task) => ({
+    return tasksData.map((task: Task) => ({
       ...task,
       id: task._id || task.id,
     }));
