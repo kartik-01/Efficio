@@ -64,6 +64,7 @@ export interface TimePlanning {
   showPlanningPrompt?: boolean;
   lastPlanGenerated?: string; // ISO date string
   planInstanceCount?: number;
+  excludedDates?: string[]; // ISO date strings: ["YYYY-MM-DD", ...]
 }
 
 export interface Task {
@@ -82,6 +83,7 @@ export interface Task {
   assignedTo?: string[]; // Array of user IDs assigned to this task
   assignedUsers?: Array<{ userId: string; name: string; email?: string; picture?: string | null }>; // Assigned user info (for displaying exited users)
   timePlanning?: TimePlanning;
+  documentationLink?: string;
 }
 
 export interface CreateTaskData {
@@ -96,6 +98,7 @@ export interface CreateTaskData {
   isOverdue?: boolean;
   groupTag?: string; // Group/Workspace tag (e.g., "@personal", "@web-ui")
   assignedTo?: string[]; // Array of user IDs assigned to this task
+  documentationLink?: string;
 }
 
 export interface UpdateTaskData {
@@ -121,19 +124,9 @@ export const taskApi = {
       url += `?groupTag=${encodeURIComponent(groupTag)}`;
     }
     
-    console.log('Making request to:', url);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
-    
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        headers,
-      });
-    } catch (fetchError) {
-      console.error('Network error fetching tasks:', fetchError);
-      throw new Error(`Network error: Failed to connect to ${url}. Please check if the API server is running.`);
-    }
+    const response = await fetch(url, {
+      headers,
+    });
     
     const result = await response.json();
     
@@ -143,31 +136,11 @@ export const taskApi = {
         statusText: response.statusText,
         error: result
       });
-      const errorMessage = result.message || result.error || `Failed to fetch tasks (${response.status} ${response.statusText})`;
-      throw new Error(errorMessage);
+      throw new Error(result.message || result.error || `Failed to fetch tasks: ${response.status}`);
     }
-    
-    // Handle different response formats and ensure data is an array
-    const tasksData = result.data || result.tasks || result || [];
-    
-    console.log('API Response received:', {
-      status: response.status,
-      hasData: !!result.data,
-      dataType: Array.isArray(result.data) ? 'array' : typeof result.data,
-      dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
-      fullResult: result
-    });
-    
-    if (!Array.isArray(tasksData)) {
-      console.error('Invalid response format - expected array, got:', typeof tasksData, tasksData);
-      console.error('Full API response:', result);
-      return [];
-    }
-    
-    console.log(`Successfully fetched ${tasksData.length} task(s) from API`);
     
     // Map _id to id for frontend compatibility
-    return tasksData.map((task: Task) => ({
+    return result.data.map((task: Task) => ({
       ...task,
       id: task._id || task.id,
     }));
@@ -210,9 +183,6 @@ export const taskApi = {
   // Update task
   async updateTask(id: string, data: UpdateTaskData): Promise<Task> {
     const headers = await getHeaders();
-    console.log('Making PUT request to:', `${API_BASE_URL}/tasks/${id}`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'PUT',
@@ -237,9 +207,6 @@ export const taskApi = {
   // Update task status
   async updateTaskStatus(id: string, status: 'pending' | 'in-progress' | 'completed'): Promise<{ task: Task; activity?: any }> {
     const headers = await getHeaders();
-    console.log('Making PATCH request to:', `${API_BASE_URL}/tasks/${id}/status`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}/status`, {
       method: 'PATCH',
@@ -265,9 +232,6 @@ export const taskApi = {
   // Update task progress
   async updateTaskProgress(id: string, progress: number): Promise<Task> {
     const headers = await getHeaders();
-    console.log('Making PATCH request to:', `${API_BASE_URL}/tasks/${id}/progress`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}/progress`, {
       method: 'PATCH',
@@ -292,9 +256,6 @@ export const taskApi = {
   // Delete task
   async deleteTask(id: string): Promise<void> {
     const headers = await getHeaders();
-    console.log('Making DELETE request to:', `${API_BASE_URL}/tasks/${id}`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'DELETE',

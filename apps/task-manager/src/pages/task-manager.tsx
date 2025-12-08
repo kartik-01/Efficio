@@ -23,13 +23,23 @@ import { Badge, ScrollArea, Separator, Avatar, AvatarImage, AvatarFallback, Tool
 import { taskApi } from '../services/taskApi';
 import { activityApi } from '../services/activityApi';
 import { useAuth0 } from '@auth0/auth0-react';
+import { SYSTEM_CATEGORIES, getCategoryColor } from '@efficio/ui';
 
 // Types are now imported from LeftSidebar component
 
 // Mock groups data (temporarily hardcoded)
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
 
-import { SYSTEM_CATEGORIES, getCategoryColor } from '../utils/categories';
+declare const process: {
+  env: {
+    API_BASE_URL?: string;
+    REACT_APP_AUTH0_AUDIENCE?: string;
+  };
+};
+
+interface TaskManagerProps {
+  getAccessToken?: () => Promise<string | undefined>;
+}
 
 // Helper function to map backend activity from API to frontend Activity format
 const mapApiActivityToFrontend = (act: any): Activity => ({
@@ -38,7 +48,9 @@ const mapApiActivityToFrontend = (act: any): Activity => ({
   taskTitle: act.taskTitle || '',
   taskId: act.taskId || '',
   userId: act.userId,
-  userName: act.userName,
+  userName: act.userName || null,
+  userEmail: act.userEmail || null,
+  userInitials: act.userInitials || null,
   userPicture: act.userPicture || null,
   timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
   fromStatus: act.fromStatus,
@@ -56,7 +68,7 @@ const mapApiTaskToFrontend = (task: any): Task => ({
   assignedUsers: task.assignedUsers || (task as any).assignedUsers || [],
 });
 
-export function TaskManager() {
+export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerProps = {}) {
   const [tasks, setTasks] = useState<Task[]>([]); // Filtered tasks for current view
   const [allTasks, setAllTasks] = useState<Task[]>([]); // All tasks for counting in sidebar (personal + assigned only, matching "All Tasks" view)
   const [groupTasksMap, setGroupTasksMap] = useState<Map<string, Task[]>>(new Map()); // Tasks per group for accurate group counts
@@ -75,10 +87,12 @@ export function TaskManager() {
     status: 'pending',
     dueDate: '',
     progress: 20,
+    documentationLink: '',
   });
   // Modal category selection state (system categories + 'Other')
   const [categorySelection, setCategorySelection] = useState<string>('');
   const [includeProgress, setIncludeProgress] = useState(false);
+  const [includeDocumentation, setIncludeDocumentation] = useState(false);
   const [allowBackdate, setAllowBackdate] = useState(false);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [isCollapsing, setIsCollapsing] = useState(false);
@@ -105,8 +119,32 @@ export function TaskManager() {
   const pendingColumnRef = useRef<HTMLDivElement>(null);
   const pendingTaskListRef = useRef<HTMLDivElement>(null);
 
-  const { user: auth0User } = useAuth0();
+  const { user: auth0User, getAccessTokenSilently } = useAuth0();
   const currentUserId = auth0User?.sub || '';
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const getSseToken = useCallback(async () => {
+    if (getAccessTokenProp) {
+      try {
+        return await getAccessTokenProp();
+      } catch (error) {
+        console.error('Failed to get SSE token from host getter:', error);
+        return undefined;
+      }
+    }
+
+    try {
+      const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
+      const options: { authorizationParams?: { audience: string } } = {};
+      if (audience) {
+        options.authorizationParams = { audience };
+      }
+      return await getAccessTokenSilently(options);
+    } catch (error) {
+      console.error('Failed to get SSE token from Auth0:', error);
+      return undefined;
+    }
+  }, [getAccessTokenProp, getAccessTokenSilently]);
 
   // Collaboration state
   const [groups, setGroups] = useState<Group[]>([
@@ -221,11 +259,56 @@ export function TaskManager() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const fetchTasks = useCallback(async (
+    groupTag?: string | null,
+    options: { silent?: boolean } = {}
+  ) => {
+    const { silent = false } = options;
+    try {
+      if (!silent) {
+        setLoading(true);
+      }
+      // Fetch tasks filtered by groupTag if provided
+      const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
+      // Ensure all tasks have id property and userId (map _id to id if needed)
+      const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
+      
+      // Update groupTasksMap BEFORE updating tasks to ensure counts are accurate
+      if (groupTag) {
+        // Store all tasks for this specific group (for accurate group count)
+        setGroupTasksMap((prev) => {
+          const newMap = new Map(prev);
+          if (groupTag === '@personal') {
+            newMap.set('@personal', mappedTasks);
+          } else {
+            newMap.set(groupTag, mappedTasks);
+          }
+          return newMap;
+        });
+      } else {
+        // If no groupTag, this is "All Tasks" - update allTasks with fetched tasks
+        // These are already filtered by backend to show personal + assigned only
+        setAllTasks(mappedTasks);
+      }
+      
+      // Update tasks state AFTER groupTasksMap to ensure consistency
+      setTasks(mappedTasks);
+    } catch (error) {
+      toast.error('Failed to Fetch Tasks', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.',
+        duration: 2000,
+      });
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
   // Fetch tasks when selected group changes (this also handles initial load)
   useEffect(() => {
     fetchTasks(selectedGroup);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroup]);
+  }, [selectedGroup, fetchTasks]);
   
   // Persist sidebar states
   useEffect(() => {
@@ -291,69 +374,115 @@ export function TaskManager() {
     };
   }, [setSelectedGroup]);
 
-  const fetchTasks = async (groupTag?: string | null) => {
-    try {
-      setLoading(true);
-      console.log(`Fetching tasks for group: ${groupTag || 'all tasks'}`);
-      
-      // Fetch tasks filtered by groupTag if provided
-      const fetchedTasks = await taskApi.getTasks(groupTag || undefined);
-      console.log(`Received ${fetchedTasks.length} task(s) from API`);
-      
-      // Ensure all tasks have id property and userId (map _id to id if needed)
-      const mappedTasks = fetchedTasks.map(mapApiTaskToFrontend);
-      
-      console.log(`Mapped ${mappedTasks.length} task(s) for display`);
-      
-      // Update groupTasksMap BEFORE updating tasks to ensure counts are accurate
-      if (groupTag) {
-        // Store all tasks for this specific group (for accurate group count)
-        setGroupTasksMap((prev) => {
-          const newMap = new Map(prev);
-          if (groupTag === '@personal') {
-            newMap.set('@personal', mappedTasks);
-          } else {
-            newMap.set(groupTag, mappedTasks);
-          }
-          return newMap;
-        });
-      } else {
-        // If no groupTag, this is "All Tasks" - update allTasks with fetched tasks
-        // These are already filtered by backend to show personal + assigned only
-        setAllTasks(mappedTasks);
-      }
-      
-      // Update tasks state AFTER groupTasksMap to ensure consistency
-      setTasks(mappedTasks);
-      
-      if (mappedTasks.length === 0) {
-        console.warn('No tasks found. This could mean:');
-        console.warn('1. No tasks exist in the database for this user/group');
-        console.warn('2. Backend is not connected to MongoDB');
-        console.warn('3. Tasks are filtered out by backend logic');
-      }
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred while loading tasks.';
-      
-      // If it's a group access error, reset to All Tasks view
-      if (errorMessage.includes("don't have access to this group") || errorMessage.includes("access to this group")) {
-        console.warn('Group access error detected. Resetting to All Tasks view.');
-        setSelectedGroup(null);
-        toast.error('Access Denied', {
-          description: 'You no longer have access to this group. Switched to All Tasks view.',
-          duration: 3000,
-        });
-      } else {
-        toast.error('Failed to Fetch Tasks', {
-          description: errorMessage,
-          duration: 2000,
-        });
-      }
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+      return;
     }
-  };
+
+    let disposed = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const matchesCurrentView = (eventGroup?: string | null) => {
+      if (!selectedGroup) return true;
+      if (selectedGroup === '@personal') {
+        return !eventGroup || eventGroup === '@personal';
+      }
+      return eventGroup === selectedGroup;
+    };
+
+    const connect = async () => {
+      try {
+        if (disposed || eventSourceRef.current) {
+          return;
+        }
+
+        const token = await getSseToken();
+        if (!token) {
+          if (!disposed) {
+            retryTimeout = setTimeout(connect, 5000);
+          }
+          return;
+        }
+
+        const baseUrl = (process.env.API_BASE_URL || 'http://localhost:4000/api').replace(/\/$/, '');
+        const url = new URL(`${baseUrl}/events/stream`);
+        url.searchParams.set('token', token);
+
+        const source = new EventSource(url.toString());
+        eventSourceRef.current = source;
+
+        const handleTaskUpdated = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (matchesCurrentView(data.groupTag)) {
+              fetchTasks(selectedGroup, { silent: true }).catch((err) => console.error('Failed to refresh tasks from SSE update:', err));
+            }
+          } catch (err) {
+            console.error('Failed to process task_updated event:', err);
+          }
+        };
+
+        const handleTaskDeleted = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (matchesCurrentView(data.groupTag)) {
+              fetchTasks(selectedGroup, { silent: true }).catch((err) => console.error('Failed to refresh tasks from SSE delete:', err));
+            }
+          } catch (err) {
+            console.error('Failed to process task_deleted event:', err);
+          }
+        };
+
+        const handleActivityEvent = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (!matchesCurrentView(data.groupTag)) {
+              return;
+            }
+            setActivities((prev) => {
+              const mapped = mapApiActivityToFrontend(data);
+              if (mapped.id && prev.some((activity) => activity.id === mapped.id)) {
+                return prev;
+              }
+              return [mapped, ...prev].slice(0, 50);
+            });
+          } catch (err) {
+            console.error('Failed to process activity event:', err);
+          }
+        };
+
+        source.addEventListener('task_updated', handleTaskUpdated);
+        source.addEventListener('task_deleted', handleTaskDeleted);
+        source.addEventListener('activity', handleActivityEvent);
+
+        source.onerror = () => {
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+          if (!disposed) {
+            retryTimeout = setTimeout(connect, 5000);
+          }
+        };
+      } catch (error) {
+        console.error('Failed to establish task event stream:', error);
+        if (!disposed) {
+          retryTimeout = setTimeout(connect, 5000);
+        }
+      }
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [selectedGroup, fetchTasks, getSseToken]);
 
   // Fetch all tasks for sidebar counting (on mount and when groups change)
   // Apply same filtering logic as "All Tasks" view: personal tasks + assigned group tasks only
@@ -558,7 +687,9 @@ export function TaskManager() {
       dueDate: task.dueDate || '',
       progress: task.progress || 20,
       assignedTo: task.assignedTo || [],
+      documentationLink: task.documentationLink || '',
     });
+    setIncludeDocumentation(!!task.documentationLink);
     // If the task has a past due date, default to allowing backdate so edits don't get rejected
     const parseLocalDate = (s: string) => {
       try {
@@ -674,6 +805,46 @@ export function TaskManager() {
   const handleAddTask = async () => {
     if (!newTask.title?.trim()) return;
 
+    if (!categorySelection) {
+      toast.error('Category Required', {
+        description: 'Please select a category for the task.',
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Validate documentation link if provided
+    if (newTask.documentationLink) {
+      const authorizedDomains = [
+        'docs.google.com',
+        'sheets.google.com',
+        'slides.google.com',
+        'onedrive.live.com',
+        'sharepoint.com',
+        'notion.so',
+        'coda.io'
+      ];
+      
+      try {
+        const url = new URL(newTask.documentationLink);
+        const isAuthorized = authorizedDomains.some(domain => url.hostname.endsWith(domain));
+        
+        if (!isAuthorized) {
+          toast.error('Invalid Documentation Link', {
+            description: 'Please provide a link from an authorized provider (e.g., Google Docs, Microsoft Office, Notion).',
+            duration: 3000,
+          });
+          return;
+        }
+      } catch (e) {
+        toast.error('Invalid URL', {
+          description: 'Please enter a valid URL for the documentation link.',
+          duration: 3000,
+        });
+        return;
+      }
+    }
+
     const computeCategory = () => {
       if (categorySelection) return capitalizeWords(categorySelection);
       return '';
@@ -692,6 +863,7 @@ export function TaskManager() {
       progress: includeProgress ? (newTask.progress || 0) : undefined,
       groupTag: selectedGroup || '@personal', // Add groupTag to task
       assignedTo: newTask.assignedTo || [], // Add assignedTo array
+      documentationLink: newTask.documentationLink || '',
     };
 
     try {
@@ -764,6 +936,7 @@ export function TaskManager() {
               dueDate: '',
               progress: 20,
               assignedTo: [],
+              documentationLink: '',
             });
             setIncludeProgress(false);
             setAllowBackdate(false);
@@ -899,28 +1072,18 @@ export function TaskManager() {
         status: 'pending',
         dueDate: '',
         progress: 20,
+        documentationLink: '',
       });
       setAllowBackdate(false);
       setCategorySelection('');
       setIncludeProgress(false);
+      setIncludeDocumentation(false);
     } catch (error) {
       console.log('🍞 Toast ERROR:', editingTask ? 'Failed to Update Task' : 'Failed to Add Task');
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred. Please try again.';
-      
-      // If it's a group access error, reset to All Tasks view and show helpful message
-      if (errorMessage.includes("don't have access to this group") || errorMessage.includes("access to this group")) {
-        console.warn('Group access error when creating/updating task. Resetting to All Tasks view.');
-        setSelectedGroup(null);
-        toast.error('Access Denied', {
-          description: 'You no longer have access to this group. Please select a different group or use Personal tasks.',
-          duration: 4000,
-        });
-      } else {
-        toast.error(editingTask ? 'Failed to Update Task' : 'Failed to Add Task', {
-          description: errorMessage,
-          duration: 2000,
-        });
-      }
+      toast.error(editingTask ? 'Failed to Update Task' : 'Failed to Add Task', {
+        description: error instanceof Error ? error.message : 'An unknown error occurred. Please try again.',
+        duration: 2000,
+      });
       console.log('🍞 Toast error called');
     }
   };
@@ -931,30 +1094,14 @@ export function TaskManager() {
     return group.collaborators.some(c => c.userId === currentUserId && c.status === 'accepted');
   };
 
-  const accessibleGroups = useMemo(() => [
+  const accessibleGroups = [
     { id: 'personal', tag: '@personal', name: 'Personal', color: '#9ca3af', owner: currentUserId, collaborators: [], createdAt: '' },
     ...groups.filter(hasGroupAccess),
-  ], [groups, currentUserId]);
+  ];
 
-  const pendingInvitations = useMemo(() => 
-    groups.filter(group =>
-      group.collaborators.some(c => c.userId === currentUserId && c.status === 'pending')
-    ), [groups, currentUserId]
+  const pendingInvitations = groups.filter(group =>
+    group.collaborators.some(c => c.userId === currentUserId && c.status === 'pending')
   );
-
-  // Validate selectedGroup is still accessible - reset if not
-  useEffect(() => {
-    if (selectedGroup && selectedGroup !== '@personal' && groups.length > 0) {
-      const isAccessible = accessibleGroups.some(g => g.tag === selectedGroup);
-      if (!isAccessible) {
-        console.warn(`Selected group "${selectedGroup}" is no longer accessible. Resetting to All Tasks.`);
-        // Use setTimeout to avoid setState during render
-        setTimeout(() => {
-          setSelectedGroup(null);
-        }, 0);
-      }
-    }
-  }, [selectedGroup, accessibleGroups, groups.length]);
 
   // Memoize selectedGroupData to update when groups or selectedGroup changes
   const selectedGroupData = useMemo(() => {
@@ -1333,7 +1480,6 @@ export function TaskManager() {
                 {SYSTEM_CATEGORIES.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
-                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1364,6 +1510,7 @@ export function TaskManager() {
                     dueDate: '',
                     progress: 20,
                     assignedTo: [],
+                    documentationLink: '',
                   });
                   setIncludeProgress(false);
                   setAllowBackdate(false);
@@ -1696,16 +1843,33 @@ export function TaskManager() {
                 dueDate: '',
                 progress: 20,
                 assignedTo: [],
+                documentationLink: '',
               });
-                  setCategorySelection('');
+              setCategorySelection('');
               setIncludeProgress(false);
+              setIncludeDocumentation(false);
               setSkipModalAnimation(false);
             }
           }}
         >
+          <style>{`
+            .custom-scrollbar::-webkit-scrollbar {
+              width: 6px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background-color: rgba(156, 163, 175, 0.5);
+              border-radius: 20px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+              background-color: rgba(156, 163, 175, 0.8);
+            }
+          `}</style>
           <DialogContent 
             ref={modalContentRef}
-            className={`overflow-hidden sm:max-w-[500px] ${
+            className={`overflow-hidden sm:w-[600px] max-h-[80vh] overflow-y-auto custom-scrollbar pb-3 ${
               skipModalAnimation 
                 ? 'duration-0 data-[state=closed]:duration-0' 
                 : ''
@@ -1726,9 +1890,9 @@ export function TaskManager() {
                     {editingTask ? 'Update task details below.' : 'Create a new task by filling out the form below.'}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 pt-4">
               <div className="grid gap-2">
-                <Label htmlFor="title">Task Title</Label>
+                <Label htmlFor="title">Task Title <span className="text-red-500">*</span></Label>
                 <Input
                   id="title"
                   placeholder="Enter task title"
@@ -1749,7 +1913,7 @@ export function TaskManager() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category">Category <span className="text-red-500">*</span></Label>
                   <Select
                     value={categorySelection}
                     onValueChange={(value) => {
@@ -1765,12 +1929,11 @@ export function TaskManager() {
                       {SYSTEM_CATEGORIES.map((c) => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
-                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="priority">Priority</Label>
+                  <Label htmlFor="priority">Priority <span className="text-red-500">*</span></Label>
                   <Select
                     value={newTask.priority || 'Medium'}
                     onValueChange={(value) => setNewTask({ ...newTask, priority: value as Task['priority'] })}
@@ -1809,6 +1972,40 @@ export function TaskManager() {
                 </div>
               </div>
 
+              <div className="grid gap-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeDocumentation"
+                    checked={includeDocumentation}
+                    onCheckedChange={(checked) => {
+                      setIncludeDocumentation(checked as boolean);
+                      if (!checked) {
+                        setNewTask({ ...newTask, documentationLink: '' });
+                      }
+                    }}
+                  />
+                  <Label htmlFor="includeDocumentation" className="text-sm cursor-pointer">
+                    Include documentation
+                  </Label>
+                </div>
+                
+                {includeDocumentation && (
+                  <div className="pt-2">
+                    <Label htmlFor="documentationLink" className="mb-2 block">Documentation Link</Label>
+                    <Input
+                      id="documentationLink"
+                      placeholder="https://docs.google.com/..."
+                      value={newTask.documentationLink || ''}
+                      onChange={(e) => setNewTask({ ...newTask, documentationLink: e.target.value })}
+                      className="h-[36px] rounded-[8px] border border-gray-200"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Supported: Google Docs, Sheets, Slides, OneDrive, SharePoint, Notion, Coda
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Status field for editing */}
               {editingTask && (
                 <div className="grid gap-2">
@@ -1830,39 +2027,41 @@ export function TaskManager() {
               )}
               
               {/* Optional Progress */}
-              <div className="flex items-center space-x-2 pt-2">
-                <Checkbox
-                  id="includeProgress"
-                  checked={includeProgress}
-                  onCheckedChange={(checked) => {
-                    setIncludeProgress(checked as boolean);
-                    if (!checked) {
-                      setNewTask({ ...newTask, progress: 20 });
-                    }
-                  }}
-                />
-                <Label htmlFor="includeProgress" className="text-sm cursor-pointer">
-                  Include progress tracking
-                </Label>
-              </div>
-
-              {includeProgress && (
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="progress">Initial Progress</Label>
-                    <span className="text-sm text-purple-600">{newTask.progress || 0}%</span>
-                  </div>
-                  <Slider
-                    id="progress"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={[newTask.progress || 0]}
-                    onValueChange={(value) => setNewTask({ ...newTask, progress: value[0] })}
-                    className="[&_[data-radix-slider-range]]:bg-purple-500 [&_[data-radix-slider-thumb]]:border-purple-500"
+              <div className="grid gap-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeProgress"
+                    checked={includeProgress}
+                    onCheckedChange={(checked) => {
+                      setIncludeProgress(checked as boolean);
+                      if (!checked) {
+                        setNewTask({ ...newTask, progress: 20 });
+                      }
+                    }}
                   />
+                  <Label htmlFor="includeProgress" className="text-sm cursor-pointer">
+                    Include progress tracking
+                  </Label>
                 </div>
-              )}
+
+                {includeProgress && (
+                  <div className="grid gap-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="progress">Initial Progress</Label>
+                      <span className="text-sm text-purple-600">{newTask.progress || 0}%</span>
+                    </div>
+                    <Slider
+                      id="progress"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={[newTask.progress || 0]}
+                      onValueChange={(value) => setNewTask({ ...newTask, progress: value[0] })}
+                      className="[&_[data-radix-slider-range]]:bg-purple-500 [&_[data-radix-slider-thumb]]:border-purple-500"
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Assign To field - only for collaborated groups, visible to admin/editor/owner */}
               {canSeeAssignTo && (
@@ -1893,8 +2092,8 @@ export function TaskManager() {
 
               <Button
                 onClick={handleAddTask}
-                disabled={!newTask.title?.trim()}
-                className="w-full bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!newTask.title?.trim() || !categorySelection}
+                className="w-full bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingTask ? 'Update Task' : 'Add Task'}
               </Button>
