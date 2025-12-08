@@ -12,6 +12,7 @@ import { usePlansStore } from '../store/slices/plansSlice';
 import { useSummaryStore } from '../store/slices/summarySlice';
 import { isTimeApiReady } from '../services/timeApi';
 import { toast } from 'sonner';
+import { useTaskClassification } from '../hooks/useTaskClassification';
 
 interface TimerControlProps {
   externalStart?: { taskId: string; taskTitle: string; category: Category } | null;
@@ -23,7 +24,6 @@ const CUSTOM_TASK_VALUE = '__custom__';
 export function TimerControl({ externalStart, getAccessToken }: TimerControlProps) {
   const [selectedTask, setSelectedTask] = useState<string>(CUSTOM_TASK_VALUE);
   const [customTitle, setCustomTitle] = useState<string>('');
-  const [selectedTaskCategory, setSelectedTaskCategory] = useState<Category | null>(null);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const [pulseKey, setPulseKey] = useState(0);
 
@@ -39,34 +39,8 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
   // Filter to only show in-progress tasks
   const inProgressTasks = tasks.filter(task => task.status === 'in-progress');
 
-  // Classify selected task when it changes (if it's a regular task)
-  useEffect(() => {
-    const classifySelectedTask = async () => {
-      if (selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
-        const task = inProgressTasks.find(t => t.id === selectedTask);
-        if (task) {
-          try {
-            // Pass task to classification - it will use task.category if available
-            const category = await classifyTitle(task.title, task);
-            setSelectedTaskCategory(category);
-          } catch (error) {
-            console.error('Failed to classify task:', error);
-            setSelectedTaskCategory('Work'); // Default fallback
-          }
-        } else {
-          setSelectedTaskCategory(null);
-        }
-      } else {
-        setSelectedTaskCategory(null);
-      }
-    };
-
-    if (inProgressTasks.length > 0 && selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
-      classifySelectedTask();
-    } else {
-      setSelectedTaskCategory(null);
-    }
-  }, [selectedTask, inProgressTasks]);
+  // Use custom hook for task classification
+  const selectedTaskCategory = useTaskClassification(selectedTask, inProgressTasks);
 
   // Handle external timer start requests
   useEffect(() => {
@@ -102,7 +76,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
-      setSelectedTaskCategory(null);
+      // selectedTaskCategory is automatically reset by useTaskClassification hook
 
       // Refresh related data
       const year = selectedDate.getFullYear();
@@ -158,7 +132,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
-      setSelectedTaskCategory(null);
+      // selectedTaskCategory is automatically reset by useTaskClassification hook
 
       // Refresh related data
       const year = selectedDate.getFullYear();

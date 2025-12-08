@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@efficio/ui';
 import { Plus } from 'lucide-react';
 import { Category } from '../types';
 import { sessionsApi, isTimeApiReady } from '../services/timeApi';
-import { classifyTitle, classifyTitleToCategoryId } from '../lib/classification';
+import { classifyTitleToCategoryId } from '../lib/classification';
 import { useTasksStore } from '../store/slices/tasksSlice';
 import { toast } from 'sonner';
+import { useTaskClassification } from '../hooks/useTaskClassification';
 
 interface ManualTimeEntryProps {
   onSave: () => void;
@@ -18,7 +19,6 @@ const CUSTOM_TASK_VALUE = '__custom__';
 export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: ManualTimeEntryProps) {
   const [selectedTask, setSelectedTask] = useState<string>(CUSTOM_TASK_VALUE);
   const [customTitle, setCustomTitle] = useState('');
-  const [selectedTaskCategory, setSelectedTaskCategory] = useState<Category | null>(null);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
   const [loading, setLoading] = useState(false);
@@ -29,34 +29,8 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
   // Filter to only show in-progress tasks
   const inProgressTasks = tasks.filter(task => task.status === 'in-progress');
 
-  // Classify selected task when it changes (if it's a regular task)
-  useEffect(() => {
-    const classifySelectedTask = async () => {
-      if (selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
-        const task = inProgressTasks.find(t => t.id === selectedTask);
-        if (task) {
-          try {
-            // Pass task to classification - it will use task.category if available
-            const category = await classifyTitle(task.title, task);
-            setSelectedTaskCategory(category);
-          } catch (error) {
-            console.error('Failed to classify task:', error);
-            setSelectedTaskCategory('Work'); // Default fallback
-          }
-        } else {
-          setSelectedTaskCategory(null);
-        }
-      } else {
-        setSelectedTaskCategory(null);
-      }
-    };
-
-    if (inProgressTasks.length > 0 && selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
-      classifySelectedTask();
-    } else {
-      setSelectedTaskCategory(null);
-    }
-  }, [selectedTask, inProgressTasks]);
+  // Use custom hook for task classification
+  const selectedTaskCategory = useTaskClassification(selectedTask, inProgressTasks);
 
   const handleSave = async () => {
     // Determine title and task
@@ -130,7 +104,7 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
-      setSelectedTaskCategory(null);
+      // selectedTaskCategory is automatically reset by useTaskClassification hook
       setStartTime('09:00');
       setEndTime('10:00');
       
