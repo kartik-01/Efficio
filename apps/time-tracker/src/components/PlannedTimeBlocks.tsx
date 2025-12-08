@@ -11,8 +11,8 @@ import { useSessionsStore } from '../store/slices/sessionsSlice';
 import { useSummaryStore } from '../store/slices/summarySlice';
 import { toast } from 'sonner';
 
-// Time-tracker uses a subset of SYSTEM_CATEGORIES
-const TIME_TRACKER_CATEGORIES: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
+// Time-tracker now uses all SYSTEM_CATEGORIES
+const TIME_TRACKER_CATEGORIES: Category[] = ['Work', 'Personal', 'Errands', 'Design', 'Engineering', 'Marketing', 'Finance', 'Rest', 'Health', 'Learning', 'Admin', 'Other'];
 const CATEGORIES: Category[] = TIME_TRACKER_CATEGORIES;
 const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0-23 hours
 
@@ -162,27 +162,39 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
         let category: Category = 'Work';
         
         if (task.category) {
-          // Map task.category to Category type
-          const categoryMap: Record<string, Category> = {
+          // Map task.category to Category type (all SYSTEM_CATEGORIES are valid)
+        const categoryMap: Record<string, Category> = {
             'Work': 'Work',
+            'Personal': 'Personal',
+            'Errands': 'Errands',
+            'Design': 'Design',
+            'Engineering': 'Engineering',
+            'Marketing': 'Marketing',
+            'Finance': 'Finance',
+            'Rest': 'Rest',
+            'Health': 'Health',
             'Learning': 'Learning',
             'Admin': 'Admin',
-            'Health': 'Health',
-            'Personal': 'Personal',
-            'Rest': 'Rest',
+            'Other': 'Other',
           };
           category = categoryMap[task.category] || 'Work';
         } else {
           // Fall back to timePlanning.categoryId if task doesn't have category
           const categoryId = timePlanning.categoryId || 'work';
           const categoryIdMap: Record<string, Category> = {
-            'work': 'Work',
+          'work': 'Work',
+          'personal': 'Personal',
+            'errands': 'Errands',
+            'design': 'Design',
+            'engineering': 'Engineering',
+            'marketing': 'Marketing',
+            'finance': 'Finance',
+          'rest': 'Rest',
+            'health': 'Health',
             'learning': 'Learning',
             'admin': 'Admin',
-            'health': 'Health',
-            'personal': 'Personal',
-            'rest': 'Rest',
-          };
+            'other': 'Other',
+        };
           category = categoryIdMap[categoryId] || 'Work';
         }
 
@@ -292,11 +304,17 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
           // Map task.category to categoryId
           const categoryToIdMap: Record<string, string> = {
             'Work': 'work',
+            'Personal': 'personal',
+            'Errands': 'errands',
+            'Design': 'design',
+            'Engineering': 'engineering',
+            'Marketing': 'marketing',
+            'Finance': 'finance',
+            'Rest': 'rest',
+            'Health': 'health',
             'Learning': 'learning',
             'Admin': 'admin',
-            'Health': 'health',
-            'Personal': 'personal',
-            'Rest': 'rest',
+            'Other': 'other',
           };
           categoryId = categoryToIdMap[task.category] || 'work';
         } else {
@@ -987,13 +1005,19 @@ interface PlannedBlockOverlayProps {
 
 function PlannedBlockOverlay({ block, style, hasActiveSession, isEdited, isAutoPlanned, onEdit, onStartNow, onStopTimer, onMarkDone, onDeleteBlock }: PlannedBlockOverlayProps) {
   const getCategoryColorClass = (category: Category) => {
-    const colors = {
+    const colors: Record<Category, string> = {
       Work: 'bg-blue-500/20 dark:bg-blue-500/20 border-blue-500/50 dark:border-blue-500/50 text-blue-700 dark:text-blue-300',
+      Personal: 'bg-green-500/20 dark:bg-green-500/20 border-green-500/50 dark:border-green-500/50 text-green-700 dark:text-green-300',
+      Errands: 'bg-orange-500/20 dark:bg-orange-500/20 border-orange-500/50 dark:border-orange-500/50 text-orange-700 dark:text-orange-300',
+      Design: 'bg-pink-500/20 dark:bg-pink-500/20 border-pink-500/50 dark:border-pink-500/50 text-pink-700 dark:text-pink-300',
+      Engineering: 'bg-teal-500/20 dark:bg-teal-500/20 border-teal-500/50 dark:border-teal-500/50 text-teal-700 dark:text-teal-300',
+      Marketing: 'bg-yellow-500/20 dark:bg-yellow-500/20 border-yellow-500/50 dark:border-yellow-500/50 text-yellow-700 dark:text-yellow-300',
+      Finance: 'bg-indigo-500/20 dark:bg-indigo-500/20 border-indigo-500/50 dark:border-indigo-500/50 text-indigo-700 dark:text-indigo-300',
+      Rest: 'bg-amber-500/20 dark:bg-amber-500/20 border-amber-500/50 dark:border-amber-500/50 text-amber-700 dark:text-amber-300',
+      Health: 'bg-emerald-500/20 dark:bg-emerald-500/20 border-emerald-500/50 dark:border-emerald-500/50 text-emerald-700 dark:text-emerald-300',
       Learning: 'bg-purple-500/20 dark:bg-purple-500/20 border-purple-500/50 dark:border-purple-500/50 text-purple-700 dark:text-purple-300',
       Admin: 'bg-gray-500/20 dark:bg-gray-500/20 border-gray-500/50 dark:border-gray-500/50 text-gray-700 dark:text-gray-300',
-      Health: 'bg-green-500/20 dark:bg-green-500/20 border-green-500/50 dark:border-green-500/50 text-green-700 dark:text-green-300',
-      Personal: 'bg-pink-500/20 dark:bg-pink-500/20 border-pink-500/50 dark:border-pink-500/50 text-pink-700 dark:text-pink-300',
-      Rest: 'bg-amber-500/20 dark:bg-amber-500/20 border-amber-500/50 dark:border-amber-500/50 text-amber-700 dark:text-amber-300',
+      Other: 'bg-gray-500/20 dark:bg-gray-500/20 border-gray-500/50 dark:border-gray-500/50 text-gray-700 dark:text-gray-300',
     };
     return colors[category];
   };

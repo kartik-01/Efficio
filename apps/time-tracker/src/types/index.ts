@@ -1,4 +1,4 @@
-export type Category = 'Work' | 'Learning' | 'Admin' | 'Health' | 'Personal' | 'Rest';
+export type Category = 'Work' | 'Personal' | 'Errands' | 'Design' | 'Engineering' | 'Marketing' | 'Finance' | 'Rest' | 'Health' | 'Learning' | 'Admin' | 'Other';
 
 export type TaskStatus = 'todo' | 'in-progress' | 'done';
 
