@@ -1,51 +1,8 @@
-// API base URL
-declare const process: {
-  env: {
-    API_BASE_URL?: string;
-  };
-};
+import { API_BASE_URL, getHeaders, handleResponse, initializeApi, isApiReady } from '@efficio/api';
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
-
-// Token getter function type - will be set by initializeActivityApi
-let getAccessToken: (() => Promise<string | undefined>) | null = null;
-let isInitialized = false;
-
-// Initialize activityApi with Auth0 token getter
-export const initializeActivityApi = (tokenGetter: () => Promise<string | undefined>) => {
-  getAccessToken = tokenGetter;
-  isInitialized = true;
-};
-
-// Check if activityApi is ready
-export const isActivityApiReady = () => isInitialized && getAccessToken !== null;
-
-// Helper function to get headers with authorization
-const getHeaders = async (): Promise<HeadersInit> => {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (!getAccessToken) {
-    console.error('getAccessToken function is not initialized - API calls will fail');
-    throw new Error('Authentication not initialized. Please refresh the page.');
-  }
-
-  try {
-    const token = await getAccessToken();
-    if (token && token.trim()) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      console.error('Token getter returned empty/undefined token');
-      throw new Error('Failed to retrieve access token. Please login again.');
-    }
-  } catch (error) {
-    console.error('Failed to get access token:', error);
-    throw error;
-  }
-
-  return headers;
-};
+// Backward compatibility: Re-export shared functions with activity-specific names
+export const initializeActivityApi = initializeApi;
+export const isActivityApiReady = isApiReady;
 
 export interface Activity {
   _id?: string;

@@ -17,7 +17,9 @@
       "@efficio/ui": ["packages/ui/src"],
       "@efficio/ui/*": ["packages/ui/src/*"],
       "@efficio/theme": ["packages/theme/src"],
-      "@efficio/theme/*": ["packages/theme/src/*"]
+      "@efficio/theme/*": ["packages/theme/src/*"],
+      "@efficio/api": ["packages/api/src"],
+      "@efficio/api/*": ["packages/api/src/*"]
     }
   },
   "include": ["apps", "packages", "tailwind.config.js"],
