@@ -10,7 +10,9 @@ export interface Activity {
   taskTitle?: string;
   taskId?: string;
   userId: string;
-  userName: string;
+  userName?: string | null;
+  userEmail?: string | null;
+  userInitials?: string | null;
   userPicture?: string | null; // Profile picture for the user who performed the activity
   timestamp: string;
   fromStatus?: 'pending' | 'in-progress' | 'completed';
@@ -29,6 +31,38 @@ interface RightSidebarProps {
 export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, groups = [], isMobile = false }: RightSidebarProps) {
   const { user: auth0User } = useAuth0();
   const currentUserId = auth0User?.sub || '';
+
+  const fallbackColors = [
+    'bg-blue-500 dark:bg-blue-600',
+    'bg-purple-500 dark:bg-purple-600',
+    'bg-green-500 dark:bg-green-600',
+    'bg-orange-500 dark:bg-orange-600',
+    'bg-pink-500 dark:bg-pink-600',
+    'bg-teal-500 dark:bg-teal-600',
+    'bg-amber-500 dark:bg-amber-600',
+  ];
+
+  const computeInitials = (value?: string | null) => {
+    if (!value) return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    const namePortion = trimmed.includes('@') ? trimmed.split('@')[0] : trimmed;
+    const parts = namePortion.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const getColorForUser = (seed?: string | null) => {
+    if (!seed) return fallbackColors[0];
+    let hash = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = (hash << 5) - hash + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % fallbackColors.length;
+    return fallbackColors[idx];
+  };
 
   return (
     <div className="flex flex-col h-full space-y-4 overflow-hidden">
@@ -63,11 +97,16 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
               <p className="text-[#4a5565] dark:text-muted-foreground text-[13px]">No activity yet</p>
             </div>
           ) : (
-            activities.map((activity, index) => {
+            activities.map((activity) => {
               const isCurrentUser = activity.userId === currentUserId;
-              const userAvatarColor = isCurrentUser 
-                ? 'bg-indigo-500 dark:bg-indigo-600' 
-                : ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][index % 5];
+              const baseName = activity.userName || activity.userEmail || '';
+              const displayName = isCurrentUser ? 'You' : (baseName || 'Someone');
+              const initials = (activity.userInitials || computeInitials(baseName) || '??').slice(0, 2).toUpperCase();
+              const avatarColorClass = activity.userPicture
+                ? 'bg-gray-200 dark:bg-gray-700'
+                : isCurrentUser
+                  ? 'bg-indigo-500 dark:bg-indigo-600'
+                  : getColorForUser(activity.userId || baseName || activity.id);
               
               return (
                 <motion.div
@@ -79,20 +118,26 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
                   className="flex gap-3 p-3 bg-gray-50 dark:bg-muted/30 rounded-[8px] border border-gray-100 dark:border-transparent"
                 >
                   <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                    {activity.userPicture && <AvatarImage src={activity.userPicture} alt={activity.userName} />}
-                    <AvatarFallback className={`${userAvatarColor} text-white text-[11px]`}>
-                      {isCurrentUser ? 'You' : activity.userName.split(' ').map((n: string) => n[0]).join('')}
+                    {activity.userPicture && <AvatarImage src={activity.userPicture} alt={baseName || 'Activity user'} />}
+                    <AvatarFallback className={`${avatarColorClass} text-white text-[11px]`}>
+                      {isCurrentUser ? 'You' : initials}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-[#101828] dark:text-foreground text-[12px] leading-[16px]">
-                      <span className="font-semibold">{activity.userName}</span>
+                      <span className="font-semibold">{displayName}</span>
                       {activity.type === 'task_moved' ? (
                         <>
-                          {' '}moved from{' '}
+                          {' '}moved{' '}
+                          {activity.taskTitle ? (
+                            <span className="font-medium">"{activity.taskTitle}"</span>
+                          ) : (
+                            <span>the task</span>
+                          )}
+                          {' '}from{' '}
                           <span className="font-medium text-indigo-500 dark:text-indigo-400 capitalize">{activity.fromStatus?.replace('-', ' ')}</span>
                           {' '}→{' '}
-                          <span className="font-medium text-green-500 dark:text-green-400 capitalize">{activity.toStatus?.replace('-', ' ')}</span>
+                          <span className="font-medium text-green-700 dark:text-green-500 capitalize">{activity.toStatus?.replace('-', ' ')}</span>
                         </>
                       ) : activity.type === 'task_created' ? (
                         <>
