@@ -183,28 +183,30 @@ export interface CreateSessionData {
 // Sessions API
 export const sessionsApi = {
   // Get running session
-  // Returns null if no session is running (404 is expected and handled silently)
+  // Returns null if no session is running
+  // Backend now returns 200 with null data instead of 404 to avoid console errors
   async getRunning(): Promise<Session | null> {
     const headers = await getHeaders();
     try {
       const response = await fetch(`${API_BASE_URL}/time/sessions/running`, { headers });
       
-      // 404 means no running session - this is normal, return null silently
-      if (response.status === 404) {
-        return null;
-      }
-      
-      // For other non-ok responses, return null (don't throw)
       if (!response.ok) {
+        // Handle any unexpected errors
         return null;
       }
       
-      const session = await handleResponse<Session>(response);
+      const result = await handleResponse<Session | null>(response);
+      
+      // If backend returns null, no session is running
+      if (!result) {
+        return null;
+      }
+      
       return {
-        ...session,
-        id: session._id || session.id || '',
-        startTime: typeof session.startTime === 'string' ? new Date(session.startTime) : session.startTime,
-        endTime: session.endTime ? (typeof session.endTime === 'string' ? new Date(session.endTime) : session.endTime) : null,
+        ...result,
+        id: result._id || result.id || '',
+        startTime: typeof result.startTime === 'string' ? new Date(result.startTime) : result.startTime,
+        endTime: result.endTime ? (typeof result.endTime === 'string' ? new Date(result.endTime) : result.endTime) : null,
       };
     } catch (error) {
       // Network errors or other issues - return null silently
