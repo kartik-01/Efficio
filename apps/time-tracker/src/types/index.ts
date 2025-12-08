@@ -7,6 +7,7 @@ export interface Task {
   title: string;
   status: TaskStatus;
   category?: string; // Category from task manager
+  dueDate?: string; // Due date string (format may vary)
   fromTime?: string; // HH:mm format
   toTime?: string; // HH:mm format
   groupTag?: string; // Group/Workspace tag
