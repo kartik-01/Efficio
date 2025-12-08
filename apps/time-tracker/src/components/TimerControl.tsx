@@ -46,7 +46,8 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
         const task = inProgressTasks.find(t => t.id === selectedTask);
         if (task) {
           try {
-            const category = await classifyTitle(task.title);
+            // Pass task to classification - it will use task.category if available
+            const category = await classifyTitle(task.title, task);
             setSelectedTaskCategory(category);
           } catch (error) {
             console.error('Failed to classify task:', error);
@@ -126,13 +127,14 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
   const handleStart = async () => {
     if (!selectedTask) return;
 
-    // Handle custom task
+    // Handle custom task (adhoc - always classify)
     if (selectedTask === CUSTOM_TASK_VALUE) {
       if (!customTitle.trim()) {
         toast.error('Please enter a title');
         return;
       }
 
+      // Adhoc sessions should always be classified
       const category = await classifyTitle(customTitle.trim());
       await startTimerForTask('', customTitle.trim(), category);
       return;
@@ -142,8 +144,8 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
     const task = inProgressTasks.find(t => t.id === selectedTask);
     if (!task) return;
 
-    // Classify the task title for automatic category detection
-    const category = await classifyTitle(task.title);
+    // Pass task to classification - it will use task.category if available, otherwise classify
+    const category = await classifyTitle(task.title, task);
     await startTimerForTask(task.id, task.title, category);
   };
 

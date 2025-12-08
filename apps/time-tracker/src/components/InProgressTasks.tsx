@@ -43,7 +43,8 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
       
       for (const task of inProgressTasks) {
         try {
-          const category = await classifyTitle(task.title);
+          // Pass task to classification - it will use task.category if available
+          const category = await classifyTitle(task.title, task);
           categoryMap[task.id] = category;
         } catch (error) {
           console.error(`Failed to classify task ${task.id}:`, error);
