@@ -24,7 +24,8 @@ const createSharedConfig = () => {
     if (!pkg.dependencies?.[name]) return;
     shared[name] = {
       singleton: true,
-      requiredVersion: pkg.dependencies[name]
+      requiredVersion: pkg.dependencies[name],
+      eager: ["react", "react-dom"].includes(name)
     };
   };
 
