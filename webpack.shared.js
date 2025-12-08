@@ -40,7 +40,8 @@ const createSharedConfig = () => {
 
 const resolveWorkspaceAliases = {
   "@efficio/ui": path.resolve(__dirname, "packages/ui/src"),
-  "@efficio/theme": path.resolve(__dirname, "packages/theme/src")
+  "@efficio/theme": path.resolve(__dirname, "packages/theme/src"),
+  "@efficio/api": path.resolve(__dirname, "packages/api/src")
 };
 
 module.exports = {

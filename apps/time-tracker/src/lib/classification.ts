@@ -11,14 +11,14 @@ export function mapTaskCategoryToCategory(taskCategory?: string): Category | nul
   
   // Direct match (case-insensitive)
   const normalized = taskCategory.trim();
-  const validCategories: Category[] = ['Work', 'Learning', 'Admin', 'Health', 'Personal', 'Rest'];
+  // All SYSTEM_CATEGORIES are now valid time-tracker categories
+  const validCategories: Category[] = ['Work', 'Personal', 'Errands', 'Design', 'Engineering', 'Marketing', 'Finance', 'Rest', 'Health', 'Learning', 'Admin', 'Other'];
   
   // Check for exact match (case-insensitive)
   const match = validCategories.find(cat => cat.toLowerCase() === normalized.toLowerCase());
   if (match) return match;
   
-  // If it's a valid system category but not a time-tracker category, return null
-  // This means we should classify it
+  // If category doesn't match any valid category, return null (should classify)
   return null;
 }
 
@@ -45,6 +45,7 @@ export async function classifyTitle(title: string, task?: Task): Promise<Categor
     const categoryId = result.categoryId || 'work';
     
     // Map backend category to frontend Category type
+    // Note: Backend may only return a subset, map to closest match
     const categoryMap: Record<string, Category> = {
       'work': 'Work',
       'learning': 'Learning',
@@ -52,6 +53,13 @@ export async function classifyTitle(title: string, task?: Task): Promise<Categor
       'health': 'Health',
       'personal': 'Personal',
       'rest': 'Rest',
+      // Map other backend categories if they exist
+      'finance': 'Finance',
+      'design': 'Design',
+      'engineering': 'Engineering',
+      'marketing': 'Marketing',
+      'errands': 'Errands',
+      'other': 'Other',
     };
     
     return categoryMap[categoryId] || 'Work';
@@ -75,11 +83,17 @@ export async function classifyTitleToCategoryId(title: string, task?: Task): Pro
       // Convert Category to categoryId (lowercase)
       const categoryIdMap: Record<Category, string> = {
         'Work': 'work',
+        'Personal': 'personal',
+        'Errands': 'errands',
+        'Design': 'design',
+        'Engineering': 'engineering',
+        'Marketing': 'marketing',
+        'Finance': 'finance',
+        'Rest': 'rest',
+        'Health': 'health',
         'Learning': 'learning',
         'Admin': 'admin',
-        'Health': 'health',
-        'Personal': 'personal',
-        'Rest': 'rest',
+        'Other': 'other',
       };
       return categoryIdMap[mappedCategory] || 'work';
     }

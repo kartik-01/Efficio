@@ -1,4 +1,4 @@
-export type Category = 'Work' | 'Learning' | 'Admin' | 'Health' | 'Personal' | 'Rest';
+export type Category = 'Work' | 'Personal' | 'Errands' | 'Design' | 'Engineering' | 'Marketing' | 'Finance' | 'Rest' | 'Health' | 'Learning' | 'Admin' | 'Other';
 
 export type TaskStatus = 'todo' | 'in-progress' | 'done';
 
@@ -7,6 +7,7 @@ export interface Task {
   title: string;
   status: TaskStatus;
   category?: string; // Category from task manager
+  dueDate?: string; // Due date string (format may vary)
   fromTime?: string; // HH:mm format
   toTime?: string; // HH:mm format
   groupTag?: string; // Group/Workspace tag

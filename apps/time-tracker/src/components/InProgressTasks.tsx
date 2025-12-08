@@ -125,6 +125,28 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
     return d.toISOString().split('T')[0];
   };
 
+  // Check if a task is overdue based on the selected date
+  const isTaskOverdue = (task: Task): boolean => {
+    if (!task.dueDate) return false;
+    
+    try {
+      // Parse the dueDate - it could be in various formats (YYYY-MM-DD, MM/DD/YYYY, etc.)
+      // Try to parse it as a date
+      const dueDate = new Date(task.dueDate);
+      if (isNaN(dueDate.getTime())) return false; // Invalid date
+      
+      // Normalize both dates to compare just the date part (ignore time)
+      const dueDateStr = normalizeDateToString(dueDate);
+      const selectedDateStr = normalizeDateToString(selectedDate);
+      
+      // Task is overdue if selected date is on or past the due date
+      return selectedDateStr >= dueDateStr;
+    } catch (error) {
+      console.error('Error parsing dueDate:', error);
+      return false;
+    }
+  };
+
   // Find override plan for a task and date (excluding canceled plans)
   const findOverrideForTaskAndDate = (taskId: string, targetDate: Date, plansList: Plan[]): Plan | undefined => {
     const targetDateStr = normalizeDateToString(targetDate);
@@ -311,7 +333,14 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
           >
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
                 <h4 className="text-neutral-900 dark:text-neutral-100 truncate text-sm font-medium">{task.title}</h4>
+                  {isTaskOverdue(task) && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
+                      Overdue
+                    </span>
+                  )}
+                </div>
               </div>
               <span className={`flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs ${getCategoryColor(getTaskCategory(task.id, taskCategories))}`}>
                 {getTaskCategory(task.id, taskCategories)}

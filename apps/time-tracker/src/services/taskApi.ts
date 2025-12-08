@@ -51,6 +51,7 @@ export const taskApi = {
       title: task.title || '',
       status: mapStatus(task.status || 'pending'),
       category: task.category || '', // Include category from task manager
+      dueDate: task.dueDate || '', // Include dueDate from task manager
       groupTag: task.groupTag,
       fromTime: task.fromTime,
       toTime: task.toTime,

@@ -156,11 +156,17 @@ export const calculateDailySummary = (sessions: TimeSession[], date: Date): Dail
 export const getCategoryColor = (category: Category): string => {
   const colors: Record<Category, string> = {
     Work: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    Personal: 'bg-green-500/10 text-green-400 border-green-500/20',
+    Errands: 'bg-orange-400/10 text-orange-400 border-orange-400/20',
+    Design: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+    Engineering: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
+    Marketing: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    Finance: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    Rest: 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20',
+    Health: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     Learning: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     Admin: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    Health: 'bg-green-500/10 text-green-400 border-green-500/20',
-    Personal: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
-    Rest: 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20',
+    Other: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
   };
   return colors[category];
 };
@@ -168,11 +174,17 @@ export const getCategoryColor = (category: Category): string => {
 export const getCategoryCardColor = (category: Category): string => {
   const colors: Record<Category, string> = {
     Work: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/50',
+    Personal: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50',
+    Errands: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800/50',
+    Design: 'bg-pink-50 dark:bg-pink-950/30 border-pink-200 dark:border-pink-800/50',
+    Engineering: 'bg-teal-50 dark:bg-teal-950/30 border-teal-200 dark:border-teal-800/50',
+    Marketing: 'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800/50',
+    Finance: 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800/50',
+    Rest: 'bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800',
+    Health: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/50',
     Learning: 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/50',
     Admin: 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800/50',
-    Health: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50',
-    Personal: 'bg-pink-50 dark:bg-pink-950/30 border-pink-200 dark:border-pink-800/50',
-    Rest: 'bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800',
+    Other: 'bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800/50',
   };
   return colors[category];
 };
