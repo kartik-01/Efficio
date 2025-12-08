@@ -82,6 +82,7 @@ export interface Task {
   assignedTo?: string[]; // Array of user IDs assigned to this task
   assignedUsers?: Array<{ userId: string; name: string; email?: string; picture?: string | null }>; // Assigned user info (for displaying exited users)
   timePlanning?: TimePlanning;
+  documentationLink?: string;
 }
 
 export interface CreateTaskData {
@@ -96,6 +97,7 @@ export interface CreateTaskData {
   isOverdue?: boolean;
   groupTag?: string; // Group/Workspace tag (e.g., "@personal", "@web-ui")
   assignedTo?: string[]; // Array of user IDs assigned to this task
+  documentationLink?: string;
 }
 
 export interface UpdateTaskData {
@@ -120,10 +122,6 @@ export const taskApi = {
     if (groupTag) {
       url += `?groupTag=${encodeURIComponent(groupTag)}`;
     }
-    
-    console.log('Making request to:', url);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(url, {
       headers,
@@ -184,9 +182,6 @@ export const taskApi = {
   // Update task
   async updateTask(id: string, data: UpdateTaskData): Promise<Task> {
     const headers = await getHeaders();
-    console.log('Making PUT request to:', `${API_BASE_URL}/tasks/${id}`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'PUT',
@@ -211,9 +206,6 @@ export const taskApi = {
   // Update task status
   async updateTaskStatus(id: string, status: 'pending' | 'in-progress' | 'completed'): Promise<{ task: Task; activity?: any }> {
     const headers = await getHeaders();
-    console.log('Making PATCH request to:', `${API_BASE_URL}/tasks/${id}/status`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}/status`, {
       method: 'PATCH',
@@ -239,9 +231,6 @@ export const taskApi = {
   // Update task progress
   async updateTaskProgress(id: string, progress: number): Promise<Task> {
     const headers = await getHeaders();
-    console.log('Making PATCH request to:', `${API_BASE_URL}/tasks/${id}/progress`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}/progress`, {
       method: 'PATCH',
@@ -266,9 +255,6 @@ export const taskApi = {
   // Delete task
   async deleteTask(id: string): Promise<void> {
     const headers = await getHeaders();
-    console.log('Making DELETE request to:', `${API_BASE_URL}/tasks/${id}`);
-    const headersObj = headers as Record<string, string>;
-    console.log('Headers include Authorization:', !!headersObj['Authorization']);
     
     const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'DELETE',

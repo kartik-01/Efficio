@@ -23,13 +23,12 @@ import { Badge, ScrollArea, Separator, Avatar, AvatarImage, AvatarFallback, Tool
 import { taskApi } from '../services/taskApi';
 import { activityApi } from '../services/activityApi';
 import { useAuth0 } from '@auth0/auth0-react';
+import { SYSTEM_CATEGORIES, getCategoryColor } from '@efficio/ui';
 
 // Types are now imported from LeftSidebar component
 
 // Mock groups data (temporarily hardcoded)
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
-
-import { SYSTEM_CATEGORIES, getCategoryColor } from '../utils/categories';
 
 declare const process: {
   env: {
@@ -88,10 +87,12 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
     status: 'pending',
     dueDate: '',
     progress: 20,
+    documentationLink: '',
   });
   // Modal category selection state (system categories + 'Other')
   const [categorySelection, setCategorySelection] = useState<string>('');
   const [includeProgress, setIncludeProgress] = useState(false);
+  const [includeDocumentation, setIncludeDocumentation] = useState(false);
   const [allowBackdate, setAllowBackdate] = useState(false);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [isCollapsing, setIsCollapsing] = useState(false);
@@ -686,7 +687,9 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
       dueDate: task.dueDate || '',
       progress: task.progress || 20,
       assignedTo: task.assignedTo || [],
+      documentationLink: task.documentationLink || '',
     });
+    setIncludeDocumentation(!!task.documentationLink);
     // If the task has a past due date, default to allowing backdate so edits don't get rejected
     const parseLocalDate = (s: string) => {
       try {
@@ -802,6 +805,46 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
   const handleAddTask = async () => {
     if (!newTask.title?.trim()) return;
 
+    if (!categorySelection) {
+      toast.error('Category Required', {
+        description: 'Please select a category for the task.',
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Validate documentation link if provided
+    if (newTask.documentationLink) {
+      const authorizedDomains = [
+        'docs.google.com',
+        'sheets.google.com',
+        'slides.google.com',
+        'onedrive.live.com',
+        'sharepoint.com',
+        'notion.so',
+        'coda.io'
+      ];
+      
+      try {
+        const url = new URL(newTask.documentationLink);
+        const isAuthorized = authorizedDomains.some(domain => url.hostname.endsWith(domain));
+        
+        if (!isAuthorized) {
+          toast.error('Invalid Documentation Link', {
+            description: 'Please provide a link from an authorized provider (e.g., Google Docs, Microsoft Office, Notion).',
+            duration: 3000,
+          });
+          return;
+        }
+      } catch (e) {
+        toast.error('Invalid URL', {
+          description: 'Please enter a valid URL for the documentation link.',
+          duration: 3000,
+        });
+        return;
+      }
+    }
+
     const computeCategory = () => {
       if (categorySelection) return capitalizeWords(categorySelection);
       return '';
@@ -820,6 +863,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
       progress: includeProgress ? (newTask.progress || 0) : undefined,
       groupTag: selectedGroup || '@personal', // Add groupTag to task
       assignedTo: newTask.assignedTo || [], // Add assignedTo array
+      documentationLink: newTask.documentationLink || '',
     };
 
     try {
@@ -892,6 +936,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
               dueDate: '',
               progress: 20,
               assignedTo: [],
+              documentationLink: '',
             });
             setIncludeProgress(false);
             setAllowBackdate(false);
@@ -1027,10 +1072,12 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
         status: 'pending',
         dueDate: '',
         progress: 20,
+        documentationLink: '',
       });
       setAllowBackdate(false);
       setCategorySelection('');
       setIncludeProgress(false);
+      setIncludeDocumentation(false);
     } catch (error) {
       console.log('🍞 Toast ERROR:', editingTask ? 'Failed to Update Task' : 'Failed to Add Task');
       toast.error(editingTask ? 'Failed to Update Task' : 'Failed to Add Task', {
@@ -1433,7 +1480,6 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
                 {SYSTEM_CATEGORIES.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
-                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1464,6 +1510,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
                     dueDate: '',
                     progress: 20,
                     assignedTo: [],
+                    documentationLink: '',
                   });
                   setIncludeProgress(false);
                   setAllowBackdate(false);
@@ -1796,16 +1843,33 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
                 dueDate: '',
                 progress: 20,
                 assignedTo: [],
+                documentationLink: '',
               });
-                  setCategorySelection('');
+              setCategorySelection('');
               setIncludeProgress(false);
+              setIncludeDocumentation(false);
               setSkipModalAnimation(false);
             }
           }}
         >
+          <style>{`
+            .custom-scrollbar::-webkit-scrollbar {
+              width: 6px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background-color: rgba(156, 163, 175, 0.5);
+              border-radius: 20px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+              background-color: rgba(156, 163, 175, 0.8);
+            }
+          `}</style>
           <DialogContent 
             ref={modalContentRef}
-            className={`overflow-hidden sm:max-w-[500px] ${
+            className={`overflow-hidden sm:w-[600px] max-h-[80vh] overflow-y-auto custom-scrollbar pb-3 ${
               skipModalAnimation 
                 ? 'duration-0 data-[state=closed]:duration-0' 
                 : ''
@@ -1826,9 +1890,9 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
                     {editingTask ? 'Update task details below.' : 'Create a new task by filling out the form below.'}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 pt-4">
               <div className="grid gap-2">
-                <Label htmlFor="title">Task Title</Label>
+                <Label htmlFor="title">Task Title <span className="text-red-500">*</span></Label>
                 <Input
                   id="title"
                   placeholder="Enter task title"
@@ -1849,7 +1913,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category">Category <span className="text-red-500">*</span></Label>
                   <Select
                     value={categorySelection}
                     onValueChange={(value) => {
@@ -1865,12 +1929,11 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
                       {SYSTEM_CATEGORIES.map((c) => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
-                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="priority">Priority</Label>
+                  <Label htmlFor="priority">Priority <span className="text-red-500">*</span></Label>
                   <Select
                     value={newTask.priority || 'Medium'}
                     onValueChange={(value) => setNewTask({ ...newTask, priority: value as Task['priority'] })}
@@ -1909,6 +1972,40 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
                 </div>
               </div>
 
+              <div className="grid gap-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeDocumentation"
+                    checked={includeDocumentation}
+                    onCheckedChange={(checked) => {
+                      setIncludeDocumentation(checked as boolean);
+                      if (!checked) {
+                        setNewTask({ ...newTask, documentationLink: '' });
+                      }
+                    }}
+                  />
+                  <Label htmlFor="includeDocumentation" className="text-sm cursor-pointer">
+                    Include documentation
+                  </Label>
+                </div>
+                
+                {includeDocumentation && (
+                  <div className="pt-2">
+                    <Label htmlFor="documentationLink" className="mb-2 block">Documentation Link</Label>
+                    <Input
+                      id="documentationLink"
+                      placeholder="https://docs.google.com/..."
+                      value={newTask.documentationLink || ''}
+                      onChange={(e) => setNewTask({ ...newTask, documentationLink: e.target.value })}
+                      className="h-[36px] rounded-[8px] border border-gray-200"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Supported: Google Docs, Sheets, Slides, OneDrive, SharePoint, Notion, Coda
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Status field for editing */}
               {editingTask && (
                 <div className="grid gap-2">
@@ -1930,39 +2027,41 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
               )}
               
               {/* Optional Progress */}
-              <div className="flex items-center space-x-2 pt-2">
-                <Checkbox
-                  id="includeProgress"
-                  checked={includeProgress}
-                  onCheckedChange={(checked) => {
-                    setIncludeProgress(checked as boolean);
-                    if (!checked) {
-                      setNewTask({ ...newTask, progress: 20 });
-                    }
-                  }}
-                />
-                <Label htmlFor="includeProgress" className="text-sm cursor-pointer">
-                  Include progress tracking
-                </Label>
-              </div>
-
-              {includeProgress && (
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="progress">Initial Progress</Label>
-                    <span className="text-sm text-purple-600">{newTask.progress || 0}%</span>
-                  </div>
-                  <Slider
-                    id="progress"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={[newTask.progress || 0]}
-                    onValueChange={(value) => setNewTask({ ...newTask, progress: value[0] })}
-                    className="[&_[data-radix-slider-range]]:bg-purple-500 [&_[data-radix-slider-thumb]]:border-purple-500"
+              <div className="grid gap-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeProgress"
+                    checked={includeProgress}
+                    onCheckedChange={(checked) => {
+                      setIncludeProgress(checked as boolean);
+                      if (!checked) {
+                        setNewTask({ ...newTask, progress: 20 });
+                      }
+                    }}
                   />
+                  <Label htmlFor="includeProgress" className="text-sm cursor-pointer">
+                    Include progress tracking
+                  </Label>
                 </div>
-              )}
+
+                {includeProgress && (
+                  <div className="grid gap-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="progress">Initial Progress</Label>
+                      <span className="text-sm text-purple-600">{newTask.progress || 0}%</span>
+                    </div>
+                    <Slider
+                      id="progress"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={[newTask.progress || 0]}
+                      onValueChange={(value) => setNewTask({ ...newTask, progress: value[0] })}
+                      className="[&_[data-radix-slider-range]]:bg-purple-500 [&_[data-radix-slider-thumb]]:border-purple-500"
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Assign To field - only for collaborated groups, visible to admin/editor/owner */}
               {canSeeAssignTo && (
@@ -1993,8 +2092,8 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
 
               <Button
                 onClick={handleAddTask}
-                disabled={!newTask.title?.trim()}
-                className="w-full bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!newTask.title?.trim() || !categorySelection}
+                className="w-full bg-indigo-500 dark:bg-indigo-700 hover:bg-indigo-600 dark:hover:bg-indigo-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingTask ? 'Update Task' : 'Add Task'}
               </Button>

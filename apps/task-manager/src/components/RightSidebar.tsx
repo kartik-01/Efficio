@@ -128,10 +128,16 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
                       <span className="font-semibold">{displayName}</span>
                       {activity.type === 'task_moved' ? (
                         <>
-                          {' '}moved from{' '}
+                          {' '}moved{' '}
+                          {activity.taskTitle ? (
+                            <span className="font-medium">"{activity.taskTitle}"</span>
+                          ) : (
+                            <span>the task</span>
+                          )}
+                          {' '}from{' '}
                           <span className="font-medium text-indigo-500 dark:text-indigo-400 capitalize">{activity.fromStatus?.replace('-', ' ')}</span>
                           {' '}→{' '}
-                          <span className="font-medium text-green-500 dark:text-green-400 capitalize">{activity.toStatus?.replace('-', ' ')}</span>
+                          <span className="font-medium text-green-700 dark:text-green-500 capitalize">{activity.toStatus?.replace('-', ' ')}</span>
                         </>
                       ) : activity.type === 'task_created' ? (
                         <>

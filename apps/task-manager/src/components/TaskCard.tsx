@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDrag } from 'react-dnd';
-import { Calendar, Circle, MoreVertical, Edit, Trash2, Users, ArrowRight } from 'lucide-react';
+import { Calendar, Circle, MoreVertical, Edit, Trash2, Users, ArrowRight, Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { Badge, Progress, Popover, PopoverContent, PopoverTrigger, Slider, Avatar, AvatarImage, AvatarFallback, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@efficio/ui';
@@ -19,6 +19,7 @@ export interface Task {
   groupTag?: string; // Group tag (e.g., '@web-ui', '@personal')
   assignedTo?: string[]; // Array of user IDs assigned to this task
   assignedUsers?: Array<{ userId: string; name: string; email?: string; picture?: string | null }>; // Assigned user info (for displaying exited users)
+  documentationLink?: string;
 }
 
 interface GroupCollaborator {
@@ -52,7 +53,7 @@ interface TaskCardProps {
   disableDrag?: boolean; // Disable dragging (e.g., on mobile)
 }
 
-import { getCategoryColor } from '../utils/categories';
+import { getCategoryColor } from '@efficio/ui';
 
 const priorityColors = {
   High: 'bg-red-100 text-red-800',
@@ -510,6 +511,22 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
           )}
         </div>
       </div>
+      {/* Documentation Link */}
+      {task.documentationLink && (
+        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-muted/30">
+          <a 
+            href={task.documentationLink} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-sm text-blue-600 group"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="font-medium">Documentation</span>
+            <LinkIcon className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </a>
+        </div>
+      )}
+
       {/* Bottom pill: show group name as rounded chip using group's accent color */}
       {isGroupTask && group && showGroupLabel && (
         <div className="mt-1 pt-0.5 border-t border-gray-100 dark:border-muted/30">
