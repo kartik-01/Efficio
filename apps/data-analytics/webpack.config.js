@@ -3,7 +3,7 @@ const createWebpackConfig = require("../../configs/createWebpackConfig");
 
 module.exports = createWebpackConfig({
   appName: "data-analytics",
-  port: process.env.PORT || 3004,
+  port: process.env.PORT || 3003,
   moduleFederation: {
     name: "data_analytics",
     exposes: {
