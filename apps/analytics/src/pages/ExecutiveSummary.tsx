@@ -241,7 +241,7 @@ const getRawDataCache = (): RawDataCache | null => {
     const timestamp = localStorage.getItem(RAW_DATA_TIMESTAMP_KEY);
     
     if (cached && timestamp) {
-      const cacheAge = Date.now() - parseInt(timestamp, 10);
+      const cacheAge = Date.now() - Number.parseInt(timestamp, 10);
       if (cacheAge < CACHE_DURATION) {
         return JSON.parse(cached);
       }
@@ -657,8 +657,8 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
           uniqueCategories.add(task.category.trim());
         }
       });
-      setAvailableProjects(Array.from(uniqueProjects).sort());
-      setAvailableCategories(Array.from(uniqueCategories).sort());
+      setAvailableProjects(Array.from(uniqueProjects).sort((a, b) => a.localeCompare(b)));
+      setAvailableCategories(Array.from(uniqueCategories).sort((a, b) => a.localeCompare(b)));
     }
   }, [dateFilter, projectFilter, categoryFilter, processRawData, timezone]);
 
@@ -723,7 +723,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
             : groupName;
           uniqueProjects.add(displayName);
         });
-        const projectsList = Array.from(uniqueProjects).sort();
+        const projectsList = Array.from(uniqueProjects).sort((a, b) => a.localeCompare(b));
         setAvailableProjects(projectsList);
 
         // Extract unique categories from tasks for the dropdown
@@ -733,7 +733,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
             uniqueCategories.add(task.category.trim());
           }
         });
-        const categoriesList = Array.from(uniqueCategories).sort();
+        const categoriesList = Array.from(uniqueCategories).sort((a, b) => a.localeCompare(b));
         setAvailableCategories(categoriesList);
 
         // Determine effective project filter (reset to 'all' if current selection is no longer available)
