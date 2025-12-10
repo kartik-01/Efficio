@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@efficio/ui';
 import { Plus } from 'lucide-react';
-import { Category } from '../types';
+import { Category, Task } from '../types';
 import { sessionsApi, isTimeApiReady } from '../services/timeApi';
 import { classifyTitle, classifyTitleToCategoryId } from '../lib/classification';
 import { useTasksStore } from '../store/slices/tasksSlice';
@@ -27,13 +27,13 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
   const { tasks, loading: tasksLoading } = useTasksStore();
   
   // Filter to only show in-progress tasks
-  const inProgressTasks = tasks.filter(task => task.status === 'in-progress');
+  const inProgressTasks = tasks.filter((task: Task) => task.status === 'in-progress');
 
   // Classify selected task when it changes (if it's a regular task)
   useEffect(() => {
     const classifySelectedTask = async () => {
       if (selectedTask && selectedTask !== CUSTOM_TASK_VALUE) {
-        const task = inProgressTasks.find(t => t.id === selectedTask);
+        const task = inProgressTasks.find((t: Task) => t.id === selectedTask);
         if (task) {
           try {
             // Pass task to classification - it will use task.category if available
@@ -71,7 +71,7 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
       }
       taskTitle = customTitle.trim();
     } else {
-      task = inProgressTasks.find(t => t.id === selectedTask);
+      task = inProgressTasks.find((t: Task) => t.id === selectedTask);
       if (!task) {
         toast.error('Selected task not found');
         return;
@@ -174,7 +174,7 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
             <SelectItem value={CUSTOM_TASK_VALUE}>
               Worked on something else
             </SelectItem>
-            {inProgressTasks.length > 0 && inProgressTasks.map(task => (
+            {inProgressTasks.length > 0 && inProgressTasks.map((task: Task) => (
               <SelectItem key={task.id} value={task.id}>
                 {task.title}
               </SelectItem>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, Loader2, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Task, Category } from '../types';
+import { Task, Category, TimeSession } from '../types';
 import { Input } from '@efficio/ui';
 import { getCategoryColor, formatDuration } from '../lib/utils';
 import { classifyTitle, classifyTitleToCategoryId } from '../lib/classification';
@@ -86,7 +86,7 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const taskSessions = sessions.filter(s => {
+    const taskSessions = sessions.filter((s: TimeSession) => {
       if (s.taskId !== taskId) return false;
       
       // Check if session overlaps with today
@@ -353,7 +353,7 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
                 const timeSpent = getTaskTimeSpentToday(task.id);
                 const isActive = isTaskActive(task.id);
                 const activeElapsed = getActiveElapsedTime(task.id);
-                const sessionCount = sessions.filter(s => s.taskId === task.id && 
+                const sessionCount = sessions.filter((s: TimeSession) => s.taskId === task.id && 
                   new Date(s.startTime).toDateString() === selectedDate.toDateString()).length;
 
                 return (
