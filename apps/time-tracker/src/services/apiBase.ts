@@ -1,7 +1,7 @@
 // Shared API base functionality for time-tracker app
 
 // API base URL - use environment variable or default to localhost
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+export const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
 
 // Shared token getter function - initialized once for all services within an app
 let getAccessToken: (() => Promise<string | undefined>) | null = null;
