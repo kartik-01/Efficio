@@ -568,7 +568,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
     }
 
     // Build time distribution
-    const timeDistribution = timeSummary.byCategory.map(cat => ({
+    const timeDistribution = (timeSummary.byCategory || []).map(cat => ({
       category: CATEGORY_NAMES[cat.categoryId] || cat.categoryId,
       hours: Math.round((cat.minutes / 60) * 10) / 10,
     }));
@@ -603,7 +603,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
     return {
       tasksCompleted: completedInRange.length,
       totalTasks: tasksInRange.length,
-      focusTime: formatMinutesToTime(timeSummary.focus.deepMinutes),
+      focusTime: formatMinutesToTime(timeSummary.focus?.deepMinutes || 0),
       overdueTasks: overdueTasks.length,
       productivityScore,
       sprintProgress,
@@ -687,10 +687,6 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
       }
 
       try {
-        
-        const headers = await getHeaders();
-        const { start, end } = getDateRange(dateFilter);
-
         // Fetch tasks
         let tasksResponse: Response;
         try {
@@ -754,25 +750,6 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
           setCategoryFilter(effectiveCategoryFilter);
         }
 
-        // Filter tasks by project if a specific project is selected
-        let filteredTasks = tasks;
-        if (effectiveProjectFilter !== 'all') {
-          filteredTasks = filteredTasks.filter(task => {
-            const groupName = task.groupTag || '@personal';
-            const displayName = groupName.startsWith('@') 
-              ? groupName.slice(1).charAt(0).toUpperCase() + groupName.slice(2) 
-              : groupName;
-            return displayName === effectiveProjectFilter;
-          });
-        }
-
-        // Filter tasks by category if a specific category is selected
-        if (effectiveCategoryFilter !== 'all') {
-          filteredTasks = filteredTasks.filter(task => {
-            return task.category && task.category.trim() === effectiveCategoryFilter;
-          });
-        }
-
         // Fetch today's time summary
         const summaryResponse = await fetch(
           `${API_BASE_URL}/time/summary?range=today&tz=${encodeURIComponent(timezone)}`,
@@ -786,304 +763,27 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
 
         // Fetch time sessions for the selected date range
         const sessionsUrl = `${API_BASE_URL}/time/sessions?start=${formatDate(start)}&end=${formatDate(end)}&tz=${encodeURIComponent(timezone)}`;
-        console.log('Fetching sessions from:', sessionsUrl);
-        console.log('Date range:', formatDate(start), 'to', formatDate(end));
         
         const sessionsResponse = await fetch(sessionsUrl, { headers });
         let sessions: TimeSession[] = [];
         if (sessionsResponse.ok) {
           const sessionsResult = await sessionsResponse.json();
-          console.log('Sessions response:', sessionsResult);
           sessions = sessionsResult.data || [];
-        } else {
-          console.log('Sessions fetch failed:', sessionsResponse.status, await sessionsResponse.text());
         }
 
-        // Fetch productivity trend (last 7 days) - single API call with array of dates as query params
-        const trendData: { day: string; value: number }[] = [];
-        const today = new Date();
-        const dates: string[] = [];
-        const dateObjects: Date[] = [];
-        
-        // Build array of dates
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(today.getDate() - i);
-          dates.push(formatDate(date));
-          dateObjects.push(date);
-        }
-        
-        try {
-          // Single GET API call with dates as comma-separated query parameter
-          const datesParam = dates.join(',');
-          const dailyResponse = await fetch(
-            `${API_BASE_URL}/time/summary/daily/batch?dates=${datesParam}&tz=${encodeURIComponent(timezone)}`,
-            { headers }
-          );
-          
-          if (dailyResponse.ok) {
-            const dailyResult = await dailyResponse.json();
-            const dailyDataMap = dailyResult.data || {}; // Expecting { "YYYY-MM-DD": { totalMinutes: number }, ... }
-            
-            // Map response to trend data
-            dateObjects.forEach((date, index) => {
-              const dateStr = dates[index];
-              const dailyData = dailyDataMap[dateStr];
-              trendData.push({
-                day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                value: dailyData?.totalMinutes || 0,
-              });
-            });
-          } else {
-            // Fallback: if batch endpoint doesn't exist, use individual calls
-            console.warn('Batch endpoint not available, falling back to individual calls');
-            for (let i = 0; i < dates.length; i++) {
-              const date = dateObjects[i];
-              const dateStr = dates[i];
-              try {
-                const individualResponse = await fetch(
-                  `${API_BASE_URL}/time/summary/daily?date=${dateStr}&tz=${encodeURIComponent(timezone)}`,
-                  { headers }
-                );
-                if (individualResponse.ok) {
-                  const individualResult = await individualResponse.json();
-                  const dailyData = individualResult.data;
-                  trendData.push({
-                    day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                    value: dailyData?.totalMinutes || 0,
-                  });
-                } else {
-                  trendData.push({
-                    day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                    value: 0,
-                  });
-                }
-              } catch {
-                trendData.push({
-                  day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-                  value: 0,
-                });
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching productivity trend:', error);
-          // Fallback: create empty entries
-          dateObjects.forEach((date) => {
-            trendData.push({
-              day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-              value: 0,
-            });
-          });
-        }
-
-        // Calculate metrics from filtered tasks
-        const now = new Date();
-        const tasksInRange = filteredTasks.filter(task => {
-          const createdAt = new Date(task.createdAt);
-          return createdAt >= start && createdAt <= end;
-        });
-        
-        const completedTasks = filteredTasks.filter(t => t.status === 'completed');
-        const completedInRange = tasksInRange.filter(t => t.status === 'completed');
-        const overdueTasks = filteredTasks.filter(t => 
-          t.dueDate && 
-          new Date(t.dueDate) < now && 
-          t.status !== 'completed'
+        // Use processRawData to compute dashboard data (avoiding code duplication)
+        const dashboardData = processRawData(
+          tasks,
+          sessions,
+          timeSummary,
+          dateFilter,
+          effectiveProjectFilter,
+          effectiveCategoryFilter,
+          timezone
         );
-
-        // Calculate productivity score (completed tasks ratio * 100)
-        const productivityScore = filteredTasks.length > 0 
-          ? Math.round((completedTasks.length / filteredTasks.length) * 100) 
-          : 0;
-
-        // Calculate tasks by status for pie chart
-        const pendingCount = filteredTasks.filter(t => t.status === 'pending').length;
-        const inProgressCount = filteredTasks.filter(t => t.status === 'in-progress').length;
-        const completedCount = completedTasks.length;
-        
-        const tasksByStatus = [
-          { name: 'Pending', value: pendingCount, color: STATUS_COLORS.pending },
-          { name: 'In Progress', value: inProgressCount, color: STATUS_COLORS['in-progress'] },
-          { name: 'Completed', value: completedCount, color: STATUS_COLORS.completed },
-        ].filter(item => item.value > 0); // Only show statuses with tasks
-
-        // Calculate tasks by group with status breakdown
-        const groupMap = new Map<string, { pending: number; inProgress: number; completed: number }>();
-        filteredTasks.forEach(task => {
-          const groupName = task.groupTag || '@personal';
-          // Format group name (remove @ and capitalize)
-          const displayName = groupName.startsWith('@') 
-            ? groupName.slice(1).charAt(0).toUpperCase() + groupName.slice(2) 
-            : groupName;
-          
-          if (!groupMap.has(displayName)) {
-            groupMap.set(displayName, { pending: 0, inProgress: 0, completed: 0 });
-          }
-          const group = groupMap.get(displayName)!;
-          if (task.status === 'pending') group.pending++;
-          else if (task.status === 'in-progress') group.inProgress++;
-          else if (task.status === 'completed') group.completed++;
-        });
-        
-        const tasksByGroup = Array.from(groupMap.entries()).map(([group, counts]) => ({
-          group,
-          pending: counts.pending,
-          inProgress: counts.inProgress,
-          completed: counts.completed,
-        }));
-
-        // Filter time sessions by project if a specific project is selected
-        let filteredSessions = sessions;
-        if (effectiveProjectFilter !== 'all') {
-          filteredSessions = sessions.filter(session => {
-            const groupName = session.groupTag || '@personal';
-            const displayName = groupName.startsWith('@') 
-              ? groupName.slice(1).charAt(0).toUpperCase() + groupName.slice(2) 
-              : groupName;
-            return displayName === effectiveProjectFilter;
-          });
-        }
-
-        // Process time sessions data
-        let totalMinutesTracked = 0;
-        const categoryTimeMap = new Map<string, { minutes: number; sessions: number }>();
-        const dailyTimeMap = new Map<string, number>();
-
-        filteredSessions.forEach(session => {
-          if (session.startTime && session.endTime) {
-            const startTime = new Date(session.startTime);
-            const endTime = new Date(session.endTime);
-            const durationMinutes = Math.max(0, (endTime.getTime() - startTime.getTime()) / 60000);
-            
-            totalMinutesTracked += durationMinutes;
-
-            // Group by category
-            const category = CATEGORY_NAMES[session.categoryId] || session.categoryId || 'Other';
-            if (!categoryTimeMap.has(category)) {
-              categoryTimeMap.set(category, { minutes: 0, sessions: 0 });
-            }
-            const catData = categoryTimeMap.get(category)!;
-            catData.minutes += durationMinutes;
-            catData.sessions += 1;
-
-            // Group by day
-            const dayKey = startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-            dailyTimeMap.set(dayKey, (dailyTimeMap.get(dayKey) || 0) + durationMinutes);
-          }
-        });
-
-        const totalTimeTracked = formatMinutesToTime(Math.round(totalMinutesTracked));
-        const totalSessions = filteredSessions.length;
-        const avgSessionMinutes = totalSessions > 0 ? Math.round(totalMinutesTracked / totalSessions) : 0;
-        const avgSessionDuration = formatMinutesToTime(avgSessionMinutes);
-
-        const sessionsByCategory = Array.from(categoryTimeMap.entries())
-          .map(([category, data]) => ({
-            category,
-            hours: Math.round((data.minutes / 60) * 10) / 10,
-            sessions: data.sessions,
-          }))
-          .sort((a, b) => b.hours - a.hours);
-
-        const dailyTimeTracked = Array.from(dailyTimeMap.entries())
-          .map(([day, minutes]) => ({
-            day,
-            hours: Math.round((minutes / 60) * 10) / 10,
-          }));
-
-        // Build tasks list with dates
-        const tasksList = filteredTasks.map(task => {
-          const groupName = task.groupTag || '@personal';
-          const projectName = groupName.startsWith('@') 
-            ? groupName.slice(1).charAt(0).toUpperCase() + groupName.slice(2) 
-            : groupName;
-          
-          return {
-            title: task.title,
-            project: projectName,
-            category: task.category || 'Uncategorized',
-            status: task.status,
-            createdAt: new Date(task.createdAt).toLocaleString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            completedAt: task.completedAt 
-              ? new Date(task.completedAt).toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : 'NA',
-          };
-        }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        // Build sprint progress (daily breakdown for the week)
-        const sprintProgress: { name: string; planned: number; actual: number }[] = [];
-        const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        for (let i = 0; i < 7; i++) {
-          const date = new Date(start);
-          date.setDate(start.getDate() + i);
-          if (date > end) break;
-          
-          const dayTasks = filteredTasks.filter(t => {
-            const created = new Date(t.createdAt);
-            return created.toDateString() === date.toDateString();
-          });
-          const dayCompleted = dayTasks.filter(t => t.status === 'completed');
-          
-          sprintProgress.push({
-            name: weekDays[date.getDay()],
-            planned: dayTasks.length,
-            actual: dayCompleted.length,
-          });
-        }
-
-        // Build time distribution from categories
-        const timeDistribution = timeSummary.byCategory.map(cat => ({
-          category: CATEGORY_NAMES[cat.categoryId] || cat.categoryId,
-          hours: Math.round((cat.minutes / 60) * 10) / 10,
-        }));
-
-        // Build top performers (current user's stats since backend is per-user)
-        const topPerformers = [{
-          name: 'You',
-          tasks: completedTasks.length,
-          percentage: productivityScore,
-          avatar: 'bg-blue-500',
-        }];
-
-        // Prepare the complete dashboard data
-        const dashboardData: DashboardData = {
-          tasksCompleted: completedInRange.length,
-          totalTasks: tasksInRange.length,
-          focusTime: formatMinutesToTime(timeSummary.focus.deepMinutes),
-          overdueTasks: overdueTasks.length,
-          productivityScore,
-          sprintProgress,
-          topPerformers,
-          productivityTrend: trendData,
-          timeDistribution,
-          tasksByStatus,
-          tasksByGroup,
-          // Time Sessions
-          totalTimeTracked,
-          totalSessions,
-          avgSessionDuration,
-          sessionsByCategory,
-          dailyTimeTracked,
-          // Tasks List
-          tasksList,
-        };
 
         // Update state with all calculated data
         setData(dashboardData);
-
         setLoading(false);
         
         // Save raw data to cache for instant filtering
@@ -1106,7 +806,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
     };
 
     fetchData();
-  }, [dateFilter, projectFilter, categoryFilter, getHeaders, timezone, refreshTrigger]);
+  }, [dateFilter, projectFilter, categoryFilter, getHeaders, timezone, refreshTrigger, processRawData]);
 
   if (loading) {
     return (
