@@ -5,7 +5,6 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const { container } = require("webpack");
 
 const { createSharedConfig, resolveWorkspaceAliases } = require("../webpack.shared");
-const rootPkg = require(path.resolve(__dirname, "../package.json"));
 
 /**
  * Creates a webpack configuration for a micro-frontend application
@@ -22,23 +21,6 @@ function createWebpackConfig(options) {
   const { appName, port, moduleFederation } = options;
   const isProduction = process.env.NODE_ENV === "production";
 
-  const baseShared = createSharedConfig();
-
-  const reactShared = {
-    react: {
-      singleton: true,
-      eager: true,
-      requiredVersion: rootPkg.dependencies?.react
-    },
-    "react-dom": {
-      singleton: true,
-      eager: true,
-      requiredVersion: rootPkg.dependencies?.["react-dom"]
-    }
-  };
-
-  const shared = { ...baseShared, ...reactShared };
-
   return {
     entry: path.resolve(__dirname, `../apps/${appName}/src/index.tsx`),
     mode: isProduction ? "production" : "development",
@@ -49,18 +31,6 @@ function createWebpackConfig(options) {
       path: path.resolve(__dirname, `../apps/${appName}/dist`),
       publicPath: "auto",
       clean: true
-    },
-    performance: {
-      hints: "warning",
-      maxAssetSize: 600 * 1024,
-      maxEntrypointSize: 800 * 1024
-    },
-    optimization: {
-      splitChunks: {
-        chunks: "all",
-        maxInitialRequests: 10,
-        minSize: 30 * 1024
-      }
     },
     resolve: {
       extensions: [".tsx", ".ts", ".jsx", ".js", ".json"],
@@ -107,7 +77,7 @@ function createWebpackConfig(options) {
         filename: "remoteEntry.js",
         ...(moduleFederation.remotes && { remotes: moduleFederation.remotes }),
         ...(moduleFederation.exposes && { exposes: moduleFederation.exposes }),
-        shared
+        shared: createSharedConfig()
       }),
       new HtmlWebpackPlugin({
         template: path.resolve(__dirname, `../apps/${appName}/public/index.html`)
