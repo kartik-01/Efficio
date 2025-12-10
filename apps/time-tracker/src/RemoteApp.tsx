@@ -1,59 +1,71 @@
-import { NavLink, Route, Routes } from "react-router-dom";
-import { CalendarClock, PieChart } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
+import { TodayView } from "./components/TodayView";
+import { initializeApi, isApiReady } from "./services/apiBase";
+import { isTaskApiReady } from "./services/taskApi";
+import { isTimeApiReady } from "./services/timeApi";
 
-import { Card } from "@efficio/ui";
+interface TimeTrackerAppProps {
+  getAccessToken?: () => Promise<string | undefined>;
+}
 
-import { ReportingView } from "./pages/ReportingView";
-import { TimesheetView } from "./pages/TimesheetView";
+export const TimeTrackerApp = ({ getAccessToken: propGetAccessToken }: TimeTrackerAppProps = {}) => {
+  const [apiReady, setApiReady] = useState(false);
+  // Always call the hook - with @auth0/auth0-react in shared modules, context should work
+  // If it fails, the component won't render, but we can provide propGetAccessToken as fallback
+  const auth0 = useAuth0();
 
-const SubNav = () => {
-  const links = [
-    { to: ".", label: "Timesheets", end: true, icon: CalendarClock },
-    { to: "reports", label: "Reports", icon: PieChart }
-  ];
+  // Create a reusable token getter function
+  const tokenGetter = useCallback(async () => {
+    try {
+      // Use prop token getter if provided (from host app - more reliable for module federation)
+      if (propGetAccessToken) {
+        const token = await propGetAccessToken();
+        return token;
+      }
+      
+      // Otherwise use Auth0 hook from context
+      // @ts-ignore - process.env is injected by webpack DefinePlugin at build time
+      const audience: string | undefined = process.env.REACT_APP_AUTH0_AUDIENCE;
+      
+      const options: { authorizationParams?: { audience: string } } = {};
+      if (audience) {
+        options.authorizationParams = { audience };
+      }
+      
+      const token = await auth0.getAccessTokenSilently(options);
+      return token;
+    } catch (error) {
+      console.error("Failed to get access token:", error);
+      return undefined;
+    }
+  }, [propGetAccessToken, auth0]);
 
-  return (
-    <Card className="flex flex-wrap items-center gap-2 bg-white/90">
-      {links.map(({ to, label, end, icon: Icon }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={end}
-          className={({ isActive }) =>
-            [
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all",
-              isActive
-                ? "bg-brand-secondary text-white shadow"
-                : "text-slate-600 hover:bg-slate-100"
-            ].join(" ")
-          }
-        >
-          <Icon className="h-4 w-4" />
-          {label}
-        </NavLink>
-      ))}
-    </Card>
-  );
-};
+  // Initialize API with token getter (prop takes precedence over hook)
+  useEffect(() => {
+    initializeApi(tokenGetter);
+    setApiReady(true);
+  }, [tokenGetter]);
 
-export const TimeTrackerApp = () => {
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold text-slate-900">Time Tracker</h2>
-        <p className="text-sm text-slate-500">
-          Capture billable hours, monitor utilisation, and keep your teams on
-          schedule.
-        </p>
+  // Only render TodayView when API is ready
+  if (!apiReady || !isApiReady()) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-500">Initializing...</p>
       </div>
+    );
+  }
 
-      <SubNav />
-
-      <Routes>
-        <Route index element={<TimesheetView />} />
-        <Route path="reports" element={<ReportingView />} />
-      </Routes>
+  return (
+    <div className="min-h-screen bg-background w-full">
+      <div className="max-w-[1280px] mx-auto w-full">
+        {/* Main Content */}
+        <main className="w-full px-4 py-6 text-neutral-900 dark:text-neutral-100">
+          <TodayView getAccessToken={tokenGetter} />
+        </main>
+      </div>
     </div>
   );
 };
 
+export default TimeTrackerApp;
