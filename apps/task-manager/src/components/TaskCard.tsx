@@ -81,23 +81,6 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
     // Check if user is assigned to the task
     const isAssigned = task.assignedTo?.some(id => id?.trim() === currentUserIdTrimmed) || false;
     
-    // Debug log (only in development)
-    if (process.env.NODE_ENV === 'development' && task.groupTag && task.groupTag !== '@personal') {
-      if (!userOwnsTask && !isAssigned && userRole === 'viewer') {
-        console.debug('Task drag check:', {
-          taskId: task.id,
-          taskTitle: task.title,
-          taskUserId: taskOwnerId,
-          currentUserId: currentUserIdTrimmed,
-          userOwnsTask,
-          isAssigned,
-          assignedTo: task.assignedTo,
-          userRole,
-          canDrag: userOwnsTask || isAssigned
-        });
-      }
-    }
-
     // If userRole is not provided, check directly from group data
     if (!userRole) {
       // Check if user is the group owner

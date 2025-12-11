@@ -767,12 +767,10 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
       const mappedActivities: Activity[] = refreshedActivities.map(mapApiActivityToFrontend);
       setActivities(mappedActivities);
       
-      console.log('🍞 Toast: Task Deleted');
       toast.success('Task Deleted', {
         description: 'The task has been permanently removed from your list.',
         duration: 2000,
       });
-      console.log('🍞 Toast called for Task Deleted');
     } catch (error) {
       toast.error('Failed to Delete Task', {
         description: error instanceof Error ? error.message : 'An unknown error occurred while deleting the task.',
@@ -889,12 +887,10 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
           }
           return newMap;
         });
-        console.log('🍞 Toast: Task Updated');
         toast.success('Task Updated', {
           description: 'Your task has been successfully updated.',
           duration: 2000,
         });
-        console.log('🍞 Toast called for Task Updated');
       } else {
         // Create new task
         savedTask = await taskApi.createTask(taskData);
@@ -943,12 +939,10 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
             setEditingTask(null);
           }, 400); // After modal closing animation completes (0.2s animation + buffer)
           
-          console.log('🍞 Toast: Task Added (fallback path)');
           toast.success('Task Added', {
             description: 'Your new task has been successfully added to the list.',
             duration: 2000,
           });
-          console.log('🍞 Toast called for Task Added (fallback path)');
           
           // Refresh activities after task creation
           const refreshedActivities = await activityApi.getActivities({
@@ -1034,12 +1028,10 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
             }, 450); // Collapse duration - 0.45s for fairly quick (7/10)
           }, 10); // Small delay to render updated state first
 
-          console.log('🍞 Toast: Task Added (with animation)');
           toast.success('Task Added', {
             description: 'Your new task has been successfully added to the list.',
             duration: 2000,
           });
-          console.log('🍞 Toast called for Task Added (with animation)');
           
           // Activities are now fetched from API automatically
           // Refresh activities after task creation
@@ -1079,12 +1071,10 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
       setIncludeProgress(false);
       setIncludeDocumentation(false);
     } catch (error) {
-      console.log('🍞 Toast ERROR:', editingTask ? 'Failed to Update Task' : 'Failed to Add Task');
       toast.error(editingTask ? 'Failed to Update Task' : 'Failed to Add Task', {
         description: error instanceof Error ? error.message : 'An unknown error occurred. Please try again.',
         duration: 2000,
       });
-      console.log('🍞 Toast error called');
     }
   };
 
@@ -2171,8 +2161,6 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
           {isCollapsing && previewTask && pendingColumnRef.current && (() => {
             const previewWidth = pendingColumnRef.current.getBoundingClientRect().width - 32;
             const modalRect = modalContentRef.current?.getBoundingClientRect();
-            console.log('🔍 Preview card render width:', previewWidth);
-            console.log('🔍 Modal rect:', modalRect);
             
             return (
               <motion.div
@@ -2236,7 +2224,6 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
         <AlertDialog 
           open={deleteDialogOpen} 
           onOpenChange={(open) => {
-            console.log('🔍 AlertDialog onOpenChange called with:', open);
             setDeleteDialogOpen(open);
             if (!open) {
               setTaskToDelete(null);
