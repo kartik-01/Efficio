@@ -3,8 +3,8 @@ import { taskApi, isTaskApiReady, initializeTaskApi } from '../taskApi';
 // Mock fetch globally
 global.fetch = jest.fn();
 
-// Mock apiBase
-jest.mock('../apiBase', () => ({
+// Mock @efficio/api
+jest.mock('@efficio/api', () => ({
   API_BASE_URL: 'http://localhost:4000/api',
   getHeaders: jest.fn().mockResolvedValue({
     'Content-Type': 'application/json',
@@ -49,7 +49,7 @@ describe('taskApi', () => {
         },
       ];
 
-      const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
       (handleResponse as jest.Mock).mockResolvedValueOnce(mockTasks);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -74,7 +74,7 @@ describe('taskApi', () => {
         },
       ];
 
-      const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
       (handleResponse as jest.Mock).mockResolvedValueOnce(mockTasks);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -98,7 +98,7 @@ describe('taskApi', () => {
         { _id: '3', title: 'Completed', status: 'completed' },
       ];
 
-      const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
       (handleResponse as jest.Mock).mockResolvedValueOnce(mockTasks);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -122,7 +122,7 @@ describe('taskApi', () => {
         category: 'Work',
       };
 
-      const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
       (handleResponse as jest.Mock).mockResolvedValueOnce(mockUpdatedTask);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({

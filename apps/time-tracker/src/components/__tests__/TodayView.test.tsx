@@ -16,7 +16,7 @@ jest.mock('../../store/slices/summarySlice');
 jest.mock('../../store/slices/uiSlice');
 
 // Mock services
-jest.mock('../../services/apiBase', () => ({
+jest.mock('@efficio/api', () => ({
   initializeApi: jest.fn(),
   isApiReady: jest.fn().mockReturnValue(true),
 }));

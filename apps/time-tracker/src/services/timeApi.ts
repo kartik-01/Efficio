@@ -1,5 +1,5 @@
 import { Category } from '../types';
-import { API_BASE_URL, getHeaders, handleResponse, initializeApi, isApiReady } from './apiBase';
+import { API_BASE_URL, getHeaders, handleResponse, initializeApi, isApiReady } from '@efficio/api';
 
 // Re-export for backward compatibility
 export const initializeTimeApi = initializeApi;

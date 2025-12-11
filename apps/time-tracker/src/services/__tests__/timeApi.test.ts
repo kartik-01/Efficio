@@ -3,8 +3,8 @@ import { sessionsApi, plansApi, timeApi, isTimeApiReady, initializeTimeApi } fro
 // Mock fetch globally
 global.fetch = jest.fn();
 
-// Mock apiBase
-jest.mock('../apiBase', () => ({
+// Mock @efficio/api
+jest.mock('@efficio/api', () => ({
   API_BASE_URL: 'http://localhost:4000/api',
   getHeaders: jest.fn().mockResolvedValue({
     'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ describe('timeApi', () => {
         });
 
         // Mock handleResponse to return the session
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockSession);
 
         const result = await sessionsApi.getRunning();
@@ -78,7 +78,7 @@ describe('timeApi', () => {
           startTime: '2024-01-01T09:00:00Z',
         };
 
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockSession);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -107,7 +107,7 @@ describe('timeApi', () => {
           endTime: '2024-01-01T10:00:00Z',
         };
 
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockSession);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -139,7 +139,7 @@ describe('timeApi', () => {
           },
         ];
 
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockSessions);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -169,7 +169,7 @@ describe('timeApi', () => {
           },
         ];
 
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockPlans);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -194,7 +194,7 @@ describe('timeApi', () => {
           status: 'scheduled',
         };
 
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockPlan);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -222,7 +222,7 @@ describe('timeApi', () => {
           source: 'ml',
         };
 
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockResponse);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -249,7 +249,7 @@ describe('timeApi', () => {
           },
         };
 
-        const { handleResponse } = require('../apiBase');
+        const { handleResponse } = require('@efficio/api');
         (handleResponse as jest.Mock).mockResolvedValueOnce(mockSummary);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({

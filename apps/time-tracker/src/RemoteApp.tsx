@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { TodayView } from "./components/TodayView";
-import { initializeApi, isApiReady } from "./services/apiBase";
-import { isTaskApiReady } from "./services/taskApi";
-import { isTimeApiReady } from "./services/timeApi";
+import { initializeTaskApi, isTaskApiReady } from "./services/taskApi";
+import { initializeTimeApi, isTimeApiReady } from "./services/timeApi";
 
 interface TimeTrackerAppProps {
   getAccessToken?: () => Promise<string | undefined>;
@@ -41,14 +40,15 @@ export const TimeTrackerApp = ({ getAccessToken: propGetAccessToken }: TimeTrack
     }
   }, [propGetAccessToken, auth0]);
 
-  // Initialize API with token getter (prop takes precedence over hook)
+  // Initialize all APIs with token getter (prop takes precedence over hook)
   useEffect(() => {
-    initializeApi(tokenGetter);
+    initializeTaskApi(tokenGetter);
+    initializeTimeApi(tokenGetter);
     setApiReady(true);
   }, [tokenGetter]);
 
-  // Only render TodayView when API is ready
-  if (!apiReady || !isApiReady()) {
+  // Only render TodayView when all APIs are ready
+  if (!apiReady || !isTaskApiReady() || !isTimeApiReady()) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-gray-500">Initializing...</p>
