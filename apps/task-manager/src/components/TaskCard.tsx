@@ -404,12 +404,26 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
             <span className="text-sm text-gray-600 dark:text-muted-foreground">{localProgress}%</span>
           </div>
           {isDragging ? (
-            <Progress value={localProgress} className="h-2 [&>div]:bg-indigo-500" />
+            <Progress
+              value={localProgress}
+              className="h-2 [&>div]:bg-indigo-500"
+              aria-label={`Progress for ${task.title}`}
+            />
           ) : (
             <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
               <PopoverTrigger asChild>
-                <div className="cursor-pointer hover:opacity-80 transition-opacity">
-                  <Progress value={localProgress} className="h-2 [&>div]:bg-indigo-500" />
+                <div
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                  role="button"
+                  aria-label={`Adjust progress for ${task.title}`}
+                  aria-haspopup="dialog"
+                  aria-expanded={isPopoverOpen}
+                >
+                  <Progress
+                    value={localProgress}
+                    className="h-2 [&>div]:bg-indigo-500"
+                    aria-label={`Progress for ${task.title}`}
+                  />
                 </div>
               </PopoverTrigger>
               <PopoverContent className="w-64 bg-white dark:bg-popover" onClick={(e) => e.stopPropagation()}>
@@ -446,7 +460,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
                           <TooltipTrigger asChild>
                             <Avatar className={`h-5 w-5 border-2 border-white dark:border-card ${user.isExited ? 'opacity-50' : ''}`}>
                               {user.picture && <AvatarImage src={user.picture} alt={user.name} />}
-                              <AvatarFallback className={`text-white text-[9px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][allAssignedUsers.indexOf(user) % 5]}`}>
+                              <AvatarFallback className={`text-gray-900 font-semibold text-[9px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][allAssignedUsers.indexOf(user) % 5]}`}>
                                 {user.isExited ? '?' : user.name.split(' ').map((n: string) => n[0]).join('')}
                               </AvatarFallback>
                             </Avatar>

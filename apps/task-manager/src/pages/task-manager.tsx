@@ -1459,7 +1459,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
 
             {/* Priority Filter */}
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-full md:w-[140px]">
+              <SelectTrigger className="w-full md:w-[140px]" aria-label="Filter by priority">
                 <SelectValue placeholder="All Priorities" />
               </SelectTrigger>
               <SelectContent>
@@ -1472,7 +1472,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
 
             {/* Category Filter */}
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-[155px]">
+              <SelectTrigger className="w-full md:w-[155px]" aria-label="Filter by category">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
@@ -1485,7 +1485,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
 
             {/* Sort By */}
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="w-full md:w-[180px]" aria-label="Sort tasks">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
@@ -1799,6 +1799,7 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
                     variant="outline"
                     size="sm"
                     className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
+                    aria-label="Show activity"
                   >
                     <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
                   </Button>

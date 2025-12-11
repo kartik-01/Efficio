@@ -79,6 +79,7 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
                 variant="outline"
                 size="sm"
                 className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
+                aria-label="Hide activity"
               >
                 <ChevronRight className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
               </Button>
@@ -119,7 +120,7 @@ export function RightSidebar({ activities, onToggleCollapse, formatTimestamp, gr
                 >
                   <Avatar className="h-7 w-7 shrink-0 mt-0.5">
                     {activity.userPicture && <AvatarImage src={activity.userPicture} alt={baseName || 'Activity user'} />}
-                    <AvatarFallback className={`${avatarColorClass} text-white text-[11px]`}>
+                    <AvatarFallback className={`${avatarColorClass} text-gray-900 font-semibold text-[11px]`}>
                       {isCurrentUser ? 'You' : initials}
                     </AvatarFallback>
                   </Avatar>

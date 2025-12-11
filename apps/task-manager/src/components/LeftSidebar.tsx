@@ -501,6 +501,7 @@ export function LeftSidebar({
                 variant="outline"
                 size="sm"
                 className="w-[44px] h-[36px] p-0 rounded-[8px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
+                  aria-label="Expand sidebar"
               >
                 <ChevronRight className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
               </Button>
@@ -521,6 +522,7 @@ export function LeftSidebar({
                 variant="outline"
                 size="sm"
                 className="w-[44px] h-[44px] p-0 rounded-[10px] border-gray-200 dark:border-transparent cursor-pointer"
+                  aria-label="Create workspace"
               >
                 <Plus className="h-5 w-5" />
               </Button>
@@ -809,6 +811,7 @@ export function LeftSidebar({
                                           className={`text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground ${isMobile ? 'p-1' : 'p-0.5'} transition-colors cursor-pointer`}
                                           role="button"
                                           tabIndex={0}
+                                          aria-label={`Manage group ${group.name}`}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter' || e.key === ' ') {
                                               e.preventDefault();
@@ -836,6 +839,7 @@ export function LeftSidebar({
                                           className={`text-gray-400 dark:text-muted-foreground hover:text-red-500 dark:hover:text-destructive ${isMobile ? 'p-1' : 'p-0.5'} transition-colors cursor-pointer`}
                                           role="button"
                                           tabIndex={0}
+                                          aria-label={`Delete group ${group.name}`}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter' || e.key === ' ') {
                                               e.preventDefault();
@@ -863,6 +867,7 @@ export function LeftSidebar({
                                           className={`text-gray-400 dark:text-muted-foreground hover:text-orange-500 dark:hover:text-orange-400 ${isMobile ? 'p-1' : 'p-0.5'} transition-colors cursor-pointer`}
                                           role="button"
                                           tabIndex={0}
+                                          aria-label={`Leave group ${group.name}`}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter' || e.key === ' ') {
                                               e.preventDefault();
