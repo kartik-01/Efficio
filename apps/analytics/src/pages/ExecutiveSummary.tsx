@@ -567,10 +567,10 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
       });
     }
 
-    // Build time distribution
-    const timeDistribution = (timeSummary.byCategory || []).map(cat => ({
-      category: CATEGORY_NAMES[cat.categoryId] || cat.categoryId,
-      hours: Math.round((cat.minutes / 60) * 10) / 10,
+    // Build time distribution from filtered sessions (respects date filter)
+    const timeDistribution = sessionsByCategory.map(cat => ({
+      category: cat.category,
+      hours: cat.hours,
     }));
 
     // Build top performers
@@ -880,20 +880,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
           </div>
         </div>
         
-        {/* Right side: Refresh Button */}
-        <div className="flex items-end">
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors h-fit"
-            title="Refresh data from server"
-          >
-            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
+
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
@@ -1006,7 +993,9 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Time Distribution</h3>
-            <p className="text-sm text-gray-500">Hours by category (today)</p>
+            <p className="text-sm text-gray-500">
+              Hours by category ({dateFilterOptions.find(opt => opt.value === dateFilter)?.label || 'selected period'})
+            </p>
               </div>
           {data.timeDistribution.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
@@ -1020,7 +1009,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[250px] text-gray-500">
-              No time categories tracked today
+              No time categories tracked for this period
             </div>
           )}
         </div>
