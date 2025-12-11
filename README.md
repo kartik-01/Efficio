@@ -83,15 +83,13 @@ pnpm test:coverage
 ```
 
 ## Screenshots
-
-<img width="1893" height="881" alt="Screenshot 2025-12-11 at 3 01 08 PM" src="https://github.com/user-attachments/assets/dd8380c8-1064-4046-8f60-104ff7fa8261" />
-
-```
 Task Manager
 <img width="1893" height="881" alt="Screenshot 2025-12-11 at 3 01 08 PM" src="https://github.com/user-attachments/assets/dd8380c8-1064-4046-8f60-104ff7fa8261" />
 
+
 Time Tracker
 <img width="1885" height="879" alt="Screenshot 2025-12-11 at 3 01 24 PM" src="https://github.com/user-attachments/assets/0ca9040a-9b5c-4b89-9c53-a027fa6d727d" />
+
 
 Analytics
 <img width="1894" height="879" alt="Screenshot 2025-12-11 at 3 01 40 PM" src="https://github.com/user-attachments/assets/d0bdd489-4377-4985-a980-8a017136d67e" />
