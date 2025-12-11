@@ -26,12 +26,14 @@ describe('bootstrap', () => {
     jest.clearAllMocks();
     
     // Mock document.getElementById
+    // Create elements dynamically based on ID to avoid always returning the same value
     const mockGetElementById = jest.fn((id: string) => {
       if (id === 'root') {
         const div = document.createElement('div');
-        div.id = 'root';
+        div.id = id;
         return div;
       }
+      // Return null for other IDs (different behavior for different IDs)
       return null;
     });
     

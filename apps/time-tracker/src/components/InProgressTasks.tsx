@@ -130,7 +130,7 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
     
     try {
       const dueDate = new Date(task.dueDate);
-      if (isNaN(dueDate.getTime())) return false;
+      if (Number.isNaN(dueDate.getTime())) return false;
       
       const dueDateStr = normalizeDateToString(dueDate);
       const selectedDateStr = normalizeDateToString(selectedDate);

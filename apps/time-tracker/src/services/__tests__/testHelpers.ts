@@ -55,3 +55,19 @@ export const mockFetchResponse = (data: any, ok = true, status = 200) => {
   });
 };
 
+/**
+ * Sets up common beforeEach for API tests
+ * Initializes the API with a mock token getter
+ */
+export const setupApiTest = (initializeFn: (tokenGetter: () => Promise<string | undefined>) => void) => {
+  const mockTokenGetter = jest.fn().mockResolvedValue('mock-token');
+  
+  beforeEach(() => {
+    jest.clearAllMocks();
+    initializeFn(mockTokenGetter);
+    (global.fetch as jest.Mock).mockClear();
+  });
+  
+  return mockTokenGetter;
+};
+

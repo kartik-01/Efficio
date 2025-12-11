@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { TimeTrackerApp } from '../RemoteApp';
 import { useAuth0 } from '@auth0/auth0-react';
-import { initializeApi, isApiReady } from '../services/apiBase';
+import { initializeApi, isApiReady } from '@efficio/api';
 
 // Mock Auth0
 jest.mock('@auth0/auth0-react', () => ({
@@ -14,7 +14,7 @@ jest.mock('../components/TodayView', () => ({
 }));
 
 // Mock API services
-jest.mock('../services/apiBase', () => ({
+jest.mock('@efficio/api', () => ({
   initializeApi: jest.fn(),
   isApiReady: jest.fn(),
 }));

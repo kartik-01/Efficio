@@ -6,7 +6,7 @@ import { SummaryStrip } from './SummaryStrip';
 import { SessionTimeline } from './SessionTimeline';
 import { PlannedTimeBlocks } from './PlannedTimeBlocks';
 import { InProgressTasks } from './InProgressTasks';
-import { initializeApi, isApiReady } from '../services/apiBase';
+import { initializeApi, isApiReady } from '@efficio/api';
 import { isTaskApiReady } from '../services/taskApi';
 import { isTimeApiReady } from '../services/timeApi';
 import { useSessionsStore } from '../store/slices/sessionsSlice';

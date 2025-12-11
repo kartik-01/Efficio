@@ -115,7 +115,7 @@ jest.mock('@efficio/ui', () => {
         min={min}
         max={max}
         value={value?.[0] || 0}
-        onChange={(e) => onValueChange?.([parseInt(e.target.value)])}
+        onChange={(e) => onValueChange?.([Number.parseInt(e.target.value)])}
         data-testid="slider"
       />
     ),
