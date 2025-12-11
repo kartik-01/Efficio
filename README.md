@@ -96,6 +96,8 @@ All changes were reviewed by the team before commiting.
 
 ## Collaboration
 Commit history shows contributions from all teammates. Useful commands to view per-collaborator work locally:
-   131  Kartik Chindarkar
-    33  Srishti Bankar
-    9  Ankit Anand
+- 131  Kartik Chindarkar
+
+- 33  Srishti Bankar
+
+- 9  Ankit Anand
