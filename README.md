@@ -11,8 +11,6 @@ Unified workspace for the Efficio frontend micro-apps (dashboard shell, task man
 
 ## Project Structure
 - `Efficio/` – Frontend mono-repo (pnpm, Webpack, Jest, Tailwind).
-- `efficio-backend/` – Express/MongoDB API, Auth0 JWT auth, cron jobs.
-- `reference/` – Reference UI and architecture notes.
 
 ## Prerequisites
 - Node.js (LTS recommended)
@@ -25,9 +23,6 @@ Unified workspace for the Efficio frontend micro-apps (dashboard shell, task man
 cd Efficio
 pnpm install
 
-# install backend deps
-cd ../efficio-backend
-npm install
 ```
 
 ## Running (Frontend)
@@ -94,10 +89,10 @@ Time Tracker
 Analytics
 <img width="1894" height="879" alt="Screenshot 2025-12-11 at 3 01 40 PM" src="https://github.com/user-attachments/assets/d0bdd489-4377-4985-a980-8a017136d67e" />
 
-```
 
 ## AI Tooling Disclosure
-Portions of this repository were authored and refactored with assistance from AI coding tools (GitHub Copilot / GPT-5.1-Codex-Max Preview). All changes were reviewed by the team before commiting.
+Portions of this repository were authored and refactored with assistance from AI coding tools (GitHub Copilot / GPT-5.1-Codex-Max Preview). 
+All changes were reviewed by the team before commiting.
 
 ## Collaboration
 Commit history shows contributions from all teammates. Useful commands to view per-collaborator work locally:
