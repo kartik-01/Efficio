@@ -122,24 +122,15 @@ export const plansApi = {
   async deletePlan(planId: string): Promise<void> {
     const headers = await getHeaders();
     
-    console.log('[plansApi.deletePlan] Deleting plan:', planId);
-    console.log('[plansApi.deletePlan] URL:', `${API_BASE_URL}/time/plans/${planId}`);
-    
     const response = await fetch(`${API_BASE_URL}/time/plans/${planId}`, {
       method: 'DELETE',
       headers,
     });
     
-    console.log('[plansApi.deletePlan] Response status:', response.status);
-    
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
-      console.error('[plansApi.deletePlan] Error response:', result);
       throw new Error(result.message || result.error || `Failed to delete plan: ${response.status}`);
     }
-    
-    const result = await response.json().catch(() => ({}));
-    console.log('[plansApi.deletePlan] Success:', result);
   },
 
   // Classify title to get category

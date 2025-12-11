@@ -32,16 +32,6 @@ export const taskApi = {
     
     const result = await handleResponse<any>(response);
     
-    // Map _id to id for frontend compatibility and map status values
-    // Backend uses: 'pending' | 'in-progress' | 'completed'
-    // Frontend uses: 'todo' | 'in-progress' | 'done'
-    const mapStatus = (status: string): 'todo' | 'in-progress' | 'done' => {
-      if (status === 'completed') return 'done';
-      if (status === 'pending') return 'todo';
-      if (status === 'in-progress') return 'in-progress';
-      return 'todo'; // default
-    };
-
     // Handle both wrapped { data: [...] } and direct array responses
     const tasks = Array.isArray(result) ? result : (result.data || []);
     

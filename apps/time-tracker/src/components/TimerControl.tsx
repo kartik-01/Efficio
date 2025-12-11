@@ -28,7 +28,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
   const [pulseKey, setPulseKey] = useState(0);
 
   // Zustand stores
-  const { tasks, loading: tasksLoading } = useTasksStore(); // No more duplicate fetching!
+  const { tasks, loading: tasksLoading } = useTasksStore();
   const { activeSession, startSession, stopSession, fetchActiveSession } = useSessionsStore();
   const { selectedDate } = useUIStore();
   const { fetchPlans } = usePlansStore();
@@ -76,7 +76,6 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
-      // selectedTaskCategory is automatically reset by useTaskClassification hook
 
       // Refresh related data
       const year = selectedDate.getFullYear();
@@ -88,7 +87,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       
       const { fetchSessions } = useSessionsStore.getState();
       await Promise.all([
-        fetchSessions(dateStr, tz), // Refresh sessions to show the new active session
+        fetchSessions(dateStr, tz),
         fetchPlans(dateStr, tz),
         fetchSummary(dateStr, tz, isToday),
       ]);
@@ -132,7 +131,6 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
-      // selectedTaskCategory is automatically reset by useTaskClassification hook
 
       // Refresh related data
       const year = selectedDate.getFullYear();
@@ -144,7 +142,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       
       const { fetchSessions } = useSessionsStore.getState();
       await Promise.all([
-        fetchSessions(dateStr, tz), // Refresh sessions to show the completed session
+        fetchSessions(dateStr, tz),
         fetchPlans(dateStr, tz),
         fetchSummary(dateStr, tz, isToday),
       ]);
@@ -412,3 +410,4 @@ function getTimerFillClass(category: Category): string {
   };
   return colors[category];
 }
+

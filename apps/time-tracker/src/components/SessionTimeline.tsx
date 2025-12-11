@@ -24,7 +24,7 @@ export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelin
   const { fetchPlans } = usePlansStore();
   const { fetchSummary } = useSummaryStore();
 
-  // Fetch sessions when selectedDate changes (as a safety measure, though TodayView also does this)
+  // Fetch sessions when selectedDate changes
   useEffect(() => {
     if (!isTimeApiReady()) return;
     
@@ -38,7 +38,6 @@ export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelin
   }, [selectedDate, fetchSessions]);
 
   const handleSave = async () => {
-    // Refresh sessions, plans, and summary after manual entry
     const year = selectedDate.getFullYear();
     const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const day = String(selectedDate.getDate()).padStart(2, '0');
@@ -63,7 +62,6 @@ export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelin
 
     try {
       await deleteSession(sessionId);
-      // Refresh related data
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
@@ -87,7 +85,6 @@ export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelin
 
     try {
       await updateSession(sessionId, { ...updates, selectedDate } as any);
-      // Refresh related data
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
@@ -96,7 +93,7 @@ export function SessionTimeline({ selectedDate, getAccessToken }: SessionTimelin
       const isToday = selectedDate.toDateString() === new Date().toDateString();
       
       await Promise.all([
-        fetchSessions(dateStr, tz), // Refresh sessions list to show updated session
+        fetchSessions(dateStr, tz),
         fetchActiveSession(),
         fetchSummary(dateStr, tz, isToday),
       ]);
@@ -236,7 +233,6 @@ function SessionCard({
 
     if (!onEdit) return;
 
-    // If endTime is empty for ongoing session, use current time
     let endTime = editForm.endTime;
     if (!endTime && isOngoing) {
       const now = new Date();
@@ -262,7 +258,6 @@ function SessionCard({
       setEditForm(prev => ({ ...prev, categoryId }));
     } catch (error) {
       console.error('Failed to classify title:', error);
-      // Don't show error, just keep current category
     } finally {
       setClassifying(false);
     }
@@ -383,7 +378,6 @@ function SessionCard({
                 value={editForm.taskTitle}
                 onChange={(e) => {
                   setEditForm(prev => ({ ...prev, taskTitle: e.target.value }));
-                  // Auto-classify on blur
                   if (e.target.value.trim()) {
                     setTimeout(() => handleClassifyTitle(), 500);
                   }
@@ -452,3 +446,4 @@ function SessionCard({
     </>
   );
 }
+

@@ -1,6 +1,5 @@
 import { Category, Task } from '../types';
 import { plansApi } from '../services/timeApi';
-import { SYSTEM_CATEGORIES } from '@efficio/ui';
 
 /**
  * Map task category string to Category type

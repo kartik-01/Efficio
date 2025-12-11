@@ -104,7 +104,6 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
       // Reset form
       setSelectedTask(CUSTOM_TASK_VALUE);
       setCustomTitle('');
-      // selectedTaskCategory is automatically reset by useTaskClassification hook
       setStartTime('09:00');
       setEndTime('10:00');
       
@@ -224,3 +223,4 @@ export function ManualTimeEntry({ onSave, selectedDate, getAccessToken }: Manual
     </div>
   );
 }
+

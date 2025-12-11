@@ -152,3 +152,4 @@ export const deletePlannedBlock = (id: string) => {
   const filteredBlocks = blocks.filter(b => b.id !== id);
   savePlannedBlocks(filteredBlocks);
 };
+

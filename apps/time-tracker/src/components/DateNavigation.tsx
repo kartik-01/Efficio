@@ -79,3 +79,4 @@ export function DateNavigation({ selectedDate, onDateChange }: DateNavigationPro
     </div>
   );
 }
+

@@ -46,8 +46,20 @@ export const usePlansStore = create<PlansState>((set, get) => ({
   
   updatePlan: async (id: string, updates: Partial<Plan>) => {
     try {
+      // Convert Date objects to ISO strings for API
+      const apiUpdates: any = { ...updates };
+      if (apiUpdates.startTime instanceof Date) {
+        apiUpdates.startTime = apiUpdates.startTime.toISOString();
+      }
+      if (apiUpdates.endTime instanceof Date) {
+        apiUpdates.endTime = apiUpdates.endTime.toISOString();
+      }
+      if (apiUpdates.instanceDate instanceof Date) {
+        apiUpdates.instanceDate = apiUpdates.instanceDate.toISOString().split('T')[0];
+      }
+      
       // Get the updated plan from the API (it returns the full updated plan with proper Date objects)
-      const updatedPlan = await plansApi.updatePlan(id, updates);
+      const updatedPlan = await plansApi.updatePlan(id, apiUpdates);
       
       // Update the store with the returned plan (which has proper Date objects)
       set(state => ({

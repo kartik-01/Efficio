@@ -58,3 +58,4 @@ export interface DailySummary {
   focusMinutes: number;
   topCategory: Category | null;
 }
+

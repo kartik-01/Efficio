@@ -14,7 +14,6 @@ import { useTasksStore } from '../store/slices/tasksSlice';
 import { usePlansStore } from '../store/slices/plansSlice';
 import { useSummaryStore } from '../store/slices/summarySlice';
 import { useUIStore } from '../store/slices/uiSlice';
-import { toast } from 'sonner';
 
 interface TodayViewProps {
   getAccessToken?: () => Promise<string | undefined>;
@@ -61,7 +60,6 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
   }, [getAccessToken]);
 
   // Only fetch active session when window regains focus (user switches back to app)
-  // This minimizes 404s - we don't check on every mount/date change
   useEffect(() => {
     if (!isTimeApiReady()) return;
     
@@ -69,7 +67,6 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
     
     const handleFocus = () => {
       if (isToday) {
-        // Only check when viewing today and window regains focus
         fetchActiveSession().catch(() => {
           // Silently handle - 404 is expected when no session is running
         });
@@ -78,7 +75,6 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
     
     // Check once on mount if viewing today
     if (isToday) {
-      // Small delay to avoid double-fetch in StrictMode
       const timeoutId = setTimeout(() => {
         fetchActiveSession().catch(() => {
           // Silently handle - 404 is expected when no session is running
@@ -92,11 +88,9 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
         window.removeEventListener('focus', handleFocus);
       };
     } else {
-      // For past/future dates, clear any active session state
       useSessionsStore.getState().setActiveSession(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]); // Re-run when date changes
+  }, [selectedDate]);
 
   // Fetch all data when date changes or on initial load
   useEffect(() => {
@@ -109,7 +103,6 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const isToday = selectedDate.toDateString() === new Date().toDateString();
     
-    // Fetch all data in parallel (active session is handled separately above)
     Promise.all([
       fetchSessions(dateStr, tz),
       fetchTasks(),
@@ -118,21 +111,18 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
     ]);
   }, [selectedDate, fetchSessions, fetchTasks, fetchPlans, fetchSummary]);
 
-  // Update timer display every second (but don't refetch from backend)
-  // This updates a timestamp that triggers SummaryStrip to recalculate aggregated summary
-  // with current time for running sessions
+  // Update timer display every second
   useEffect(() => {
     if (!activeSession) return;
     
     const interval = setInterval(() => {
-      updateTimerTick(); // Update timestamp to trigger recalculation
+      updateTimerTick();
     }, 1000);
     return () => clearInterval(interval);
   }, [activeSession, updateTimerTick]);
 
   const handleStartTimerFromTask = (taskId: string, taskTitle: string, category: Category) => {
     setExternalTimerStart({ taskId, taskTitle, category });
-    // Reset after a short delay to allow the effect to trigger
     setTimeout(() => setExternalTimerStart(null), 100);
   };
 
@@ -141,7 +131,6 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
       await updateTask(taskId, { fromTime, toTime });
     } catch (error) {
       console.error('Failed to update task time:', error);
-      // Error is already handled in the store
     }
   };
 
@@ -179,3 +168,4 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
     </div>
   );
 }
+

@@ -1,6 +1,11 @@
 // Jest setup file for React Testing Library
 require('@testing-library/jest-dom');
 
+// Polyfill TextEncoder and TextDecoder for Auth0
+const { TextEncoder, TextDecoder } = require('util');
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
