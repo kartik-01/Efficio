@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { PlannedBlock, Category } from '../types';
 import { formatTime, getCategoryColor } from '../lib/utils';
 import { classifyTitleToCategoryId } from '../lib/classification';
@@ -35,12 +35,19 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
   const { activeSession, startSession, stopSession, fetchActiveSession } = useSessionsStore();
   const { fetchSummary } = useSummaryStore();
 
-  const dateStr = useMemo(() => {
+  // Helper function to get date string and timezone for API calls
+  const getDateStrAndTz = useCallback(() => {
     const year = selectedDate.getFullYear();
     const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const day = String(selectedDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const dateStr = `${year}-${month}-${day}`;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return { dateStr, tz };
   }, [selectedDate]);
+
+  const dateStr = useMemo(() => {
+    return getDateStrAndTz().dateStr;
+  }, [getDateStrAndTz]);
 
   const normalizeDateToString = (date: Date | string): string => {
     const d = typeof date === 'string' ? new Date(date) : date;
@@ -86,14 +93,9 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
   useEffect(() => {
     if (!isTimeApiReady()) return;
     
-    const year = selectedDate.getFullYear();
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(selectedDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    
+    const { dateStr, tz } = getDateStrAndTz();
     fetchPlans(dateStr, tz);
-  }, [selectedDate, fetchPlans]);
+  }, [selectedDate, fetchPlans, getDateStrAndTz]);
 
   const mergedBlocks = useMemo(() => {
     const virtualBlocks: PlannedBlock[] = [];
@@ -324,12 +326,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
       setEditingBlock(null);
       setNewBlock({ title: '', startTime: '', endTime: '' });
       
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
+      const { dateStr, tz } = getDateStrAndTz();
       await fetchPlans(dateStr, tz);
       
       toast.success(editingBlock ? 'Plan updated' : 'Plan created');
@@ -352,12 +349,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
 
       await startSession(block.taskId || null, block.title, block.category);
 
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
+      const { dateStr, tz } = getDateStrAndTz();
       await fetchPlans(dateStr, tz);
       
       toast.success('Timer started');
@@ -376,12 +368,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
     try {
       await stopSession();
 
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
+      const { dateStr, tz } = getDateStrAndTz();
       await fetchPlans(dateStr, tz);
       
       toast.success('Timer stopped');
@@ -402,12 +389,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
         await deletePlan(block.planId);
       }
 
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      
+      const { dateStr, tz } = getDateStrAndTz();
       await fetchPlans(dateStr, tz);
       
       toast.success('Plan deleted');
@@ -445,11 +427,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
       }
 
       // Refresh plans and sessions
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const { dateStr, tz } = getDateStrAndTz();
       const isToday = selectedDate.toDateString() === new Date().toDateString();
       
       const { fetchSessions } = useSessionsStore.getState();
