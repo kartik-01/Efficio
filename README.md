@@ -84,6 +84,8 @@ pnpm test:coverage
 
 ## Screenshots
 
+<img width="1893" height="881" alt="Screenshot 2025-12-11 at 3 01 08 PM" src="https://github.com/user-attachments/assets/dd8380c8-1064-4046-8f60-104ff7fa8261" />
+
 ```
 Task Manager
 <img width="1893" height="881" alt="Screenshot 2025-12-11 at 3 01 08 PM" src="https://github.com/user-attachments/assets/dd8380c8-1064-4046-8f60-104ff7fa8261" />
