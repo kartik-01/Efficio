@@ -350,6 +350,7 @@ export const Navbar = ({
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('toggleMobileSidebar'));
               }}
+              aria-label="Toggle sidebar"
             >
               <Menu className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
             </button>
@@ -388,6 +389,7 @@ export const Navbar = ({
                         ? "bg-indigo-500 dark:bg-indigo-700 text-white border border-indigo-500 dark:border-indigo-700"
                         : "text-gray-600 dark:text-muted-foreground hover:text-gray-900 dark:hover:text-foreground hover:bg-gray-100 dark:hover:bg-accent"
                     }`}
+                    aria-label={`Navigate to ${tab.label}`}
                   >
                     {tab.label}
                   </button>
@@ -414,6 +416,7 @@ export const Navbar = ({
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('toggleMobileActivity'));
                 }}
+                aria-label="Toggle activity panel"
               >
                 <History className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
               </button>
@@ -428,6 +431,9 @@ export const Navbar = ({
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ duration: 0.15 }}
+                    aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                    aria-haspopup="menu"
+                    aria-expanded={showNotifications}
                   >
                     <Bell className="h-5 w-5 text-gray-600 dark:text-muted-foreground" />
                     {unreadCount > 0 && (

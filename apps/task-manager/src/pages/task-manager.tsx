@@ -1361,11 +1361,11 @@ export function TaskManager({ getAccessToken: getAccessTokenProp }: TaskManagerP
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex -space-x-2 cursor-help">
+                    <div className="flex -space-x-2 cursor-help" aria-label="Workspace members">
                       {acceptedCollaborators.slice(0, 5).map((collab, i) => (
                         <Avatar key={collab.userId} className="h-8 w-8 border-2 border-white dark:border-card">
                           {collab.picture && <AvatarImage src={collab.picture} alt={collab.name} />}
-                          <AvatarFallback className={`text-white text-[11px] ${['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500'][i % 5]}`}>
+                          <AvatarFallback className={`text-gray-900 font-semibold text-[11px] ${['bg-blue-400', 'bg-purple-300', 'bg-green-300', 'bg-orange-300', 'bg-pink-300'][i % 5]}`}>
                             {collab.name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>

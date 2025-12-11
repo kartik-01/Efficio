@@ -581,6 +581,7 @@ export function LeftSidebar({
                             onToggleCollapse();
                           }
                         }}
+                        aria-label={`Select workspace ${group.name}`}
                         className={`relative w-[44px] h-[44px] rounded-[10px] flex items-center justify-center transition-colors cursor-pointer ${
                           selectedGroup === group.tag
                             ? 'bg-gray-100 dark:bg-accent'
@@ -634,6 +635,7 @@ export function LeftSidebar({
                     variant="outline"
                     size="sm"
                     className="p-2 h-[32px] w-[32px] rounded-[6px] border-gray-200 dark:border-transparent hover:bg-gray-100 dark:hover:bg-accent cursor-pointer"
+                    aria-label="Collapse sidebar"
                   >
                     <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-muted-foreground" />
                   </Button>

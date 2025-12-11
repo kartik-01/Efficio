@@ -393,7 +393,7 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
       </div>
       {/* group label removed from here to keep card compact; shown at bottom instead */}
 
-      <p className={`text-sm text-gray-600 dark:text-muted-foreground mb-4 ${task.status === 'completed' ? 'line-through' : ''}`}>
+      <p className={`text-sm ${task.isOverdue ? 'text-gray-800' : 'text-gray-700'} dark:text-muted-foreground mb-4 ${task.status === 'completed' ? 'line-through' : ''}`}>
         {task.description}
       </p>
 
@@ -502,9 +502,9 @@ export function TaskCard({ task, group, currentUserId, userRole, onProgressChang
 
         <div className="flex items-center gap-2 ml-auto">
           {task.dueDate && (
-            <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-600 dark:text-destructive' : task.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-muted-foreground'}`}>
-              <Calendar className="h-3.5 w-3.5" />
-              <span>{task.dueDate}</span>
+            <div className={`flex items-center gap-1.5 text-sm ${task.isOverdue ? 'text-red-700 dark:text-destructive' : task.status === 'completed' ? 'text-emerald-700 dark:text-green-400' : 'text-gray-700 dark:text-muted-foreground'}`}>
+              <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="font-medium">{task.dueDate}</span>
             </div>
           )}
           {/* Mobile: Move button (only show on mobile, hidden on desktop) */}
