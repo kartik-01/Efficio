@@ -11,7 +11,9 @@ export const SYSTEM_CATEGORIES = [
   'Learning',
   'Admin',
   'Other',
-];
+] as const;
+
+export type SystemCategory = typeof SYSTEM_CATEGORIES[number];
 
 // Return Tailwind background color classes for known categories
 export const getCategoryColor = (category: string) => {

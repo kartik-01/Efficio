@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { PlannedBlock, Category } from '../types';
 import { formatTime, getCategoryColor } from '../lib/utils';
 import { classifyTitleToCategoryId } from '../lib/classification';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Input, Label } from '@efficio/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Input, Label, SYSTEM_CATEGORIES } from '@efficio/ui';
 import { Play, Check, Calendar, Plus, Trash2, Square, Edit } from 'lucide-react';
 import { plansApi, sessionsApi, isTimeApiReady, Plan } from '../services/timeApi';
 import { useTasksStore } from '../store/slices/tasksSlice';
@@ -99,6 +99,54 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
     const virtualBlocks: PlannedBlock[] = [];
     const realBlocks: PlannedBlock[] = [];
 
+    // Convert realPlans to PlannedBlock format
+    const targetDateStr = normalizeDateToString(selectedDate);
+    realPlans.forEach(plan => {
+      // Check if plan matches the selected date
+      let planDateStr: string;
+      if (plan.instanceDate) {
+        planDateStr = normalizeDateToString(plan.instanceDate);
+      } else {
+        planDateStr = normalizeDateToString(plan.startTime);
+      }
+
+      if (planDateStr !== targetDateStr) return;
+      
+      // Skip canceled plans unless they're overrides
+      if (plan.status === 'canceled' && !plan.isOverridden) return;
+
+      // Convert categoryId to Category
+      const categoryId = plan.categoryId || 'work';
+      // Capitalize first letter to match SYSTEM_CATEGORIES format
+      const categoryName = categoryId.charAt(0).toUpperCase() + categoryId.slice(1);
+      const category = (SYSTEM_CATEGORIES.includes(categoryName as Category) ? categoryName : 'Work') as Category;
+
+      // Convert status from 'in_progress' to 'in-progress'
+      let status: 'scheduled' | 'in-progress' | 'done' | 'canceled' = 'scheduled';
+      if (plan.status === 'in_progress') {
+        status = 'in-progress';
+      } else if (plan.status === 'done' || plan.status === 'canceled') {
+        status = plan.status;
+      }
+
+      // Ensure dates are Date objects
+      const startTime = plan.startTime instanceof Date ? plan.startTime : new Date(plan.startTime);
+      const endTime = plan.endTime instanceof Date ? plan.endTime : new Date(plan.endTime);
+
+      realBlocks.push({
+        id: plan._id || plan.id || '',
+        title: plan.taskTitle || 'Untitled',
+        category,
+        startTime,
+        endTime,
+        status,
+        taskId: plan.taskId || null,
+        isVirtual: false,
+        planId: plan._id || plan.id || '',
+        sessionId: plan.sessionId,
+      });
+    });
+
     const inProgressTasks = tasks.filter(t => t.status === 'in-progress');
     
     inProgressTasks.forEach(task => {
@@ -137,21 +185,11 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
         let category: Category = 'Work';
         
         if (task.category) {
-          const categoryMap: Record<string, Category> = {
-            'Work': 'Work',
-            'Personal': 'Personal',
-            'Errands': 'Errands',
-            'Design': 'Design',
-            'Engineering': 'Engineering',
-            'Marketing': 'Marketing',
-            'Finance': 'Finance',
-            'Rest': 'Rest',
-            'Health': 'Health',
-            'Learning': 'Learning',
-            'Admin': 'Admin',
-            'Other': 'Other',
-          };
-          category = categoryMap[task.category] || 'Work';
+          // Check if task.category matches any SYSTEM_CATEGORY (case-insensitive)
+          const matchedCategory = SYSTEM_CATEGORIES.find(
+            cat => cat.toLowerCase() === task.category?.toLowerCase()
+          );
+          category = (matchedCategory || 'Work') as Category;
         }
 
         virtualBlocks.push({
@@ -364,6 +402,107 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
     }
   };
 
+  const handleMarkDone = async (block: PlannedBlock) => {
+    if (!isTimeApiReady()) {
+      toast.error('API not initialized');
+      return;
+    }
+
+    try {
+      // Convert Category to categoryId (lowercase)
+      const categoryId = block.category.toLowerCase();
+
+      // Create a session for this time block
+      await sessionsApi.createSession({
+        taskId: block.taskId || null,
+        taskTitle: block.title,
+        categoryId,
+        startTime: block.startTime.toISOString(),
+        endTime: block.endTime.toISOString(),
+        notes: '',
+      });
+
+      // Update plan status to 'done' if it has a planId
+      if (block.planId) {
+        await updatePlan(block.planId, {
+          status: 'done',
+        } as any);
+      }
+
+      // Refresh plans and sessions
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      
+      const { fetchSessions } = useSessionsStore.getState();
+      await Promise.all([
+        fetchPlans(dateStr, tz),
+        fetchSessions(dateStr, tz),
+        fetchSummary(dateStr, tz, isToday),
+      ]);
+      
+      toast.success('Time block marked as done');
+    } catch (error) {
+      console.error('Failed to mark block as done:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to mark block as done');
+    }
+  };
+
+  // Calculate block positions to handle overlaps
+  const blockPositions = useMemo(() => {
+    const positions = new Map<string, { width: number; left: number }>();
+    
+    // Helper function to check if two blocks overlap
+    const doBlocksOverlap = (block1: PlannedBlock, block2: PlannedBlock): boolean => {
+      const start1 = block1.startTime.getTime();
+      const end1 = block1.endTime.getTime();
+      const start2 = block2.startTime.getTime();
+      const end2 = block2.endTime.getTime();
+      
+      return start1 < end2 && start2 < end1;
+    };
+    
+    // For each block, find all overlapping blocks
+    mergedBlocks.forEach((block, index) => {
+      const overlappingBlocks: { block: PlannedBlock; index: number }[] = [];
+      
+      // Find all blocks that overlap with this one
+      mergedBlocks.forEach((otherBlock, otherIndex) => {
+        if (doBlocksOverlap(block, otherBlock)) {
+          overlappingBlocks.push({ block: otherBlock, index: otherIndex });
+        }
+      });
+      
+      // Sort overlapping blocks by start time, then by index for consistent ordering
+      overlappingBlocks.sort((a, b) => {
+        const timeDiff = a.block.startTime.getTime() - b.block.startTime.getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return a.index - b.index;
+      });
+      
+      // Find this block's position in the overlap group
+      const positionInGroup = overlappingBlocks.findIndex(
+        item => item.block.id === block.id
+      );
+      
+      // Calculate width and left position
+      // Blocks will be displayed side-by-side with equal width and small gaps
+      const overlapCount = overlappingBlocks.length;
+      const gapPercent = 1; // Gap between blocks as percentage of container
+      const totalGap = gapPercent * (overlapCount - 1);
+      const availableWidth = 100 - totalGap;
+      const width = availableWidth / overlapCount;
+      const left = positionInGroup * (width + gapPercent);
+      
+      positions.set(block.id, { width, left });
+    });
+    
+    return positions;
+  }, [mergedBlocks]);
+
   const getBlockStyle = (block: PlannedBlock) => {
     const startHour = block.startTime.getHours();
     const startMinute = block.startTime.getMinutes();
@@ -375,11 +514,13 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
     const duration = (endHour - startHour) + (endMinute - startMinute) / 60;
     const height = duration * PIXELS_PER_HOUR;
 
+    const position = blockPositions.get(block.id) || { width: 100, left: 0 };
+
     return { 
       top: `${top}px`, 
       height: `${height}px`,
-      width: '100%',
-      left: '0%',
+      width: `${position.width}%`,
+      left: `${position.left}%`,
       zIndex: 1 
     };
   };
@@ -442,6 +583,7 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
                     onStartNow={() => handleStartNow(block)}
                     onStopTimer={() => handleStopTimer(block)}
                     onDeleteBlock={() => handleDeleteBlock(block)}
+                    onMarkDone={() => handleMarkDone(block)}
                   />
                 );
               })
@@ -567,9 +709,10 @@ interface PlannedBlockOverlayProps {
   onStartNow: () => void;
   onStopTimer: () => void;
   onDeleteBlock: () => void;
+  onMarkDone: () => void;
 }
 
-function PlannedBlockOverlay({ block, style, hasActiveSession, onEdit, onStartNow, onStopTimer, onDeleteBlock }: PlannedBlockOverlayProps) {
+function PlannedBlockOverlay({ block, style, hasActiveSession, onEdit, onStartNow, onStopTimer, onDeleteBlock, onMarkDone }: PlannedBlockOverlayProps) {
   const getCategoryColorClass = (category: Category) => {
     const colors: Record<Category, string> = {
       Work: 'bg-blue-500/20 dark:bg-blue-500/20 border-blue-500/50 dark:border-blue-500/50 text-blue-700 dark:text-blue-300',
@@ -590,7 +733,7 @@ function PlannedBlockOverlay({ block, style, hasActiveSession, onEdit, onStartNo
 
   return (
     <div
-      className={`absolute rounded-lg border-2 p-2 pointer-events-auto group ${getCategoryColorClass(block.category)}`}
+      className={`absolute rounded-lg border-2 p-2 pointer-events-auto group ${getCategoryColorClass(block.category)} ${block.status === 'done' ? 'opacity-60' : ''}`}
       style={{ ...style, zIndex: (style.zIndex || 0) + 100 }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -612,34 +755,48 @@ function PlannedBlockOverlay({ block, style, hasActiveSession, onEdit, onStartNo
             <Edit className="w-4 h-4" />
           </button>
 
-          {hasActiveSession ? (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onStopTimer(); }}
-              className="p-1.5 rounded hover:bg-red-600/30 transition-colors cursor-pointer"
-              title="Stop timer"
-            >
-              <Square className="w-4 h-4" />
-            </button>
-          ) : block.status === 'scheduled' && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onStartNow(); }}
-              className="p-1.5 rounded hover:bg-blue-600/30 transition-colors cursor-pointer"
-              title="Start timer"
-            >
-              <Play className="w-4 h-4" />
-            </button>
+          {block.status === 'done' ? null : (
+            <>
+              {hasActiveSession ? (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onStopTimer(); }}
+                  className="p-1.5 rounded hover:bg-red-600/30 transition-colors cursor-pointer"
+                  title="Stop timer"
+                >
+                  <Square className="w-4 h-4" />
+                </button>
+              ) : block.status === 'scheduled' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onStartNow(); }}
+                    className="p-1.5 rounded hover:bg-blue-600/30 transition-colors cursor-pointer"
+                    title="Start timer"
+                  >
+                    <Play className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onMarkDone(); }}
+                    className="p-1.5 rounded hover:bg-green-600/30 transition-colors cursor-pointer"
+                    title="Mark as done"
+                  >
+                    <Check className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+              
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDeleteBlock(); }}
+                className="p-1.5 rounded hover:bg-red-600/30 transition-colors cursor-pointer"
+                title="Delete block"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
           )}
-          
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDeleteBlock(); }}
-            className="p-1.5 rounded hover:bg-red-600/30 transition-colors cursor-pointer"
-            title="Delete block"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
         </div>
       </div>
     </div>

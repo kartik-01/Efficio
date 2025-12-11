@@ -1,5 +1,6 @@
 import { Category, Task } from '../types';
 import { plansApi } from '../services/timeApi';
+import { SYSTEM_CATEGORIES } from '@efficio/ui';
 
 /**
  * Map task category string to Category type
@@ -10,12 +11,10 @@ export function mapTaskCategoryToCategory(taskCategory?: string): Category | nul
   
   // Direct match (case-insensitive)
   const normalized = taskCategory.trim();
-  // All SYSTEM_CATEGORIES are now valid time-tracker categories
-  const validCategories: Category[] = ['Work', 'Personal', 'Errands', 'Design', 'Engineering', 'Marketing', 'Finance', 'Rest', 'Health', 'Learning', 'Admin', 'Other'];
   
-  // Check for exact match (case-insensitive)
-  const match = validCategories.find(cat => cat.toLowerCase() === normalized.toLowerCase());
-  if (match) return match;
+  // Check for exact match (case-insensitive) against SYSTEM_CATEGORIES
+  const match = SYSTEM_CATEGORIES.find(cat => cat.toLowerCase() === normalized.toLowerCase());
+  if (match) return match as Category;
   
   // If category doesn't match any valid category, return null (should classify)
   return null;
@@ -43,25 +42,14 @@ export async function classifyTitle(title: string, task?: Task): Promise<Categor
     const result = await plansApi.classifyTitle(title);
     const categoryId = result.categoryId || 'work';
     
-    // Map backend category to frontend Category type
-    // Note: Backend may only return a subset, map to closest match
-    const categoryMap: Record<string, Category> = {
-      'work': 'Work',
-      'learning': 'Learning',
-      'admin': 'Admin',
-      'health': 'Health',
-      'personal': 'Personal',
-      'rest': 'Rest',
-      // Map other backend categories if they exist
-      'finance': 'Finance',
-      'design': 'Design',
-      'engineering': 'Engineering',
-      'marketing': 'Marketing',
-      'errands': 'Errands',
-      'other': 'Other',
-    };
+    // Map backend categoryId (lowercase) to frontend Category type (capitalized)
+    // Capitalize first letter to match SYSTEM_CATEGORIES format
+    const categoryName = categoryId.charAt(0).toUpperCase() + categoryId.slice(1);
+    const category = SYSTEM_CATEGORIES.includes(categoryName as Category) 
+      ? (categoryName as Category) 
+      : 'Work';
     
-    return categoryMap[categoryId] || 'Work';
+    return category;
   } catch (error) {
     console.error('Failed to classify title:', error);
     return 'Work'; // Default to Work on error
@@ -80,21 +68,7 @@ export async function classifyTitleToCategoryId(title: string, task?: Task): Pro
     const mappedCategory = mapTaskCategoryToCategory(task.category);
     if (mappedCategory) {
       // Convert Category to categoryId (lowercase)
-      const categoryIdMap: Record<Category, string> = {
-        'Work': 'work',
-        'Personal': 'personal',
-        'Errands': 'errands',
-        'Design': 'design',
-        'Engineering': 'engineering',
-        'Marketing': 'marketing',
-        'Finance': 'finance',
-        'Rest': 'rest',
-        'Health': 'health',
-        'Learning': 'learning',
-        'Admin': 'admin',
-        'Other': 'other',
-      };
-      return categoryIdMap[mappedCategory] || 'work';
+      return mappedCategory.toLowerCase();
     }
     // If task.category exists but doesn't map to a time-tracker category, fall through to classification
   }

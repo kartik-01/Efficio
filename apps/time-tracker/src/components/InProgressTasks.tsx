@@ -358,7 +358,7 @@ export function InProgressTasks({ tasks, loading = false, getAccessToken, onStar
                     {isActive && activeElapsed !== null && (
                       <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium animate-pulse">
                         <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
-                        <span>Active: {formatDuration(activeElapsed)}</span>
+                        <span>Active</span>
                       </div>
                     )}
                     {!timeSpent && !isActive && (

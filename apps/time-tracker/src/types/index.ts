@@ -1,4 +1,6 @@
-export type Category = 'Work' | 'Personal' | 'Errands' | 'Design' | 'Engineering' | 'Marketing' | 'Finance' | 'Rest' | 'Health' | 'Learning' | 'Admin' | 'Other';
+import { SystemCategory } from '@efficio/ui';
+
+export type Category = SystemCategory;
 
 export type TaskStatus = 'todo' | 'in-progress' | 'done';
 

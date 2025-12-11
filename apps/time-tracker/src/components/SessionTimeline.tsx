@@ -3,7 +3,7 @@ import { Category } from '../types';
 import { formatTime, formatDuration, getCategoryColor, getCategoryCardColor } from '../lib/utils';
 import { classifyTitleToCategoryId } from '../lib/classification';
 import { Clock, Plus, Trash2, Edit } from 'lucide-react';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, Input, Label } from '@efficio/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, Input, Label, SYSTEM_CATEGORIES } from '@efficio/ui';
 import { ManualTimeEntry } from './ManualTimeEntry';
 import { useSessionsStore } from '../store/slices/sessionsSlice';
 import { useUIStore } from '../store/slices/uiSlice';
@@ -416,12 +416,11 @@ function SessionCard({
                 onChange={(e) => setEditForm(prev => ({ ...prev, categoryId: e.target.value }))}
                 className="w-full px-3 py-2 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-md text-neutral-900 dark:text-neutral-100"
               >
-                <option value="work">Work</option>
-                <option value="learning">Learning</option>
-                <option value="admin">Admin</option>
-                <option value="health">Health</option>
-                <option value="personal">Personal</option>
-                <option value="rest">Rest</option>
+                {SYSTEM_CATEGORIES.map((category) => (
+                  <option key={category} value={category.toLowerCase()}>
+                    {category}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
