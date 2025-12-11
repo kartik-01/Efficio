@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Play, Square } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Category, Task } from '../types';
 import { formatTime, formatDuration } from '../lib/utils';
 import { classifyTitle } from '../lib/classification';

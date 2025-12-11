@@ -6,7 +6,6 @@ import { SummaryStrip } from './SummaryStrip';
 import { SessionTimeline } from './SessionTimeline';
 import { PlannedTimeBlocks } from './PlannedTimeBlocks';
 import { InProgressTasks } from './InProgressTasks';
-import { initializeApi, isApiReady } from '../services/apiBase';
 import { isTaskApiReady } from '../services/taskApi';
 import { isTimeApiReady } from '../services/timeApi';
 import { useSessionsStore } from '../store/slices/sessionsSlice';
@@ -52,13 +51,6 @@ export function TodayView({ getAccessToken }: TodayViewProps) {
   } = useUIStore();
   
   const { fetchPlans } = usePlansStore();
-
-  // Initialize API (only once - shared across all services)
-  useEffect(() => {
-    if (getAccessToken) {
-      initializeApi(getAccessToken);
-    }
-  }, [getAccessToken]);
 
   // Only fetch active session when window regains focus (user switches back to app)
   // This minimizes 404s - we don't check on every mount/date change

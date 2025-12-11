@@ -14,7 +14,8 @@ const defaultSingletons = [
   "tailwind-merge",
   "framer-motion",
   "lucide-react",
-  "sonner"
+  "sonner",
+  "zustand"
 ];
 
 const createSharedConfig = () => {

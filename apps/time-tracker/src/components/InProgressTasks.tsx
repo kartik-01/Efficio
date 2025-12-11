@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, Loader2, Clock } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Task, Category, TimeSession } from '../types';
 import { Input } from '@efficio/ui';
 import { getCategoryColor, formatDuration } from '../lib/utils';
