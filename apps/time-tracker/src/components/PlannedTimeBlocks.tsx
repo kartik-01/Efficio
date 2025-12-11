@@ -541,23 +541,39 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
               key={hour}
               className="h-[80px] border-t border-neutral-200 dark:border-neutral-800 relative"
             >
-              <div 
+              <button
+                type="button"
                 onClick={() => handleSlotClick(hour)}
-                className="absolute -left-16 top-0 w-14 h-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/30 transition-colors flex items-start justify-end"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSlotClick(hour);
+                  }
+                }}
+                className="absolute -left-16 top-0 w-14 h-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/30 transition-colors flex items-start justify-end focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                aria-label={`Create time block at ${formatHour(hour)}`}
               >
                 <span className="text-xs text-neutral-600 dark:text-neutral-400 -translate-y-1/2 bg-white dark:bg-neutral-900 px-1">
                   {formatHour(hour)}
                 </span>
-              </div>
+              </button>
             </div>
           ))}
 
-          <div className="absolute inset-0 left-16 z-10 pointer-events-auto">
+          <div className="absolute inset-0 left-16 z-10 pointer-events-auto" role="grid" aria-label="Time slots for creating planned blocks">
             {HOURS.map((hour) => (
-              <div
+              <button
                 key={`grid-${hour}`}
+                type="button"
                 onClick={() => handleSlotClick(hour)}
-                className="h-[80px] cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/20 transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSlotClick(hour);
+                  }
+                }}
+                className="h-[80px] w-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/20 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                aria-label={`Create time block at ${formatHour(hour)}`}
               />
             ))}
           </div>
@@ -733,9 +749,17 @@ function PlannedBlockOverlay({ block, style, hasActiveSession, onEdit, onStartNo
 
   return (
     <div
+      role="article"
+      tabIndex={0}
       className={`absolute rounded-lg border-2 p-2 pointer-events-auto group ${getCategoryColorClass(block.category)} ${block.status === 'done' ? 'opacity-60' : ''}`}
       style={{ ...style, zIndex: (style.zIndex || 0) + 100 }}
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.stopPropagation();
+        }
+      }}
+      aria-label={`Time block: ${block.title} from ${formatTime(block.startTime)} to ${formatTime(block.endTime)}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">

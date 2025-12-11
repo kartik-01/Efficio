@@ -40,7 +40,7 @@ export const efficioUIMocks = {
       value={value?.[0] || 0}
       min={min}
       max={max}
-      onChange={(e) => onValueChange?.([parseInt(e.target.value)])}
+      onChange={(e) => onValueChange?.([Number.parseInt(e.target.value)])}
     />
   ),
   Avatar: ({ children, className }: any) => (
