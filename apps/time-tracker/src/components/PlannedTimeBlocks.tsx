@@ -160,10 +160,26 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
 
       const recurrence = timePlanning.recurrence?.type || 'none';
       const dayOfWeek = selectedDate.getDay();
-      const shouldCreate = 
-        recurrence === 'daily' ||
-        (recurrence === 'weekdays' && dayOfWeek >= 1 && dayOfWeek <= 5) ||
-        recurrence === 'none';
+      const dateStr = normalizeDateToString(selectedDate);
+      
+      // Check if this task should create a block for the selected date
+      let shouldCreate = false;
+      
+      if (recurrence === 'daily') {
+        shouldCreate = true;
+      } else if (recurrence === 'weekdays') {
+        shouldCreate = dayOfWeek >= 1 && dayOfWeek <= 5;
+      } else if (recurrence === 'none') {
+        // For one-time tasks, only show on the activatedAt date
+        const activatedAt = timePlanning.recurrence?.activatedAt;
+        if (activatedAt) {
+          const activatedDateStr = normalizeDateToString(activatedAt);
+          shouldCreate = dateStr === activatedDateStr;
+        } else {
+          // If no activatedAt, don't show (one-time task needs an activation date)
+          shouldCreate = false;
+        }
+      }
 
       if (!shouldCreate) return;
 
@@ -173,7 +189,6 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
       const end = new Date(selectedDate);
       end.setHours(endHours, endMins, 0, 0);
 
-      const dateStr = normalizeDateToString(selectedDate);
       const excludedDates = timePlanning.excludedDates || [];
       if (excludedDates.includes(dateStr)) {
         return;
@@ -550,20 +565,15 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
                     handleSlotClick(hour);
                   }
                 }}
-                className="absolute -left-16 top-0 w-14 h-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/30 transition-colors flex items-start justify-end focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="absolute -left-16 top-0 w-16 h-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/30 transition-colors flex items-start justify-end pr-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 aria-label={`Create time block at ${formatHour(hour)}`}
               >
-                <span className="text-xs text-neutral-600 dark:text-neutral-400 -translate-y-1/2 bg-white dark:bg-neutral-900 px-1">
+                <span className="text-xs text-neutral-600 dark:text-neutral-400 -translate-y-1/2 bg-white dark:bg-neutral-900 px-1 whitespace-nowrap">
                   {formatHour(hour)}
                 </span>
               </button>
-            </div>
-          ))}
-
-          <div className="absolute inset-0 left-16 z-10 pointer-events-auto" role="grid" aria-label="Time slots for creating planned blocks">
-            {HOURS.map((hour) => (
+              
               <button
-                key={`grid-${hour}`}
                 type="button"
                 onClick={() => handleSlotClick(hour)}
                 onKeyDown={(e) => {
@@ -572,11 +582,11 @@ export function PlannedTimeBlocks({ selectedDate, getAccessToken }: PlannedTimeB
                     handleSlotClick(hour);
                   }
                 }}
-                className="h-[80px] w-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/20 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="absolute left-0 top-0 right-0 h-full cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/20 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 z-10"
                 aria-label={`Create time block at ${formatHour(hour)}`}
               />
-            ))}
-          </div>
+            </div>
+          ))}
 
           <div className="absolute top-0 right-0 bottom-0 left-16 pointer-events-none z-30">
             {loading ? (
@@ -730,18 +740,19 @@ interface PlannedBlockOverlayProps {
 
 function PlannedBlockOverlay({ block, style, hasActiveSession, onEdit, onStartNow, onStopTimer, onDeleteBlock, onMarkDone }: PlannedBlockOverlayProps) {
   const getCategoryColorClass = (category: Category) => {
+    // Map base colors from categories.ts to overlay styles with opacity and borders
     const colors: Record<Category, string> = {
       Work: 'bg-blue-500/20 dark:bg-blue-500/20 border-blue-500/50 dark:border-blue-500/50 text-blue-700 dark:text-blue-300',
       Personal: 'bg-green-500/20 dark:bg-green-500/20 border-green-500/50 dark:border-green-500/50 text-green-700 dark:text-green-300',
-      Errands: 'bg-orange-500/20 dark:bg-orange-500/20 border-orange-500/50 dark:border-orange-500/50 text-orange-700 dark:text-orange-300',
+      Errands: 'bg-orange-400/20 dark:bg-orange-400/20 border-orange-400/50 dark:border-orange-400/50 text-orange-700 dark:text-orange-300',
       Design: 'bg-pink-500/20 dark:bg-pink-500/20 border-pink-500/50 dark:border-pink-500/50 text-pink-700 dark:text-pink-300',
       Engineering: 'bg-teal-500/20 dark:bg-teal-500/20 border-teal-500/50 dark:border-teal-500/50 text-teal-700 dark:text-teal-300',
       Marketing: 'bg-yellow-500/20 dark:bg-yellow-500/20 border-yellow-500/50 dark:border-yellow-500/50 text-yellow-700 dark:text-yellow-300',
       Finance: 'bg-indigo-500/20 dark:bg-indigo-500/20 border-indigo-500/50 dark:border-indigo-500/50 text-indigo-700 dark:text-indigo-300',
-      Rest: 'bg-amber-500/20 dark:bg-amber-500/20 border-amber-500/50 dark:border-amber-500/50 text-amber-700 dark:text-amber-300',
+      Rest: 'bg-neutral-500/20 dark:bg-neutral-500/20 border-neutral-500/50 dark:border-neutral-500/50 text-neutral-700 dark:text-neutral-300',
       Health: 'bg-emerald-500/20 dark:bg-emerald-500/20 border-emerald-500/50 dark:border-emerald-500/50 text-emerald-700 dark:text-emerald-300',
       Learning: 'bg-purple-500/20 dark:bg-purple-500/20 border-purple-500/50 dark:border-purple-500/50 text-purple-700 dark:text-purple-300',
-      Admin: 'bg-gray-500/20 dark:bg-gray-500/20 border-gray-500/50 dark:border-gray-500/50 text-gray-700 dark:text-gray-300',
+      Admin: 'bg-orange-500/20 dark:bg-orange-500/20 border-orange-500/50 dark:border-orange-500/50 text-orange-700 dark:text-orange-300',
       Other: 'bg-gray-500/20 dark:bg-gray-500/20 border-gray-500/50 dark:border-gray-500/50 text-gray-700 dark:text-gray-300',
     };
     return colors[category];
@@ -750,15 +761,8 @@ function PlannedBlockOverlay({ block, style, hasActiveSession, onEdit, onStartNo
   return (
     <div
       role="article"
-      tabIndex={0}
       className={`absolute rounded-lg border-2 p-2 pointer-events-auto group ${getCategoryColorClass(block.category)} ${block.status === 'done' ? 'opacity-60' : ''}`}
       style={{ ...style, zIndex: (style.zIndex || 0) + 100 }}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.stopPropagation();
-        }
-      }}
       aria-label={`Time block: ${block.title} from ${formatTime(block.startTime)} to ${formatTime(block.endTime)}`}
     >
       <div className="flex items-start justify-between gap-2">
