@@ -1,30 +1,12 @@
 import { taskApi, isTaskApiReady, initializeTaskApi } from '../taskApi';
+import { setupApiTest } from './testHelpers';
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
-// Mock @efficio/api
-jest.mock('@efficio/api', () => ({
-  API_BASE_URL: 'http://localhost:4000/api',
-  getHeaders: jest.fn().mockResolvedValue({
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer mock-token',
-  }),
-  handleResponse: jest.fn().mockImplementation(async (response) => {
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'API error');
-    }
-    return result.data !== undefined ? result.data : result;
-  }),
-  initializeApi: jest.fn(),
-  isApiReady: jest.fn().mockReturnValue(true),
-}));
+const mockTokenGetter = setupApiTest(initializeTaskApi);
 
 describe('taskApi', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
 
   describe('isTaskApiReady', () => {
     it('returns true when API is ready', () => {
@@ -49,12 +31,10 @@ describe('taskApi', () => {
         },
       ];
 
-        const { handleResponse } = require('@efficio/api');
-      (handleResponse as jest.Mock).mockResolvedValueOnce(mockTasks);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ success: true, data: mockTasks }),
+        json: async () => ({ data: mockTasks }),
       });
 
       const result = await taskApi.getTasks();
@@ -74,12 +54,10 @@ describe('taskApi', () => {
         },
       ];
 
-        const { handleResponse } = require('@efficio/api');
-      (handleResponse as jest.Mock).mockResolvedValueOnce(mockTasks);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ success: true, data: mockTasks }),
+        json: async () => ({ data: mockTasks }),
       });
 
       const result = await taskApi.getTasks('@personal');
@@ -98,12 +76,10 @@ describe('taskApi', () => {
         { _id: '3', title: 'Completed', status: 'completed' },
       ];
 
-        const { handleResponse } = require('@efficio/api');
-      (handleResponse as jest.Mock).mockResolvedValueOnce(mockTasks);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ success: true, data: mockTasks }),
+        json: async () => ({ data: mockTasks }),
       });
 
       const result = await taskApi.getTasks();
@@ -122,12 +98,9 @@ describe('taskApi', () => {
         category: 'Work',
       };
 
-        const { handleResponse } = require('@efficio/api');
-      (handleResponse as jest.Mock).mockResolvedValueOnce(mockUpdatedTask);
-
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ success: true, data: mockUpdatedTask }),
+        json: async () => ({ data: mockUpdatedTask }),
       });
 
       const result = await taskApi.updateTask('task1', { title: 'Updated Task' });

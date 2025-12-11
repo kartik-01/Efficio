@@ -1,30 +1,12 @@
 import { sessionsApi, plansApi, timeApi, isTimeApiReady, initializeTimeApi } from '../timeApi';
+import { setupApiTest } from './testHelpers';
 
 // Mock fetch globally
 global.fetch = jest.fn();
 
-// Mock @efficio/api
-jest.mock('@efficio/api', () => ({
-  API_BASE_URL: 'http://localhost:4000/api',
-  getHeaders: jest.fn().mockResolvedValue({
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer mock-token',
-  }),
-  handleResponse: jest.fn().mockImplementation(async (response) => {
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'API error');
-    }
-    return result.data !== undefined ? result.data : result;
-  }),
-  initializeApi: jest.fn(),
-  isApiReady: jest.fn().mockReturnValue(true),
-}));
+const mockTokenGetter = setupApiTest(initializeTimeApi);
 
 describe('timeApi', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
 
   describe('isTimeApiReady', () => {
     it('returns true when API is ready', () => {
@@ -37,7 +19,7 @@ describe('timeApi', () => {
       it('returns null when no session is running', async () => {
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ success: true, data: null }),
+          json: async () => ({ data: null }),
         });
 
         const result = await sessionsApi.getRunning();
@@ -55,12 +37,9 @@ describe('timeApi', () => {
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ success: true, data: mockSession }),
+          json: async () => ({ data: mockSession }),
         });
 
-        // Mock handleResponse to return the session
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockSession);
 
         const result = await sessionsApi.getRunning();
         expect(result).not.toBeNull();
@@ -78,12 +57,10 @@ describe('timeApi', () => {
           startTime: '2024-01-01T09:00:00Z',
         };
 
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockSession);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ success: true, data: mockSession }),
+          json: async () => ({ data: mockSession }),
         });
 
         const result = await sessionsApi.startSession({
@@ -107,12 +84,10 @@ describe('timeApi', () => {
           endTime: '2024-01-01T10:00:00Z',
         };
 
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockSession);
 
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ success: true, data: mockSession }),
+          json: async () => ({ data: mockSession }),
         });
 
         const result = await sessionsApi.stopSession('session1');
@@ -139,12 +114,9 @@ describe('timeApi', () => {
           },
         ];
 
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockSessions);
-
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ success: true, data: mockSessions }),
+          json: async () => ({ data: mockSessions }),
         });
 
         const result = await sessionsApi.listSessions({ date: '2024-01-01', tz: 'UTC' });
@@ -169,12 +141,9 @@ describe('timeApi', () => {
           },
         ];
 
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockPlans);
-
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ success: true, data: mockPlans }),
+          json: async () => ({ data: mockPlans }),
         });
 
         const result = await plansApi.getPlans({ date: '2024-01-01', tz: 'UTC' });
@@ -194,12 +163,9 @@ describe('timeApi', () => {
           status: 'scheduled',
         };
 
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockPlan);
-
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ success: true, data: mockPlan }),
+          json: async () => ({ data: mockPlan }),
         });
 
         const result = await plansApi.createPlan({
@@ -222,12 +188,9 @@ describe('timeApi', () => {
           source: 'ml',
         };
 
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockResponse);
-
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve(mockResponse),
+          json: async () => ({ data: mockResponse }),
         });
 
         const result = await plansApi.classifyTitle('Review PRs');
@@ -249,12 +212,9 @@ describe('timeApi', () => {
           },
         };
 
-        const { handleResponse } = require('@efficio/api');
-        (handleResponse as jest.Mock).mockResolvedValueOnce(mockSummary);
-
         (global.fetch as jest.Mock).mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve(mockSummary),
+          json: async () => ({ data: mockSummary }),
         });
 
         const result = await timeApi.getSummary({ range: 'today', tz: 'UTC' });
