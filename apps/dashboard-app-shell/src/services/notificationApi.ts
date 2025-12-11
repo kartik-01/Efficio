@@ -1,34 +1,9 @@
 // Notification API service
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
+import { API_BASE_URL, getHeaders, initializeApi, isApiReady } from './apiBase';
 
-let tokenGetter: (() => Promise<string | undefined>) | null = null;
-
-export function initializeNotificationApi(getToken: () => Promise<string | undefined>) {
-  tokenGetter = getToken;
-}
-
-export function isNotificationApiReady(): boolean {
-  return tokenGetter !== null;
-}
-
-async function getHeaders(): Promise<HeadersInit> {
-  if (!tokenGetter) {
-    throw new Error('Notification API not initialized. Call initializeNotificationApi first.');
-  }
-
-  const token = await tokenGetter();
-
-  if (!token) {
-    throw new Error('No authentication token available');
-  }
-
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-  };
-
-  return headers;
-}
+// Re-export for backward compatibility
+export const initializeNotificationApi = initializeApi;
+export const isNotificationApiReady = isApiReady;
 
 export interface Notification {
   id: string;

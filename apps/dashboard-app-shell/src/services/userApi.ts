@@ -1,12 +1,8 @@
-// API base URL - injected by webpack DefinePlugin at build time
-// For development, defaults to http://localhost:4000/api
-declare const process: {
-  env: {
-    API_BASE_URL?: string;
-  };
-};
+import { API_BASE_URL, getHeaders, initializeApi, isApiReady } from './apiBase';
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000/api';
+// Re-export for backward compatibility
+export const initializeUserApi = initializeApi;
+export const isUserApiReady = isApiReady;
 
 export interface UserProfile {
   _id: string;
@@ -23,44 +19,6 @@ export interface UserProfile {
   createdAt?: string;
   updatedAt?: string;
 }
-
-// Token getter function type - will be set by initializeUserApi
-let getAccessToken: (() => Promise<string | undefined>) | null = null;
-let isInitialized = false;
-
-// Initialize userApi with Auth0 token getter
-export const initializeUserApi = (tokenGetter: () => Promise<string | undefined>) => {
-  getAccessToken = tokenGetter;
-  isInitialized = true;
-};
-
-// Check if userApi is ready
-export const isUserApiReady = () => isInitialized && getAccessToken !== null;
-
-// Helper function to get headers with authorization
-const getHeaders = async (): Promise<HeadersInit> => {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  if (!getAccessToken) {
-    throw new Error('Authentication not initialized. Please refresh the page.');
-  }
-
-  try {
-    const token = await getAccessToken();
-    if (token && token.trim()) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      throw new Error('Failed to retrieve access token. Please login again.');
-    }
-  } catch (error) {
-    console.error('Failed to get access token:', error);
-    throw error;
-  }
-
-  return headers;
-};
 
 export const userApi = {
   // Get or create user (used on login, returns reactivated flag)

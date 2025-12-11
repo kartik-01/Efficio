@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Play, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Category } from '../types';
-import { formatTime, formatDuration } from '../lib/utils';
+import { formatTime, formatDuration, formatDateStr, getTimezone, isToday, getCategoryBadgeColor, getTimerStrokeColor, getTimerFillColor } from '../lib/utils';
 import { classifyTitle } from '../lib/classification';
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, Input } from '@efficio/ui';
 import { useTasksStore } from '../store/slices/tasksSlice';
@@ -78,24 +78,20 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       setCustomTitle('');
 
       // Refresh related data
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      const dateStr = formatDateStr(selectedDate);
+      const tz = getTimezone();
+      const isTodayDate = isToday(selectedDate);
       
       const { fetchSessions } = useSessionsStore.getState();
       await Promise.all([
         fetchSessions(dateStr, tz),
         fetchPlans(dateStr, tz),
-        fetchSummary(dateStr, tz, isToday),
+        fetchSummary(dateStr, tz, isTodayDate),
       ]);
     } catch (error) {
       // Error already handled in store
     }
   };
-
 
   const handleStart = async () => {
     if (!selectedTask) return;
@@ -133,18 +129,15 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
       setCustomTitle('');
 
       // Refresh related data
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(selectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const isToday = selectedDate.toDateString() === new Date().toDateString();
+      const dateStr = formatDateStr(selectedDate);
+      const tz = getTimezone();
+      const isTodayDate = isToday(selectedDate);
       
       const { fetchSessions } = useSessionsStore.getState();
       await Promise.all([
         fetchSessions(dateStr, tz),
         fetchPlans(dateStr, tz),
-        fetchSummary(dateStr, tz, isToday),
+        fetchSummary(dateStr, tz, isTodayDate),
       ]);
     } catch (error) {
       // Error already handled in store
@@ -184,7 +177,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
                 stroke="currentColor"
                 strokeWidth="8"
                 fill="none"
-                className={`${getTimerColorClass(activeSession.category)} transition-all duration-500 ease-out`}
+                className={`${getTimerStrokeColor(activeSession.category)} transition-all duration-500 ease-out`}
                 strokeDasharray={circumference}
                 strokeDashoffset={circumference * (1 - circleProgress)}
                 strokeLinecap="round"
@@ -201,7 +194,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
                 cy="112"
                 r="88"
                 fill="currentColor"
-                className={`${getTimerFillClass(activeSession.category)} animate-pulse-once`}
+                className={`${getTimerFillColor(activeSession.category)} animate-pulse-once`}
                 style={{
                   animation: `pulse-once 1s ease-out`
                 }}
@@ -227,7 +220,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
           <div className="text-center space-y-3 flex-shrink-0">
             <div className="text-neutral-900 dark:text-neutral-100 text-xl font-semibold">{activeSession.taskTitle}</div>
             <div className="flex items-center justify-center gap-3">
-              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs border ${getCategoryColorClass(activeSession.category)}`}>
+              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs border ${getCategoryBadgeColor(activeSession.category)}`}>
                 {activeSession.category}
               </span>
               <span className="text-neutral-600 dark:text-neutral-400 text-sm">
@@ -332,7 +325,7 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
             {/* Category Pill - shown when a regular task is selected */}
             {selectedTask && selectedTask !== CUSTOM_TASK_VALUE && selectedTaskCategory && (
               <div className="flex items-center">
-                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs border ${getCategoryColorClass(selectedTaskCategory)}`}>
+                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs border ${getCategoryBadgeColor(selectedTaskCategory)}`}>
                   {selectedTaskCategory}
                 </span>
               </div>
@@ -357,57 +350,4 @@ export function TimerControl({ externalStart, getAccessToken }: TimerControlProp
   );
 }
 
-function getCategoryColorClass(category: Category): string {
-  const colors: Record<Category, string> = {
-    Work: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-    Personal: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-    Errands: 'bg-orange-400/10 text-orange-600 dark:text-orange-400 border-orange-400/20',
-    Design: 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20',
-    Engineering: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
-    Marketing: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-    Finance: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-    Rest: 'bg-neutral-500/10 text-neutral-600 dark:text-neutral-400 border-neutral-500/20',
-    Health: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    Learning: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
-    Admin: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
-    Other: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
-  };
-  return colors[category];
-}
-
-function getTimerColorClass(category: Category): string {
-  const colors: Record<Category, string> = {
-    Work: 'text-blue-600 dark:text-blue-500',
-    Personal: 'text-green-600 dark:text-green-500',
-    Errands: 'text-orange-600 dark:text-orange-500',
-    Design: 'text-pink-600 dark:text-pink-500',
-    Engineering: 'text-teal-600 dark:text-teal-500',
-    Marketing: 'text-yellow-600 dark:text-yellow-500',
-    Finance: 'text-indigo-600 dark:text-indigo-500',
-    Rest: 'text-neutral-600 dark:text-neutral-500',
-    Health: 'text-emerald-600 dark:text-emerald-500',
-    Learning: 'text-purple-600 dark:text-purple-500',
-    Admin: 'text-orange-600 dark:text-orange-500',
-    Other: 'text-gray-600 dark:text-gray-500',
-  };
-  return colors[category];
-}
-
-function getTimerFillClass(category: Category): string {
-  const colors: Record<Category, string> = {
-    Work: 'text-blue-500/20 dark:text-blue-500/30',
-    Personal: 'text-green-500/20 dark:text-green-500/30',
-    Errands: 'text-orange-500/20 dark:text-orange-500/30',
-    Design: 'text-pink-500/20 dark:text-pink-500/30',
-    Engineering: 'text-teal-500/20 dark:text-teal-500/30',
-    Marketing: 'text-yellow-500/20 dark:text-yellow-500/30',
-    Finance: 'text-indigo-500/20 dark:text-indigo-500/30',
-    Rest: 'text-neutral-500/20 dark:text-neutral-500/30',
-    Health: 'text-emerald-500/20 dark:text-emerald-500/30',
-    Learning: 'text-purple-500/20 dark:text-purple-500/30',
-    Admin: 'text-orange-500/20 dark:text-orange-500/30',
-    Other: 'text-gray-500/20 dark:text-gray-500/30',
-  };
-  return colors[category];
-}
 

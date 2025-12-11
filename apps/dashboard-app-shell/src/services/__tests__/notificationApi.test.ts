@@ -82,16 +82,18 @@ describe('notificationApi', () => {
     });
 
     it('should throw error when not initialized', async () => {
-      initializeNotificationApi(null as any);
+      // Reset module to test uninitialized state
+      jest.resetModules();
+      const { notificationApi: freshNotificationApi } = require('../notificationApi');
 
-      await expect(notificationApi.getNotifications()).rejects.toThrow('Notification API not initialized');
+      await expect(freshNotificationApi.getNotifications()).rejects.toThrow('Authentication not initialized');
     });
 
     it('should throw error when token is missing', async () => {
       const emptyTokenGetter = jest.fn().mockResolvedValue(undefined);
       initializeNotificationApi(emptyTokenGetter);
 
-      await expect(notificationApi.getNotifications()).rejects.toThrow('No authentication token available');
+      await expect(notificationApi.getNotifications()).rejects.toThrow('Failed to retrieve access token');
     });
   });
 

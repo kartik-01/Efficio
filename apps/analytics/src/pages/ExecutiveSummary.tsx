@@ -879,21 +879,6 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
             </select>
           </div>
         </div>
-        
-        {/* Right side: Refresh Button */}
-        <div className="flex items-end">
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors h-fit"
-            title="Refresh data from server"
-          >
-            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
@@ -910,7 +895,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
               <BarChart data={data.sprintProgress}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
-                <YAxis />
+                <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Bar dataKey="planned" fill="#3B82F6" name="Created" />
                 <Bar dataKey="actual" fill="#10B981" name="Completed" />
@@ -987,7 +972,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
               <AreaChart data={data.productivityTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day" />
-                <YAxis />
+                <YAxis allowDecimals={false} />
                 <Tooltip formatter={(value: number) => [`${value} min`, 'Time']} />
                 <Area type="monotone" dataKey="value" stroke="#3B82F6" fill="#DBEAFE" strokeWidth={2} />
               </AreaChart>
@@ -1012,7 +997,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={data.timeDistribution} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
+                <XAxis type="number" allowDecimals={false} />
                 <YAxis dataKey="category" type="category" width={100} />
                 <Tooltip formatter={(value: number) => [`${value}h`, 'Hours']} />
                 <Bar dataKey="hours" fill="#8B5CF6" />
@@ -1036,7 +1021,7 @@ const Analytics: React.FC<{ getAccessToken?: () => Promise<string | undefined> }
           <ResponsiveContainer width="100%" height={Math.max(200, data.tasksByGroup.length * 50)}>
             <BarChart data={data.tasksByGroup} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
+              <XAxis type="number" allowDecimals={false} />
               <YAxis dataKey="group" type="category" width={80} fontSize={12} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: '12px' }} />
